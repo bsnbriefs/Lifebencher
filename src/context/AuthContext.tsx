@@ -15,7 +15,8 @@ import {
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { User, Profile, ProfilePreferences } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { fetchProfilePhotoUrl } from '../lib/profilePhoto';
+
+
 
 const SUPER_ADMIN_EMAIL = 'admin@barristerstreet.org';
 const EMAIL_LINK_STORAGE_KEY = 'lifebencher_email_for_sign_in';
@@ -169,6 +170,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userRef = doc(db, 'users', uid);
     const profileRef = doc(db, 'profiles', uid);
 
+    setUser(mapUserDoc(uid, email, undefined, fbUser.phoneNumber || undefined));
+    const extras = loadExtras(uid);
+    setCurrentProfile(profileFromDoc(uid, undefined, extras));
+
     try {
       const userSnap = await getDoc(userRef);
       if (!userSnap.exists()) {
@@ -182,7 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(userRef, payload);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `/users/${uid}`);
+      console.error('users hydrate failed', error);
     }
 
     try {
@@ -191,7 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(profileRef, draftProfile(uid, displayName));
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `/profiles/${uid}`);
+      console.error('profiles hydrate failed', error);
     }
 
     try {
@@ -199,12 +204,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mappedUser = mapUserDoc(uid, email, userSnap.data() as Partial<User> | undefined, fbUser.phoneNumber || undefined);
       setUser(mappedUser);
 
-      const extras = loadExtras(uid);
-      const storedPhoto = await fetchProfilePhotoUrl(uid);
-      if (storedPhoto) {
-        extras.photos = [storedPhoto];
-        saveExtras(uid, extras);
-      }
       const mappedProfile = profileFromDoc(uid, profileSnap.data() as Record<string, unknown> | undefined, extras);
       setCurrentProfile(mappedProfile);
 
@@ -223,7 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `/users/${uid}`);
+      console.error('hydrate read failed', error);
     }
   }, []);
 
@@ -298,7 +297,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!password) {
       throw new Error('Password is required');
     }
-    await signInWithEmailAndPassword(auth, email.trim(), password);
+    const signIn = signInWithEmailAndPassword(auth, email.trim(), password);
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error('Sign-in timed out. Check Authorized domains and try again.')), 12000);
+    });
+    await Promise.race([signIn, timeout]);
     return true;
   };
 
@@ -355,24 +358,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveExtras(uid, merged);
     setCurrentProfile(merged);
 
-    try {
-      await updateDoc(doc(db, 'profiles', uid), firestoreProfilePayload({
-        ...merged,
-        createdAt: currentProfile?.createdAt || nowIso()
-      }));
-    } catch (error) {
+    const payload = firestoreProfilePayload({
+      ...merged,
+      createdAt: currentProfile?.createdAt || nowIso()
+    });
+    const payloadNoPhoto = { ...payload };
+    delete payloadNoPhoto.photoUrl;
+
+    const writeProfile = async () => {
       try {
-        await setDoc(doc(db, 'profiles', uid), {
-          ...firestoreProfilePayload({
-            ...merged,
-            createdAt: currentProfile?.createdAt || nowIso()
-          }),
-          isVerified: false
-        });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `/profiles/${uid}`);
+        await updateDoc(doc(db, 'profiles', uid), payload);
+        return;
+      } catch {
+        /* fall through */
       }
-    }
+      try {
+        await setDoc(doc(db, 'profiles', uid), { ...payload, isVerified: false });
+        return;
+      } catch {
+        /* photoUrl may be rejected by older rules */
+      }
+      try {
+        await updateDoc(doc(db, 'profiles', uid), payloadNoPhoto);
+      } catch {
+        try {
+          await setDoc(doc(db, 'profiles', uid), { ...payloadNoPhoto, isVerified: false });
+        } catch (err) {
+          console.error('Profile save failed', err);
+        }
+      }
+    };
+
+    const timeout = new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 8000);
+    });
+    await Promise.race([writeProfile(), timeout]);
 
     if (accountPhonePending(profileData) && user) {
       try {
