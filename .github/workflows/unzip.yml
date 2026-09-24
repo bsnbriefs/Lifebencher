@@ -1,8 +1,6 @@
 name: Extract Source Files
 on:
   push:
-    paths:
-      - 'lifebencher-match.zip'
   workflow_dispatch:
 
 permissions:
@@ -17,10 +15,19 @@ jobs:
 
       - name: Unzip and commit folders
         run: |
-         unzip -o lifebencher-match.zip
-         rm lifebencher-match.zip
-         git config user.name "github-actions[bot]"
-         git config user.email "github-actions[bot]@users.noreply.github.com"
-         git add src public
-         git commit -m "feat: populate src and public folders"
-         git push
+          # Find the zip file whether in root or inside .github/workflows
+          if [ -f "lifebencher-match.zip" ]; then
+            ZIP_FILE="lifebencher-match.zip"
+          elif [ -f ".github/workflows/lifebencher-match.zip" ]; then
+            ZIP_FILE=".github/workflows/lifebencher-match.zip"
+          fi
+
+          echo "Unpacking $ZIP_FILE..."
+          unzip -o "$ZIP_FILE" -d .
+          rm -f "$ZIP_FILE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src public
+          git commit -m "feat: populate src and public folders" || echo "No changes to commit"
+          git push
