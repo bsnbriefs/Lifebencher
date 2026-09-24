@@ -262,7 +262,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      setIsLoading(true);
+      // Do not flip isLoading on later auth events (registration). That unmounts
+      // OnboardingFlow and resets currentStep back to 1.
       setAuthError(null);
       try {
         await hydrateFromFirebaseUser(fbUser);
