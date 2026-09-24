@@ -21,8 +21,8 @@ interface NavItem {
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   onSelectTab,
-  unreadCount = 2,
-  newMatchesCount = 1
+  unreadCount = 0,
+  newMatchesCount = 0
 }) => {
   const navItems: NavItem[] = [
     { id: 'discover', label: 'Discover', icon: Compass },
