@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ShieldCheck,
   Users,
@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
+import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
+import { useAuth } from '../../context/AuthContext';
 
 interface AdminDashboardProps {
   onBackToApp: () => void;
@@ -40,25 +42,50 @@ interface VerificationCandidate {
   status: 'pending' | 'approved' | 'rejected' | 'changes_requested';
 }
 
-const INITIAL_VERIFICATION_QUEUE: VerificationCandidate[] = [];
-
-const REGISTERED_CLIENTS_SAMPLE: {
-  id: string;
-  displayName: string;
-  age: number;
-  profession: string;
-  location: string;
-  isVerified: boolean;
-  status: string;
-}[] = [];
-
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) => {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches'>('verifications');
-
-  // Verification queue state
-  const [queue, setQueue] = useState<VerificationCandidate[]>(INITIAL_VERIFICATION_QUEUE);
-  const [selectedCandidate, setSelectedCandidate] = useState<VerificationCandidate | null>(null);
+  const [liveProfiles, setLiveProfiles] = useState<Profile[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    return listenAllProfiles(setLiveProfiles);
+  }, []);
+
+  const queue: VerificationCandidate[] = useMemo(
+    () =>
+      liveProfiles
+        .filter((p) => !p.isVerified)
+        .map((p) => ({
+          id: p.id,
+          displayName: p.displayName,
+          age: p.age,
+          gender: p.gender,
+          location: p.location,
+          profession: p.profession,
+          education: p.education,
+          bio: p.bio,
+          submittedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleString() : '',
+          idDocument: 'Onboarding profile',
+          photoUrl: p.photos[0] || '',
+          status: 'pending' as const
+        })),
+    [liveProfiles]
+  );
+
+  const registeredClients = useMemo(
+    () =>
+      liveProfiles.map((p) => ({
+        id: p.id,
+        displayName: p.displayName,
+        age: p.age,
+        profession: p.profession,
+        location: p.location,
+        isVerified: p.isVerified,
+        status: p.isVisible ? 'Active' : 'Hidden'
+      })),
+    [liveProfiles]
+  );
 
   // Manual Curation Matchmaker state
   const [clientA, setClientA] = useState('');
@@ -79,21 +106,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   >([]);
 
   const handleApprove = (id: string) => {
-    setQueue((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: 'approved' } : c))
-    );
-    setSelectedCandidate(null);
-    setNotification('Candidate successfully approved & verified! Granted verified shield.');
-    setTimeout(() => setNotification(null), 3000);
+    const profile = liveProfiles.find((p) => p.id === id);
+    if (!profile) return;
+    void setProfileVerified(profile, true)
+      .then(() => {
+        setNotification(`${profile.displayName} is now verified.`);
+        setTimeout(() => setNotification(null), 3000);
+      })
+      .catch((err) => {
+        setNotification(err instanceof Error ? err.message : 'Could not verify this member.');
+        setTimeout(() => setNotification(null), 4000);
+      });
   };
 
   const handleReject = (id: string) => {
-    setQueue((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: 'rejected' } : c))
-    );
-    setSelectedCandidate(null);
-    setNotification('Candidate application declined.');
-    setTimeout(() => setNotification(null), 3000);
+    const profile = liveProfiles.find((p) => p.id === id);
+    if (!profile) return;
+    void setProfileVerified(profile, false)
+      .then(() => {
+        setNotification(`${profile.displayName} remains unverified.`);
+        setTimeout(() => setNotification(null), 3000);
+      })
+      .catch((err) => {
+        setNotification(err instanceof Error ? err.message : 'Could not update verification.');
+        setTimeout(() => setNotification(null), 4000);
+      });
   };
 
   const handleDispatchIntroduction = () => {
@@ -101,8 +138,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
     setIsIntroducing(true);
     setTimeout(() => {
       setIsIntroducing(false);
-      const nameA = REGISTERED_CLIENTS_SAMPLE.find((c) => c.id === clientA)?.displayName;
-      const nameB = REGISTERED_CLIENTS_SAMPLE.find((c) => c.id === clientB)?.displayName;
+      const nameA = registeredClients.find((c) => c.id === clientA)?.displayName;
+      const nameB = registeredClients.find((c) => c.id === clientB)?.displayName;
       if (!nameA || !nameB) return;
 
       setSystemMatches((prev) => [
@@ -167,6 +204,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         </div>
       </header>
 
+      {!isAdmin && (
+        <div className="max-w-md mx-auto px-4 pt-4">
+          <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl p-3">
+            Sign in as admin@barristerstreet.org (verified email) to approve members. This session is not an admin account.
+          </p>
+        </div>
+      )}
       <div className="max-w-md mx-auto p-4 space-y-4">
         {/* Metric Overview Pills */}
         <div className="grid grid-cols-3 gap-2">
@@ -185,9 +229,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           </div>
 
           <div className="bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs">
-            <span className="text-[10px] uppercase font-bold text-stone-400 block">Extension Rev</span>
+            <span className="text-[10px] uppercase font-bold text-stone-400 block">Verified</span>
             <span className="font-serif text-xl font-bold text-emerald-800">
-              ₦9,000
+              {liveProfiles.filter((p) => p.isVerified).length}
             </span>
           </div>
         </div>
@@ -363,7 +407,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-300 outline-hidden font-medium"
                 >
                   <option value="">Select member</option>
-                  {REGISTERED_CLIENTS_SAMPLE.map((c) => (
+                  {registeredClients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.displayName} ({c.profession.split(' ')[0]})
                     </option>
@@ -379,7 +423,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-300 outline-hidden font-medium"
                 >
                   <option value="">Select member</option>
-                  {REGISTERED_CLIENTS_SAMPLE.map((c) => (
+                  {registeredClients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.displayName} ({c.profession.split(' ')[0]})
                     </option>
@@ -484,12 +528,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             </h3>
 
             <div className="space-y-2">
-              {REGISTERED_CLIENTS_SAMPLE.length === 0 && (
+              {registeredClients.length === 0 && (
                 <p className="text-xs text-stone-500 py-8 text-center">
                   No registered clients loaded. Directory will list live members when connected to Firestore.
                 </p>
               )}
-              {REGISTERED_CLIENTS_SAMPLE.map((c) => (
+              {registeredClients.map((c) => (
                 <div
                   key={c.id}
                   className="p-3 rounded-2xl bg-stone-50 border border-stone-200/80 flex items-center justify-between text-xs"
