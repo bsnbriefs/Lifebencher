@@ -36,7 +36,7 @@ function AppContent() {
     setActiveTab('messages');
   };
 
-  if (isLoading) {
+  if (isLoading && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
         <p className="text-sm text-stone-500">Connecting to Lifebencher…</p>
