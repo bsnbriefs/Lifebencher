@@ -91,41 +91,9 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               </div>
 
               <div className="space-y-2 text-xs">
-                <div className="p-3 bg-stone-50 rounded-2xl border border-stone-150 flex items-start gap-2.5">
-                  <Heart className="w-4 h-4 text-rose-800 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-stone-900 block">
-                      New Intentional Connection
-                    </span>
-                    <span className="text-stone-500 text-[11px] block mt-0.5">
-                      You and Amaka have an active 7-day connection window.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/60 flex items-start gap-2.5">
-                  <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-amber-950 block">
-                      Connection Window Notice
-                    </span>
-                    <span className="text-amber-800 text-[11px] block mt-0.5">
-                      Your connection with Kemi has ~19 hours remaining. You can extend anytime.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/60 flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-emerald-950 block">
-                      Verified Shield Active
-                    </span>
-                    <span className="text-emerald-800 text-[11px] block mt-0.5">
-                      Your identity and values review has been certified by Concierge.
-                    </span>
-                  </div>
-                </div>
+                <p className="p-4 text-center text-stone-500">
+                  No activity yet. Matches, expirations, and verification updates will appear here.
+                </p>
               </div>
             </motion.div>
           </div>
