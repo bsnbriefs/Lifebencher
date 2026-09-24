@@ -1,0 +1,8 @@
+{
+  "name": "Lifebencher Match",
+  "description": "A premium, mobile-first matchmaking platform connecting intentional individuals for serious relationships.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
