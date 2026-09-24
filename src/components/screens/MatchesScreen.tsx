@@ -19,6 +19,7 @@ import { Match, MatchRequest } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, extendMatch, listenUserMatches } from '../../lib/matches';
+import { acceptInterest, declineInterest, listenIncomingInterests } from '../../lib/interests';
 
 interface MatchesScreenProps {
   onOpenChat: (matchId: string) => void;
@@ -67,104 +68,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
   const [activeTab, setActiveTab] = useState<'matches' | 'requests'>('matches');
 
   const [activeMatches, setActiveMatches] = useState<Match[]>([]);
-  const [_seedMatches] = useState<Match[]>([
-    {
-      id: 'match_1',
-      user1Id: 'usr_me',
-      user2Id: 'usr_amaka',
-      otherProfile: {
-        id: 'prof_amaka',
-        userId: 'usr_amaka',
-        displayName: 'Amaka',
-        age: 28,
-        gender: 'female',
-        location: 'Victoria Island, Lagos',
-        profession: 'Senior Financial Analyst',
-        education: 'B.Sc. Economics',
-        bio: 'Warm, intentional, and family-oriented.',
-        photos: [
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80'
-        ],
-        interests: ['Literature', 'Fine Art', 'Travel'],
-        values: ['Faith & Family', 'Integrity'],
-        relationshipGoal: 'Intentional courtship leading to marriage',
-        lifestyle: { faith: 'Christian' },
-        isVerified: true,
-        isVisible: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      status: 'active',
-      startedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-      expiresAt: new Date(Date.now() + 5 * 86400000).toISOString(), // 5 days remaining
-      extendedCount: 0
-    },
-    {
-      id: 'match_2',
-      user1Id: 'usr_me',
-      user2Id: 'usr_kemi',
-      otherProfile: {
-        id: 'prof_kemi',
-        userId: 'usr_kemi',
-        displayName: 'Kemi',
-        age: 29,
-        gender: 'female',
-        location: 'Ikoyi, Lagos',
-        profession: 'Pediatric Specialist',
-        education: 'MBBS (King’s College London)',
-        bio: 'Compassionate physician seeking emotional depth and shared purpose.',
-        photos: [
-          'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800&auto=format&fit=crop&q=80'
-        ],
-        interests: ['Healthcare', 'Classical Jazz'],
-        values: ['Compassion', 'Growth'],
-        relationshipGoal: 'Long-term marriage with deep companionship',
-        lifestyle: { faith: 'Christian' },
-        isVerified: true,
-        isVisible: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      status: 'active',
-      startedAt: new Date(Date.now() - 6.2 * 86400000).toISOString(),
-      expiresAt: new Date(Date.now() + 0.8 * 86400000).toISOString(), // ~19h remaining (Urgent!)
-      extendedCount: 0
-    }
-  ]);
-
-  // Incoming interest requests
-  const [requests, setRequests] = useState<MatchRequest[]>([
-    {
-      id: 'req_1',
-      senderId: 'usr_zainab',
-      receiverId: 'usr_me',
-      senderProfile: {
-        id: 'prof_zainab',
-        userId: 'usr_zainab',
-        displayName: 'Zainab',
-        age: 30,
-        gender: 'female',
-        location: 'Maitama, Abuja',
-        profession: 'Corporate Legal Counsel',
-        education: 'LL.M. Commercial Law',
-        bio: 'Seeking an intentional partner to build a meaningful legacy together.',
-        photos: [
-          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80'
-        ],
-        interests: ['Art', 'History'],
-        values: ['Honor', 'Honesty', 'Faith'],
-        relationshipGoal: 'Intentional marriage',
-        lifestyle: { faith: 'Christian' },
-        isVerified: true,
-        isVisible: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
-  ]);
+  const [requests, setRequests] = useState<MatchRequest[]>([]);
 
   // Celebration modal state
   const [celebrationMatch, setCelebrationMatch] = useState<{
@@ -215,42 +119,37 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
 
   useEffect(() => {
     if (!user?.id) return;
-    return listenUserMatches(user.id, (matches) => {
+    const unsubMatches = listenUserMatches(user.id, (matches) => {
       setActiveMatches(matches.filter((m) => m.status !== 'ended'));
     });
+    const unsubRequests = listenIncomingInterests(user.id, setRequests);
+    return () => {
+      unsubMatches();
+      unsubRequests();
+    };
   }, [user?.id]);
 
-  // Handle Accept incoming interest -> creates active match and opens celebration
   const handleAcceptRequest = (req: MatchRequest) => {
-    if (!req.senderProfile) return;
-
-    const newMatchId = 'match_' + Date.now();
-    const newMatch: Match = {
-      id: newMatchId,
-      user1Id: 'usr_me',
-      user2Id: req.senderId,
-      otherProfile: req.senderProfile,
-      status: 'active',
-      startedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), // 7 full days
-      extendedCount: 0
-    };
-
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
-    setActiveMatches((prev) => [newMatch, ...prev]);
-
-    sounds.playMatchCelebration();
-
-    setCelebrationMatch({
-      displayName: req.senderProfile.displayName,
-      photo: req.senderProfile.photos[0],
-      matchId: newMatchId
-    });
+    void acceptInterest(req.id, req.senderId)
+      .then((matchId) => {
+        sounds.playMatchCelebration();
+        setCelebrationMatch({
+          displayName: req.senderProfile?.displayName || 'Member',
+          photo: req.senderProfile?.photos[0] || '',
+          matchId
+        });
+      })
+      .catch((err) => {
+        setExtensionSuccessMsg(err instanceof Error ? err.message : 'Could not accept this request.');
+        setTimeout(() => setExtensionSuccessMsg(null), 4000);
+      });
   };
 
-  // Handle Decline incoming interest
   const handleDeclineRequest = (reqId: string) => {
-    setRequests((prev) => prev.filter((r) => r.id !== reqId));
+    void declineInterest(reqId).catch((err) => {
+      setExtensionSuccessMsg(err instanceof Error ? err.message : 'Could not decline this request.');
+      setTimeout(() => setExtensionSuccessMsg(null), 4000);
+    });
   };
 
   // Handle Unmatch / End match
