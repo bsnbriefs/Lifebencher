@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Heart,
   SlidersHorizontal,
@@ -19,124 +19,11 @@ import { calculateCompatibility, CompatibilityResult } from '../../lib/compatibi
 import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
-import { createOrGetMatch } from '../../lib/matches';
+import { listenVisibleProfiles } from '../../lib/matches';
+import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 
-const INITIAL_PROFILES: Profile[] = [
-  {
-    id: 'prof_amaka',
-    userId: 'usr_amaka',
-    displayName: 'Amaka',
-    age: 28,
-    gender: 'female',
-    location: 'Victoria Island, Lagos',
-    profession: 'Senior Financial Analyst',
-    education: 'B.Sc. Economics (Unilag)',
-    bio: 'Rooted in faith, purposeful conversations, and classical architecture. I value intellectual honesty and shared family vision above all.',
-    photos: [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&auto=format&fit=crop&q=80'
-    ],
-    interests: ['Fine Art', 'Literature', 'Classical Jazz', 'Architecture'],
-    values: ['Faith & Family', 'Emotional Intelligence', 'Honesty', 'Continuous Growth'],
-    relationshipGoal: 'Intentional courtship leading to marriage',
-    lifestyle: {
-      faith: 'Christian',
-      drinking: 'socially',
-      smoking: 'no',
-      exercise: 'active',
-      kids: 'wants kids'
-    },
-    isVerified: true,
-    isVisible: true,
-    createdAt: '2025-01-10T00:00:00.000Z',
-    updatedAt: '2025-01-10T00:00:00.000Z'
-  },
-  {
-    id: 'prof_kemi',
-    userId: 'usr_kemi',
-    displayName: 'Kemi',
-    age: 29,
-    gender: 'female',
-    location: 'Ikoyi, Lagos',
-    profession: 'Pediatric Specialist',
-    education: 'MBBS (King’s College London)',
-    bio: 'Dedicated physician passionate about maternal health and quiet beach retreats. I appreciate people who lead with kindness and integrity.',
-    photos: [
-      'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&auto=format&fit=crop&q=80'
-    ],
-    interests: ['Medicine & Wellness', 'Travel & Exploration', 'Culinary Arts', 'Jazz'],
-    values: ['Integrity & Honesty', 'Family-Centered', 'Mutual Respect', 'Generosity & Kindness'],
-    relationshipGoal: 'Long-term marriage with deep companionship',
-    lifestyle: {
-      faith: 'Christian',
-      drinking: 'no',
-      smoking: 'no',
-      exercise: 'sometimes',
-      kids: 'wants kids'
-    },
-    isVerified: true,
-    isVisible: true,
-    createdAt: '2025-01-12T00:00:00.000Z',
-    updatedAt: '2025-01-12T00:00:00.000Z'
-  },
-  {
-    id: 'prof_fatima',
-    userId: 'usr_fatima',
-    displayName: 'Fatima',
-    age: 27,
-    gender: 'female',
-    location: 'Maitama, Abuja',
-    profession: 'Renewable Energy Consultant',
-    education: 'M.Sc. Sustainable Energy (Imperial)',
-    bio: 'Building green infrastructure across West Africa. In my free time, I love hiking, thoughtful discussions, and reading history.',
-    photos: [
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&auto=format&fit=crop&q=80'
-    ],
-    interests: ['Nature & Hiking', 'Literature & Books', 'Travel & Exploration', 'Business & Tech'],
-    values: ['Continuous Growth', 'Faith & Spirituality', 'Integrity & Honesty'],
-    relationshipGoal: 'Intentional marriage',
-    lifestyle: {
-      faith: 'Muslim',
-      drinking: 'no',
-      smoking: 'no',
-      exercise: 'active',
-      kids: 'open to kids'
-    },
-    isVerified: true,
-    isVisible: true,
-    createdAt: '2025-01-15T00:00:00.000Z',
-    updatedAt: '2025-01-15T00:00:00.000Z'
-  },
-  {
-    id: 'prof_zainab',
-    userId: 'usr_zainab',
-    displayName: 'Zainab',
-    age: 30,
-    gender: 'female',
-    location: 'Victoria Island, Lagos',
-    profession: 'Corporate Legal Counsel',
-    education: 'LL.M. Commercial Law',
-    bio: 'Passionate about intellectual property and arts advocacy. Seeking a partner grounded in mutual respect, clear communication, and shared faith.',
-    photos: [
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80'
-    ],
-    interests: ['Fine Art & Galleries', 'Literature & Books', 'Classical & Jazz Music'],
-    values: ['Mutual Respect', 'Family-Centered', 'Integrity & Honesty', 'Faith & Spirituality'],
-    relationshipGoal: 'Intentional courtship leading to marriage',
-    lifestyle: {
-      faith: 'Christian',
-      drinking: 'socially',
-      smoking: 'no',
-      exercise: 'active',
-      kids: 'wants kids'
-    },
-    isVerified: true,
-    isVisible: true,
-    createdAt: '2025-01-18T00:00:00.000Z',
-    updatedAt: '2025-01-18T00:00:00.000Z'
-  }
-];
+const FALLBACK_PHOTO =
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
 
 const DEFAULT_FILTERS: DiscoverFilters = {
   searchTerm: '',
@@ -147,9 +34,10 @@ const DEFAULT_FILTERS: DiscoverFilters = {
 };
 
 export const DiscoverScreen: React.FC = () => {
-  const { currentProfile, preferences } = useAuth();
+  const { user, currentProfile, preferences } = useAuth();
 
-  const [profiles] = useState<Profile[]>(INITIAL_PROFILES);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
   const [filters, setFilters] = useState<DiscoverFilters>(DEFAULT_FILTERS);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
@@ -160,6 +48,30 @@ export const DiscoverScreen: React.FC = () => {
   const [sentInterests, setSentInterests] = useState<Record<string, boolean>>({});
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setProfiles([]);
+      setIsLoadingProfiles(false);
+      return;
+    }
+    setIsLoadingProfiles(true);
+    const unsubProfiles = listenVisibleProfiles(user.id, (list) => {
+      setProfiles(list);
+      setIsLoadingProfiles(false);
+    });
+    const unsubOutgoing = listenOutgoingInterestIds(user.id, (ids) => {
+      const map: Record<string, boolean> = {};
+      ids.forEach((id) => {
+        map[id] = true;
+      });
+      setSentInterests(map);
+    });
+    return () => {
+      unsubProfiles();
+      unsubOutgoing();
+    };
+  }, [user?.id]);
 
   // Calculate compatibility for each candidate against active logged-in profile
   const compatibilityMap = useMemo(() => {
@@ -220,10 +132,14 @@ export const DiscoverScreen: React.FC = () => {
     if (!target) return;
     setRequestLoading(profileId);
     sounds.playSend();
-    createOrGetMatch(target.userId)
-      .then(() => {
-        setSentInterests((prev) => ({ ...prev, [profileId]: true }));
-        setToastMessage(`Connection opened with ${target.displayName}. You can chat in Messages.`);
+    sendInterest(target.userId)
+      .then((result) => {
+        setSentInterests((prev) => ({ ...prev, [profileId]: true, [target.userId]: true }));
+        setToastMessage(
+          result === 'matched'
+            ? `It's mutual with ${target.displayName}. A 7-day connection is now open.`
+            : `Interest sent to ${target.displayName}. They'll review it in Matches.`
+        );
         setTimeout(() => setToastMessage(null), 3500);
       })
       .catch((err) => {
@@ -287,28 +203,36 @@ export const DiscoverScreen: React.FC = () => {
       </AnimatePresence>
 
       {/* Profiles Feed */}
-      {filteredProfiles.length === 0 ? (
+      {isLoadingProfiles ? (
+        <div className="text-center py-16 bg-white rounded-3xl border border-stone-200 p-6">
+          <p className="text-sm text-stone-500">Loading visible profiles…</p>
+        </div>
+      ) : filteredProfiles.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-3xl border border-stone-200 p-6 space-y-3">
           <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto text-stone-400">
             <Search className="w-5 h-5" />
           </div>
           <h3 className="font-serif font-bold text-base text-stone-800">
-            No profiles match these filters
+            {profiles.length === 0 ? 'No other visible profiles yet' : 'No profiles match these filters'}
           </h3>
           <p className="text-xs text-stone-500 max-w-xs mx-auto">
-            Try adjusting your age or location filters to see more verified members.
+            {profiles.length === 0
+              ? 'When other members complete onboarding and stay visible, they will appear here.'
+              : 'Try adjusting your age or location filters to see more verified members.'}
           </p>
+          {profiles.length > 0 && (
           <button
             onClick={() => setFilters(DEFAULT_FILTERS)}
             className="text-xs font-semibold text-rose-900 underline cursor-pointer"
           >
             Reset All Filters
           </button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
           {filteredProfiles.map((p) => {
-            const hasSent = !!sentInterests[p.id];
+            const hasSent = !!sentInterests[p.id] || !!sentInterests[p.userId];
             const isLoading = requestLoading === p.id;
             const compatibility = compatibilityMap[p.id];
 
@@ -326,7 +250,7 @@ export const DiscoverScreen: React.FC = () => {
                   onClick={() => setDetailProfile(p)}
                 >
                   <img
-                    src={p.photos[0]}
+                    src={p.photos[0] || FALLBACK_PHOTO}
                     alt={p.displayName}
                     className="w-full h-full object-cover group-hover:scale-101 transition duration-300"
                     loading="lazy"
