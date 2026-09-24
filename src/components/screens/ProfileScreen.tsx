@@ -15,13 +15,11 @@ import {
   Sparkles,
   Sliders,
   UserCheck,
-  Download,
   Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
-import { downloadProjectZip } from '../../lib/downloadZip';
 import { uploadProfilePhoto } from '../../lib/profilePhoto';
 
 interface ProfileScreenProps {
@@ -29,7 +27,7 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => {
-  const { currentProfile, updateProfile, preferences, updatePreferences, logout } = useAuth();
+  const { currentProfile, updateProfile, preferences, updatePreferences, logout, isAdmin } = useAuth();
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
   // Modal / sheet states
@@ -262,59 +260,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         </div>
       </div>
 
-      {/* PWA & Mobile App Section */}
-      <div className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-3">
-        <h3 className="font-serif font-bold text-base text-stone-900 flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-rose-800" />
-          Mobile App Experience
-        </h3>
-
-        <p className="text-xs text-stone-600 leading-relaxed">
-          Lifebencher Match is crafted as an installable Progressive Web App (PWA). You can launch it directly from your phone's home screen with instant loading and native touch transitions.
-        </p>
-
-        {isInstallable && !isInstalled && (
-          <button
-            onClick={install}
-            className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-semibold text-xs transition active:scale-98 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-          >
-            <span>Install Lifebencher Match on Home Screen</span>
-          </button>
-        )}
-
-        {isInstalled && (
-          <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-medium border border-emerald-200/60 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Installed as Standalone Mobile Application</span>
-          </div>
-        )}
-      </div>
-
-      {/* Codebase Export / Download ZIP for GitHub */}
-      <div className="pt-2">
+      {isInstallable && !isInstalled && (
         <button
-          onClick={() => {
-            downloadProjectZip();
-          }}
-          className="w-full py-3.5 px-4 rounded-2xl bg-white border border-stone-300 hover:border-stone-400 text-stone-800 font-semibold text-xs transition active:scale-98 flex items-center justify-between shadow-2xs cursor-pointer text-left"
+          onClick={install}
+          className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-semibold text-xs transition active:scale-98 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
         >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-800">
-              <Download className="w-4 h-4 text-rose-900" />
-            </div>
-            <div>
-              <span className="font-bold text-stone-900 block">Download Project ZIP</span>
-              <span className="text-[10px] text-stone-500">Self-contained offline ZIP for GitHub (88 KB)</span>
-            </div>
-          </div>
-          <span className="text-[10px] px-2.5 py-1 rounded-full bg-rose-100 text-rose-950 font-bold border border-rose-200">
-            Download
-          </span>
+          <Smartphone className="w-4 h-4" />
+          <span>Add Lifebencher Match to Home Screen</span>
         </button>
-      </div>
+      )}
 
-      {/* Concierge Admin Portal Launch Button */}
-      {onOpenAdmin && (
+      {isAdmin && onOpenAdmin && (
         <div className="pt-2">
           <button
             onClick={onOpenAdmin}
