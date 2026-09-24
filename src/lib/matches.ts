@@ -32,6 +32,31 @@ function mapMatch(id: string, data: Record<string, unknown>, otherProfile?: Prof
   };
 }
 
+export function mapProfileDoc(profileId: string, d: Record<string, unknown>, photo?: string): Profile {
+  const stored = typeof d.photoUrl === 'string' ? d.photoUrl : '';
+  const resolved = stored || photo || '';
+  return {
+    id: String(d.id || profileId),
+    userId: String(d.userId || profileId),
+    displayName: String(d.displayName || 'Member'),
+    age: typeof d.age === 'number' ? d.age : 28,
+    gender: (d.gender as Profile['gender']) || 'other',
+    location: String(d.location || ''),
+    profession: String(d.profession || ''),
+    education: String(d.education || ''),
+    bio: String(d.bio || ''),
+    photos: resolved ? [resolved] : [],
+    interests: [],
+    values: [],
+    relationshipGoal: String(d.relationshipGoal || ''),
+    lifestyle: {},
+    isVerified: Boolean(d.isVerified),
+    isVisible: d.isVisible !== false,
+    createdAt: String(d.createdAt || ''),
+    updatedAt: String(d.updatedAt || '')
+  };
+}
+
 export async function fetchProfileSafe(profileId: string): Promise<Profile | undefined> {
   try {
     const snap = await getDoc(doc(db, 'profiles', profileId));
@@ -39,30 +64,28 @@ export async function fetchProfileSafe(profileId: string): Promise<Profile | und
     const d = snap.data() as Record<string, unknown>;
     const { fetchProfilePhotoUrl } = await import('./profilePhoto');
     const stored = typeof d.photoUrl === 'string' ? d.photoUrl : '';
-    const photo = stored || (await fetchProfilePhotoUrl(profileId));
-    return {
-      id: String(d.id || profileId),
-      userId: String(d.userId || profileId),
-      displayName: String(d.displayName || 'Member'),
-      age: typeof d.age === 'number' ? d.age : 28,
-      gender: (d.gender as Profile['gender']) || 'other',
-      location: String(d.location || ''),
-      profession: String(d.profession || ''),
-      education: String(d.education || ''),
-      bio: String(d.bio || ''),
-      photos: photo ? [photo] : [],
-      interests: [],
-      values: [],
-      relationshipGoal: String(d.relationshipGoal || ''),
-      lifestyle: {},
-      isVerified: Boolean(d.isVerified),
-      isVisible: d.isVisible !== false,
-      createdAt: String(d.createdAt || ''),
-      updatedAt: String(d.updatedAt || '')
-    };
+    const photo = stored || (await fetchProfilePhotoUrl(profileId)) || undefined;
+    return mapProfileDoc(profileId, d, photo);
   } catch {
     return undefined;
   }
+}
+
+export function listenVisibleProfiles(
+  currentUid: string,
+  onChange: (profiles: Profile[]) => void
+): () => void {
+  const q = query(collection(db, 'profiles'), where('isVisible', '==', true));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const mapped = snap.docs
+        .filter((d) => d.id !== currentUid)
+        .map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>));
+      onChange(mapped);
+    },
+    (error) => handleFirestoreError(error, OperationType.LIST, '/profiles')
+  );
 }
 
 export function listenUserMatches(
