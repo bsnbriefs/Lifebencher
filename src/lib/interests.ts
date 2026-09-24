@@ -78,10 +78,16 @@ export async function sendInterest(otherUserId: string): Promise<'sent' | 'match
 
   const id = interestIdFor(uid, otherUserId);
   const ref = doc(db, 'matchRequests', id);
-  const existing = await getDoc(ref);
   const now = new Date().toISOString();
 
-  if (existing.exists()) {
+  let existing: Awaited<ReturnType<typeof getDoc>> | null = null;
+  try {
+    existing = await getDoc(ref);
+  } catch {
+    existing = null;
+  }
+
+  if (existing?.exists()) {
     const data = existing.data() as Record<string, unknown>;
     const status = String(data.status || 'pending');
     if (status === 'matched') return 'matched';
@@ -108,7 +114,11 @@ export async function sendInterest(otherUserId: string): Promise<'sent' | 'match
   try {
     await setDoc(ref, payload);
   } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, `/matchRequests/${id}`);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('permission') || message.includes('Permission')) {
+      throw new Error('Could not send interest. Update Firestore rules to allow matchRequests, then try again.');
+    }
+    throw new Error(message);
   }
   return 'sent';
 }
