@@ -74,7 +74,7 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
                   type="text"
                   value={localFilters.searchTerm}
                   onChange={(e) => setLocalFilters({ ...localFilters, searchTerm: e.target.value })}
-                  placeholder="e.g. Architect, Analyst, Amaka"
+                  placeholder="Name or profession"
                   className="w-full p-2.5 rounded-xl bg-white border border-stone-300 text-stone-900 outline-hidden"
                 />
               </div>
