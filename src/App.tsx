@@ -36,6 +36,16 @@ function AppContent() {
     setActiveTab('messages');
   };
 
+  if (isAdminMode) {
+    return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
+  }
+
+  // Keep OnboardingFlow mounted through Auth hydration so step state is not
+  // destroyed after createUserWithEmailAndPassword → onAuthStateChanged.
+  if (!isOnboarded) {
+    return <OnboardingFlow />;
+  }
+
   if (isLoading && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
@@ -44,13 +54,7 @@ function AppContent() {
     );
   }
 
-  // If user is in Admin Concierge mode, render full Admin Portal
-  if (isAdminMode) {
-    return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
-  }
-
-  // If user is not authenticated or hasn't finished the onboarding steps, show OnboardingFlow
-  if (!isAuthenticated || !isOnboarded) {
+  if (!isAuthenticated) {
     return <OnboardingFlow />;
   }
 
