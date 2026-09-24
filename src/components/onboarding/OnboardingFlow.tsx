@@ -503,7 +503,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                           type="text"
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="e.g. Chukwudi"
+                          placeholder="Your first name"
                           className="w-full text-xs text-stone-900 bg-transparent outline-hidden"
                         />
                       </div>
