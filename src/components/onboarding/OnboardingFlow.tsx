@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   ArrowRight,
@@ -85,10 +85,26 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Step indicator: 1 to 6
-  const [currentStep, setCurrentStep] = useState(1);
+  // Step indicator: 1 to 6 — restore if Auth hydration remounts this screen
+  const [currentStep, setCurrentStep] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('lifebencher_onboarding_step');
+      const n = saved ? Number(saved) : 1;
+      return n >= 1 && n <= 6 ? n : 1;
+    } catch {
+      return 1;
+    }
+  });
 
   // Step 1: Account
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('lifebencher_onboarding_step', String(currentStep));
+    } catch {
+      /* ignore */
+    }
+  }, [currentStep]);
+
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -183,7 +199,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       }
       setIsSubmitting(true);
       register({ email, phone, displayName, password })
-        .then(() => setCurrentStep(2))
+        .then(() => {
+          sessionStorage.setItem('lifebencher_onboarding_step', '2');
+          setCurrentStep(2);
+        })
         .catch((err) => setErrorMessage(err instanceof Error ? err.message : 'Registration failed.'))
         .finally(() => setIsSubmitting(false));
       return;
@@ -261,6 +280,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     );
 
     setIsSubmitting(false);
+    try {
+      sessionStorage.removeItem('lifebencher_onboarding_step');
+    } catch {
+      /* ignore */
+    }
     if (onCompleted) onCompleted();
   };
 
