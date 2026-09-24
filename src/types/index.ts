@@ -50,7 +50,7 @@ export interface ProfilePreferences {
   preferredRelationshipGoals: string[];
 }
 
-export type MatchRequestStatus = 'pending' | 'accepted' | 'declined';
+export type MatchRequestStatus = 'pending' | 'matched' | 'declined';
 
 export interface MatchRequest {
   id: string;
