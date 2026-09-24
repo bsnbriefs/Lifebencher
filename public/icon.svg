@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#831843" />
+      <stop offset="100%" stop-color="#4c0519" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background with safe zone padding -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+
+  <!-- Outer subtle luxury border -->
+  <rect x="16" y="16" width="480" height="480" rx="98" fill="none" stroke="#FDE68A" stroke-opacity="0.2" stroke-width="2" />
+
+  <!-- Center Monogram: Harmonious entwined heart & connection ring -->
+  <g filter="url(#softGlow)" transform="translate(0, -6)">
+    <!-- Heart Path -->
+    <path
+      d="M256 385 C256 385 130 295 130 195 C130 140 172 100 224 100 C242 100 250 110 256 120 C262 110 270 100 288 100 C340 100 382 140 382 195 C382 295 256 385 256 385 Z"
+      fill="none"
+      stroke="url(#goldGrad)"
+      stroke-width="24"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <!-- Subtle center sparkle dot -->
+    <circle cx="256" cy="225" r="9" fill="#FFFBEB" />
+  </g>
+
+  <!-- Monogram text -->
+  <text x="256" y="442" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="700" letter-spacing="4" fill="#FDF2F8">
+    LIFEBENCHER
+  </text>
+</svg>
