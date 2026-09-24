@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Match, MatchRequest } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
+import { endMatch, extendMatch, listenUserMatches } from '../../lib/matches';
 
 interface MatchesScreenProps {
   onOpenChat: (matchId: string) => void;
@@ -62,11 +63,11 @@ const EXTENSION_PLANS: ExtensionPlan[] = [
 ];
 
 export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
-  const { currentProfile } = useAuth();
+  const { user, currentProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'matches' | 'requests'>('matches');
 
-  // Active matches list with local dynamic state
-  const [activeMatches, setActiveMatches] = useState<Match[]>([
+  const [activeMatches, setActiveMatches] = useState<Match[]>([]);
+  const [_seedMatches] = useState<Match[]>([
     {
       id: 'match_1',
       user1Id: 'usr_me',
@@ -212,6 +213,13 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    return listenUserMatches(user.id, (matches) => {
+      setActiveMatches(matches.filter((m) => m.status !== 'ended'));
+    });
+  }, [user?.id]);
+
   // Handle Accept incoming interest -> creates active match and opens celebration
   const handleAcceptRequest = (req: MatchRequest) => {
     if (!req.senderProfile) return;
@@ -248,7 +256,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
   // Handle Unmatch / End match
   const handleConfirmUnmatch = () => {
     if (!unmatchTarget) return;
-    setActiveMatches((prev) => prev.filter((m) => m.id !== unmatchTarget.id));
+    void endMatch(unmatchTarget.id, unmatchTarget);
     setUnmatchTarget(null);
   };
 
@@ -263,21 +271,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
 
       // Extend match expiration by selected plan days
       const daysToAdd = selectedPlan.days;
-      setActiveMatches((prev) =>
-        prev.map((m) => {
-          if (m.id === showExtendSheet.id) {
-            const currentExp = new Date(m.expiresAt).getTime();
-            const baseTime = currentExp > Date.now() ? currentExp : Date.now();
-            const newExpiresAt = new Date(baseTime + daysToAdd * 86400000).toISOString();
-            return {
-              ...m,
-              expiresAt: newExpiresAt,
-              extendedCount: m.extendedCount + 1
-            };
-          }
-          return m;
-        })
-      );
+      void extendMatch(showExtendSheet.id, showExtendSheet, daysToAdd);
 
       setShowExtendSheet(null);
       setExtensionSuccessMsg(

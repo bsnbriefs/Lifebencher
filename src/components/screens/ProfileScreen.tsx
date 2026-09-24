@@ -15,12 +15,14 @@ import {
   Sparkles,
   Sliders,
   UserCheck,
-  Download
+  Download,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { downloadProjectZip } from '../../lib/downloadZip';
+import { uploadProfilePhoto } from '../../lib/profilePhoto';
 
 interface ProfileScreenProps {
   onOpenAdmin?: () => void;
@@ -34,6 +36,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
   const [isEditingFull, setIsEditingFull] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPrefsOpen, setIsPrefsOpen] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState(0);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   // Form states for full edit
   const [displayName, setDisplayName] = useState(currentProfile?.displayName || '');
@@ -109,10 +114,38 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         <div className="flex items-center gap-4">
           <div className="relative">
             <img
-              src={currentProfile.photos[0]}
+              src={currentProfile.photos[0] || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'}
               alt={currentProfile.displayName}
               className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-200 shadow-xs"
             />
+            <label className="absolute inset-0 rounded-2xl bg-black/0 hover:bg-black/25 transition flex items-end justify-center cursor-pointer">
+              <span className="mb-1 px-1.5 py-0.5 rounded-full bg-white/90 text-[10px] font-semibold text-stone-800 flex items-center gap-1">
+                <Camera className="w-3 h-3" />
+                {photoBusy ? `${photoProgress}%` : 'Photo'}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={photoBusy}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setPhotoError(null);
+                  setPhotoBusy(true);
+                  setPhotoProgress(0);
+                  try {
+                    const url = await uploadProfilePhoto(file, setPhotoProgress);
+                    updateProfile({ photos: [url] });
+                  } catch (err) {
+                    setPhotoError(err instanceof Error ? err.message : 'Upload failed');
+                  } finally {
+                    setPhotoBusy(false);
+                  }
+                }}
+              />
+            </label>
             {currentProfile.isVerified && (
               <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center ring-2 ring-white">
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -136,6 +169,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             </p>
           </div>
         </div>
+
+        {photoError && (
+          <p className="text-[11px] text-rose-700">{photoError}</p>
+        )}
 
         {/* Visibility Toggle */}
         <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 border border-stone-200/70">
@@ -332,6 +369,47 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
               </div>
 
               <form onSubmit={handleSaveFullProfile} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="font-semibold text-stone-700 block mb-1">Profile Photo</label>
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-stone-300">
+                    <img
+                      src={currentProfile.photos[0] || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'}
+                      alt=""
+                      className="w-14 h-14 rounded-xl object-cover border border-stone-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-900 text-amber-100 font-semibold cursor-pointer">
+                        <Camera className="w-3 h-3" />
+                        {photoBusy ? `Uploading ${photoProgress}%` : currentProfile.photos[0] ? 'Change Photo' : 'Upload Photo'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                          className="hidden"
+                          disabled={photoBusy}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!file) return;
+                            setPhotoError(null);
+                            setPhotoBusy(true);
+                            setPhotoProgress(0);
+                            try {
+                              const url = await uploadProfilePhoto(file, setPhotoProgress);
+                              updateProfile({ photos: [url] });
+                            } catch (err) {
+                              setPhotoError(err instanceof Error ? err.message : 'Upload failed');
+                            } finally {
+                              setPhotoBusy(false);
+                            }
+                          }}
+                        />
+                      </label>
+                      <p className="text-[10px] text-stone-500 mt-1">JPG, PNG or WebP. Max 5 MB.</p>
+                      {photoError && <p className="text-[10px] text-rose-700 mt-0.5">{photoError}</p>}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="font-semibold text-stone-700 block mb-1">Display Name</label>
                   <input

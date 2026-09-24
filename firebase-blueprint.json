@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Private account identity, authorization role, and contact credentials for a registered user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 128,
+          "description": "Unique identifier corresponding to Firebase Authentication UID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "User primary email address (PII)."
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Optional verified contact phone number (PII)."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["client", "admin"],
+          "description": "User access role; only admin can view or moderate other accounts."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Flag indicating whether account is active or suspended."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp representing account creation time."
+        }
+      },
+      "required": ["id", "email", "role", "isActive", "createdAt"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "Discoverable matrimonial and relationship profile displaying vetted background, values, and attributes.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 128,
+          "description": "Unique profile identifier, matching or linked to userId."
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 128,
+          "description": "ID of the user who owns this profile."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 60,
+          "description": "Publicly visible member name."
+        },
+        "age": {
+          "type": "integer",
+          "description": "Verified member age in years."
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["female", "male", "non-binary", "other"],
+          "description": "Gender identity of the member."
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "City, state or region of residence."
+        },
+        "profession": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Career or professional occupation."
+        },
+        "education": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Highest educational qualification and alma mater."
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Personal biography and personal background statement."
+        },
+        "relationshipGoal": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Intent for marriage or partnership horizon."
+        },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Concierge verification status."
+        },
+        "isVisible": {
+          "type": "boolean",
+          "description": "Discovery visibility toggle controlled by profile owner."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp representing profile creation time."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp representing latest profile update time."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "displayName",
+        "age",
+        "gender",
+        "location",
+        "profession",
+        "education",
+        "bio",
+        "relationshipGoal",
+        "isVerified",
+        "isVisible",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Mutual or concierge-introduced matchmaking pair connecting two verified users with active countdown.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 128,
+          "description": "Unique identifier for the match pair."
+        },
+        "user1Id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 128,
+          "description": "User ID of the first match participant."
+        },
+        "user2Id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "maxLength": 128,
+          "description": "User ID of the second match participant."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "expired", "ended"],
+          "description": "Lifecycle state of the match connection."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the match commenced."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the active conversation window expires."
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional timestamp when a match concluded or was closed."
+        },
+        "extendedCount": {
+          "type": "integer",
+          "description": "Number of times this match window was extended."
+        }
+      },
+      "required": [
+        "id",
+        "user1Id",
+        "user2Id",
+        "status",
+        "startedAt",
+        "expiresAt",
+        "extendedCount"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private account identity, credentials, and PII isolated strictly to the account owner and platform admins."
+    },
+    "/profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "Discoverable matchmaking profiles for verified members with privacy visibility controls."
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Active or historical matchmaking records connecting two authenticated users with strict participant-only access."
+    },
+    "/matches/{matchId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Real-time private chat messages scoped to an active match pair."
+    }
+  }
+}

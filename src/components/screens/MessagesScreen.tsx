@@ -16,9 +16,18 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Conversation, Message } from '../../types';
+import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
+import { endMatch, listenUserMatches } from '../../lib/matches';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, sendMatchMessage } from '../../lib/chat';
+import {
+  declineContactExchange,
+  exchangeUiState,
+  listenContactExchange,
+  requestOrApproveContact
+} from '../../lib/contactExchange';
+import { ContactExchangeRequest } from '../../types';
 
 interface MessagesScreenProps {
   initialConversationId?: string | null;
@@ -35,122 +44,8 @@ interface ConversationWithMeta extends Conversation {
   };
 }
 
-const INITIAL_CONVERSATIONS: ConversationWithMeta[] = [
-  {
-    id: 'conv_1',
-    matchId: 'match_1',
-    participantIds: ['usr_me', 'usr_amaka'],
-    otherUser: {
-      id: 'prof_amaka',
-      userId: 'usr_amaka',
-      displayName: 'Amaka',
-      age: 28,
-      gender: 'female',
-      location: 'Victoria Island, Lagos',
-      profession: 'Senior Financial Analyst',
-      education: 'B.Sc. Economics (Unilag)',
-      bio: 'Warm, intentional, and family-oriented.',
-      photos: [
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80'
-      ],
-      interests: ['Fine Art', 'Literature', 'Classical Jazz'],
-      values: ['Faith & Family', 'Integrity'],
-      relationshipGoal: 'Intentional courtship leading to marriage',
-      lifestyle: { faith: 'Christian' },
-      isVerified: true,
-      isVisible: true,
-      createdAt: '',
-      updatedAt: ''
-    },
-    lastMessageText: 'I completely agree. Emotional safety and shared faith are non-negotiable for me.',
-    lastMessageAt: '10:42 AM',
-    unreadCount: 1,
-    expiresAt: new Date(Date.now() + 5 * 86400000).toISOString(),
-    exchangeState: 'none',
-    otherUserContact: {
-      phone: '+234 803 555 0192',
-      email: 'amaka.financial@gmail.com'
-    }
-  },
-  {
-    id: 'conv_2',
-    matchId: 'match_2',
-    participantIds: ['usr_me', 'usr_kemi'],
-    otherUser: {
-      id: 'prof_kemi',
-      userId: 'usr_kemi',
-      displayName: 'Kemi',
-      age: 29,
-      gender: 'female',
-      location: 'Ikoyi, Lagos',
-      profession: 'Pediatric Specialist',
-      education: 'MBBS (King’s College London)',
-      bio: 'Dedicated physician passionate about maternal health and quiet beach retreats.',
-      photos: [
-        'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800&auto=format&fit=crop&q=80'
-      ],
-      interests: ['Medicine & Wellness', 'Jazz'],
-      values: ['Integrity & Honesty', 'Family-Centered'],
-      relationshipGoal: 'Long-term marriage with deep companionship',
-      lifestyle: { faith: 'Christian' },
-      isVerified: true,
-      isVisible: true,
-      createdAt: '',
-      updatedAt: ''
-    },
-    lastMessageText: 'Have a wonderful shift at the clinic today!',
-    lastMessageAt: 'Yesterday',
-    unreadCount: 0,
-    expiresAt: new Date(Date.now() + 0.8 * 86400000).toISOString(),
-    exchangeState: 'pending_them', // Kemi has already requested an exchange!
-    otherUserContact: {
-      phone: '+234 812 444 8820',
-      email: 'dr.kemi.pediatrics@gmail.com'
-    }
-  }
-];
-
-const INITIAL_MESSAGES: Record<string, Message[]> = {
-  conv_1: [
-    {
-      id: 'm1',
-      conversationId: 'conv_1',
-      senderId: 'usr_amaka',
-      content: 'Hello Chukwudi! It was wonderful reading your profile. I was particularly touched by your perspective on intentionality.',
-      createdAt: '10:30 AM'
-    },
-    {
-      id: 'm2',
-      conversationId: 'conv_1',
-      senderId: 'usr_me',
-      content: 'Thank you Amaka. In a world full of superficiality, I believe building with depth and clarity of purpose makes all the difference.',
-      createdAt: '10:35 AM'
-    },
-    {
-      id: 'm3',
-      conversationId: 'conv_1',
-      senderId: 'usr_amaka',
-      content: 'I completely agree. Emotional safety and shared faith are non-negotiable for me.',
-      createdAt: '10:42 AM'
-    }
-  ],
-  conv_2: [
-    {
-      id: 'm2_1',
-      conversationId: 'conv_2',
-      senderId: 'usr_me',
-      content: 'Hello Dr. Kemi, wishing you a productive morning at the hospital.',
-      createdAt: 'Yesterday 8:00 AM'
-    },
-    {
-      id: 'm2_2',
-      conversationId: 'conv_2',
-      senderId: 'usr_kemi',
-      content: 'Thank you Chukwudi! Rounds were quite intense, but saving little lives makes every minute worthwhile.',
-      createdAt: 'Yesterday 4:15 PM'
-    }
-  ]
-};
+const PLACEHOLDER_PHOTO =
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
 
 const ICEBREAKER_PROMPTS = [
   'What are your non-negotiables for family life and mutual growth?',
@@ -159,72 +54,127 @@ const ICEBREAKER_PROMPTS = [
 ];
 
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversationId }) => {
-  const { currentProfile } = useAuth();
-  const [conversations, setConversations] = useState<ConversationWithMeta[]>(INITIAL_CONVERSATIONS);
-
-  // Active chat conversation
-  const [activeConvId, setActiveConvId] = useState<string | null>(() => {
-    if (!initialConversationId) return null;
-    const found = INITIAL_CONVERSATIONS.find(
-      (c) => c.id === initialConversationId || c.matchId === initialConversationId
-    );
-    return found ? found.id : null;
-  });
-
-  const activeConv = conversations.find((c) => c.id === activeConvId) || null;
-
-  // Messages dictionary
-  const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
-  const currentMessages = activeConvId ? allMessages[activeConvId] || [] : [];
-
-  // Input state
+  const { user } = useAuth();
+  const myId = user?.id || '';
+  const [matchRecords, setMatchRecords] = useState<Record<string, Match>>({});
+  const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(initialConversationId || null);
+  const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
 
-  // Auto-scroll ref
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
+  const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
+  const otherContact =
+    contactState && myId && liveUi === 'unlocked'
+      ? myId === contactState.user1Id
+        ? contactState.user2Contact
+        : contactState.user1Contact
+      : undefined;
+  const activeConv = rawConv
+    ? {
+        ...rawConv,
+        exchangeState:
+          liveUi === 'declined' ? 'none' : liveUi,
+        otherUserContact: otherContact
+          ? { phone: otherContact.phone || '', email: otherContact.email || '' }
+          : undefined
+      }
+    : null;
+
+  useEffect(() => {
+    if (!myId) return;
+    return listenUserMatches(myId, (matches) => {
+      const record: Record<string, Match> = {};
+      matches.forEach((m) => {
+        record[m.id] = m;
+      });
+      setMatchRecords(record);
+      setConversations((prev) => {
+        const prevById = new Map(prev.map((c) => [c.matchId, c]));
+        return matches
+          .filter((m) => m.status === 'active')
+          .map((m) => {
+            const existing = prevById.get(m.id);
+            return {
+              id: m.id,
+              matchId: m.id,
+              participantIds: [m.user1Id, m.user2Id],
+              otherUser: m.otherProfile,
+              lastMessageText: existing?.lastMessageText || 'Start a thoughtful conversation',
+              lastMessageAt: existing?.lastMessageAt || '',
+              unreadCount: existing?.unreadCount || 0,
+              expiresAt: m.expiresAt,
+              exchangeState: existing?.exchangeState || 'none',
+              otherUserContact: existing?.otherUserContact
+            } satisfies ConversationWithMeta;
+          });
+      });
+    });
+  }, [myId]);
+
+  useEffect(() => {
+    if (initialConversationId) setActiveConvId(initialConversationId);
+  }, [initialConversationId]);
+
+  useEffect(() => {
+    const unsubs = conversations.map((c) =>
+      listenLatestMessage(c.matchId, (preview) => {
+        if (!preview) return;
+        setConversations((prev) =>
+          prev.map((item) =>
+            item.matchId === c.matchId
+              ? {
+                  ...item,
+                  lastMessageText: preview.text,
+                  lastMessageAt: formatMessageTime(preview.at)
+                }
+              : item
+          )
+        );
+      })
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [conversations.map((c) => c.matchId).join('|')]);
+
+  useEffect(() => {
+    if (!activeConvId) {
+      setCurrentMessages([]);
+      return;
+    }
+    return listenMatchMessages(activeConvId, setCurrentMessages);
+  }, [activeConvId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentMessages, activeConvId]);
 
-  // Handle send message
-  const handleSendMessage = (textToSend?: string) => {
+  useEffect(() => {
+    if (!activeConvId) {
+      setContactState(null);
+      return;
+    }
+    const match = matchRecords[activeConvId];
+    if (!match) return;
+    return listenContactExchange(match.id, match.user1Id, match.user2Id, setContactState);
+  }, [activeConvId, matchRecords]);
+
+  const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
     if (!text || !activeConvId) return;
-
-    const newMsg: Message = {
-      id: 'm_' + Date.now(),
-      conversationId: activeConvId,
-      senderId: 'usr_me',
-      content: text,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setAllMessages((prev) => ({
-      ...prev,
-      [activeConvId]: [...(prev[activeConvId] || []), newMsg]
-    }));
-
-    sounds.playSend();
-
-    // Update conversation snippet
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeConvId
-          ? {
-              ...c,
-              lastMessageText: text,
-              lastMessageAt: 'Just now',
-              unreadCount: 0
-            }
-          : c
-      )
-    );
-
     setInputVal('');
+    setSendError(null);
+    sounds.playSend();
+    try {
+      await sendMatchMessage(activeConvId, text);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Could not send message');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -235,27 +185,41 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   // Contact Exchange Trigger
   const handleRequestExchange = () => {
-    if (!activeConvId) return;
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id === activeConvId) {
-          if (c.exchangeState === 'pending_them') {
-            // Both have agreed -> UNLOCK!
-            sounds.playMatchCelebration();
-            return { ...c, exchangeState: 'unlocked' };
-          }
-          sounds.playSend();
-          return { ...c, exchangeState: 'pending_me' };
-        }
-        return c;
-      })
-    );
+    const match = activeConvId ? matchRecords[activeConvId] : undefined;
+    if (!match || !user) return;
+    sounds.playSend();
+    void requestOrApproveContact({
+      matchId: match.id,
+      user1Id: match.user1Id,
+      user2Id: match.user2Id,
+      myContact: {
+        phone: user.phone || '',
+        email: user.email,
+        whatsapp: user.phone
+      }
+    }).then(() => {
+      if (liveUi === 'pending_them') sounds.playMatchCelebration();
+    });
+  };
+
+  const handleDeclineExchange = () => {
+    const match = activeConvId ? matchRecords[activeConvId] : undefined;
+    if (!match) return;
+    void declineContactExchange({
+      matchId: match.id,
+      user1Id: match.user1Id,
+      user2Id: match.user2Id
+    });
   };
 
   // End match / Unmatch
   const handleConfirmUnmatch = () => {
     if (!activeConvId) return;
-    setConversations((prev) => prev.filter((c) => c.id !== activeConvId));
+    const record = matchRecords[activeConvId];
+    if (record) {
+      void endMatch(activeConvId, record);
+    }
+    setConversations((prev) => prev.filter((c) => c.id !== activeConvId && c.matchId !== activeConvId));
     setActiveConvId(null);
     setShowUnmatchConfirm(false);
     setShowOptionsModal(false);
@@ -325,7 +289,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   >
                     <div className="relative shrink-0">
                       <img
-                        src={c.otherUser?.photos[0]}
+                        src={c.otherUser?.photos?.[0] || PLACEHOLDER_PHOTO}
                         alt={c.otherUser?.displayName}
                         className="w-13 h-13 rounded-full object-cover border border-stone-200"
                       />
@@ -399,7 +363,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <img
-                  src={activeConv.otherUser?.photos[0]}
+                  src={activeConv.otherUser?.photos?.[0] || PLACEHOLDER_PHOTO}
                   alt={activeConv.otherUser?.displayName}
                   className="w-9 h-9 rounded-full object-cover"
                 />
@@ -461,6 +425,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             </div>
 
             {/* MUTUAL CONTACT EXCHANGE UNLOCKED CARD */}
+            {liveUi === 'declined' && (
+              <div className="p-2.5 bg-stone-100 border border-stone-200 rounded-xl text-xs text-stone-600 mb-2">
+                Contact request declined. You may request again when you both feel ready.
+              </div>
+            )}
+
             {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -537,19 +507,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     {activeConv.otherUser?.displayName} requested to exchange contacts!
                   </span>
                 </div>
-                <button
-                  onClick={handleRequestExchange}
-                  className="px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-bold text-[11px] shadow-2xs hover:bg-amber-300 cursor-pointer"
-                >
-                  Accept & Reveal
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleDeclineExchange}
+                    className="px-2.5 py-1 rounded-lg border border-stone-300 bg-white text-stone-700 font-bold text-[11px] cursor-pointer"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={handleRequestExchange}
+                    className="px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-bold text-[11px] shadow-2xs hover:bg-amber-300 cursor-pointer"
+                  >
+                    Approve
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Message Stream */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-1">
               {currentMessages.map((m) => {
-                const isMine = m.senderId === 'usr_me';
+                const isMine = m.senderId === myId;
                 return (
                   <motion.div
                     key={m.id}
@@ -567,7 +545,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       {m.content}
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
-                      <span>{m.createdAt}</span>
+                      <span>{formatMessageTime(m.createdAt)}</span>
                       {isMine && <CheckCheck className="w-3 h-3 text-rose-700" />}
                     </div>
                   </motion.div>
@@ -589,6 +567,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   </button>
                 ))}
               </div>
+            )}
+
+            {sendError && (
+              <p className="text-[11px] text-rose-700 px-1">{sendError}</p>
             )}
 
             {/* Touch Input Bar */}

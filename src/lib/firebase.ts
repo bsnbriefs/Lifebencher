@@ -1,23 +1,13 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-
-export const firebaseConfig = {
-  projectId: "plasma-poetry-4h7nb",
-  appId: "1:401048010095:web:29643e37b4a3cd929b7c9a",
-  apiKey: "AIzaSyBZef4op0c1oajE89a2LGF5ahhksibg-3s",
-  authDomain: "plasma-poetry-4h7nb.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-lifebenchermatch-4a9e32eb-4d4e-43e7-a790-123ced5a4d04",
-  storageBucket: "plasma-poetry-4h7nb.firebasestorage.app",
-  messagingSenderId: "401048010095",
-  measurementId: "",
-  oAuthClientId: "401048010095-nmlv6mgbgprkfm6f99da23md4gk2mi63.apps.googleusercontent.com",
-  recaptchaSiteKey: ""
-};
+import { getStorage } from 'firebase/storage';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -66,7 +56,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Test connectivity on initial boot
+// Test connectivity on initial boot as required by Firebase integration guidelines
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));

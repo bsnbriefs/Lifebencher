@@ -19,6 +19,7 @@ import { calculateCompatibility, CompatibilityResult } from '../../lib/compatibi
 import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
+import { createOrGetMatch } from '../../lib/matches';
 
 const INITIAL_PROFILES: Profile[] = [
   {
@@ -215,15 +216,21 @@ export const DiscoverScreen: React.FC = () => {
   }, [filters]);
 
   const handleExploreMatch = (profileId: string) => {
+    const target = profiles.find((p) => p.id === profileId);
+    if (!target) return;
     setRequestLoading(profileId);
     sounds.playSend();
-    setTimeout(() => {
-      setRequestLoading(null);
-      setSentInterests((prev) => ({ ...prev, [profileId]: true }));
-      const target = profiles.find((p) => p.id === profileId);
-      setToastMessage(`Connection request delivered to ${target?.displayName || 'candidate'}.`);
-      setTimeout(() => setToastMessage(null), 3500);
-    }, 600);
+    createOrGetMatch(target.userId)
+      .then(() => {
+        setSentInterests((prev) => ({ ...prev, [profileId]: true }));
+        setToastMessage(`Connection opened with ${target.displayName}. You can chat in Messages.`);
+        setTimeout(() => setToastMessage(null), 3500);
+      })
+      .catch((err) => {
+        setToastMessage(err instanceof Error ? err.message : 'Could not open connection.');
+        setTimeout(() => setToastMessage(null), 3500);
+      })
+      .finally(() => setRequestLoading(null));
   };
 
   return (

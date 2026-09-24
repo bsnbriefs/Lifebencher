@@ -12,7 +12,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { WifiOff } from 'lucide-react';
 
 function AppContent() {
-  const { isAuthenticated, isOnboarded } = useAuth();
+  const { isAuthenticated, isOnboarded, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavigationTab>('discover');
   const [targetChatMatchId, setTargetChatMatchId] = useState<string | null>(null);
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -35,6 +35,14 @@ function AppContent() {
     setTargetChatMatchId(matchId);
     setActiveTab('messages');
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
+        <p className="text-sm text-stone-500">Connecting to Lifebencher…</p>
+      </div>
+    );
+  }
 
   // If user is in Admin Concierge mode, render full Admin Portal
   if (isAdminMode) {

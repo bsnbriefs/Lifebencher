@@ -78,7 +78,7 @@ const AVAILABLE_INTERESTS = [
 ];
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) => {
-  const { register, login, completeOnboarding } = useAuth();
+  const { register, login, loginWithGoogle, sendEmailLink, completeOnboarding } = useAuth();
 
   // Mode: 'register' vs 'login'
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
@@ -152,7 +152,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      await login(loginEmail);
+      if (!loginPassword) {
+        setErrorMessage('Please enter your password, or use Google / email link.');
+        setIsSubmitting(false);
+        return;
+      }
+      await login(loginEmail, loginPassword);
       if (onCompleted) onCompleted();
     } catch {
       setErrorMessage('Failed to log in. Please check your credentials.');
@@ -176,9 +181,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         setErrorMessage('Password must be at least 6 characters.');
         return;
       }
-      // Register preliminary account in context
-      register({ email, phone, displayName });
-      setCurrentStep(2);
+      setIsSubmitting(true);
+      register({ email, phone, displayName, password })
+        .then(() => setCurrentStep(2))
+        .catch((err) => setErrorMessage(err instanceof Error ? err.message : 'Registration failed.'))
+        .finally(() => setIsSubmitting(false));
       return;
     }
 
@@ -352,6 +359,59 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                 {isSubmitting ? 'Signing in...' : 'Sign In to Lifebencher Match'}
               </button>
             </form>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-stone-200" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-2 text-[10px] uppercase tracking-wider text-stone-400">or</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                setErrorMessage(null);
+                try {
+                  await loginWithGoogle();
+                  if (onCompleted) onCompleted();
+                } catch (err) {
+                  setErrorMessage(err instanceof Error ? err.message : 'Google sign-in failed.');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="w-full py-3 rounded-2xl border border-stone-300 bg-white text-stone-800 font-semibold text-xs hover:bg-stone-50 transition cursor-pointer"
+            >
+              Continue with Google
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmitting || !loginEmail.trim()}
+              onClick={async () => {
+                if (!loginEmail.trim()) {
+                  setErrorMessage('Enter your email to receive a sign-in link.');
+                  return;
+                }
+                setIsSubmitting(true);
+                setErrorMessage(null);
+                try {
+                  await sendEmailLink(loginEmail);
+                  setErrorMessage('Sign-in link sent. Check your inbox.');
+                } catch (err) {
+                  setErrorMessage(err instanceof Error ? err.message : 'Could not send email link.');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="w-full py-3 rounded-2xl border border-rose-200 bg-rose-50 text-rose-900 font-semibold text-xs hover:bg-rose-100 transition cursor-pointer"
+            >
+              Email me a sign-in link
+            </button>
           </motion.div>
         ) : (
           /* MULTI-STEP ONBOARDING (STEPS 1 TO 6) */
