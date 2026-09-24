@@ -296,7 +296,54 @@ service cloud.firestore {
       }
     }
 
-    // --- 4. Admin Privileges Record ---
+    // --- 4. Interest / match requests (/matchRequests/{requestId}) ---
+    match /matchRequests/{requestId} {
+      function isValidMatchRequest(data) {
+        return data.keys().hasAll(['id', 'senderId', 'receiverId', 'status', 'createdAt', 'updatedAt']) &&
+          data.keys().hasOnly(['id', 'senderId', 'receiverId', 'status', 'createdAt', 'updatedAt']) &&
+          isValidId(data.id) &&
+          data.id == requestId &&
+          isValidId(data.senderId) &&
+          isValidId(data.receiverId) &&
+          data.senderId != data.receiverId &&
+          data.status in ['pending', 'matched', 'declined'] &&
+          data.createdAt is string && data.createdAt.size() <= 64 &&
+          data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isSignedIn() && (
+        resource == null ||
+        request.auth.uid == resource.data.senderId ||
+        request.auth.uid == resource.data.receiverId ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(requestId) &&
+        isValidMatchRequest(incoming()) &&
+        incoming().senderId == request.auth.uid &&
+        incoming().status == 'pending';
+      allow update: if isSignedIn() && isValidId(requestId) &&
+        isValidMatchRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().senderId == existing().senderId &&
+        incoming().receiverId == existing().receiverId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (
+            request.auth.uid == existing().receiverId &&
+            existing().status == 'pending' &&
+            incoming().status in ['matched', 'declined']
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    // --- 5. Admin Privileges Record ---
     match /admins/{adminId} {
       allow read, write: if false;
     }
