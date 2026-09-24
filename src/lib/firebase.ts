@@ -1,74 +1,350 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import firebaseConfig from '../../firebase-applet-config.json';
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-const app = initializeApp(firebaseConfig);
-const namedDb = firebaseConfig.firestoreDatabaseId;
-export const db =
-  !namedDb || namedDb === '(default)'
-    ? getFirestore(app)
-    : getFirestore(app, namedDb);
-export const auth = getAuth(app);
-export const storage = getStorage(app);
+    // Global Safety Net (default deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
 
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
+    // --- Core Primitives & Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
-}
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'admin@barristerstreet.org' && request.auth.token.email_verified == true;
+    }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
+    function isAdmin() {
+      return isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
 
-// Test connectivity on initial boot as required by Firebase integration guidelines
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Schema Validators ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'role', 'isActive', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'email', 'phone', 'role', 'isActive', 'createdAt']) &&
+        isValidId(data.id) &&
+        data.email is string && data.email.size() <= 254 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        data.role in ['client', 'admin'] &&
+        data.isActive is bool &&
+        data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidPhotoUrl(url) {
+      return url is string && url.size() > 8 && url.size() <= 2000 &&
+        url.matches('^https://.*');
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasAll(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt', 'photoUrl']) &&
+        (!('photoUrl' in data) || isValidPhotoUrl(data.photoUrl)) &&
+        isValidId(data.id) &&
+        isValidId(data.userId) &&
+        data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 60 &&
+        data.age is int && data.age >= 18 && data.age <= 120 &&
+        data.gender in ['female', 'male', 'non-binary', 'other'] &&
+        data.location is string && data.location.size() <= 100 &&
+        data.profession is string && data.profession.size() <= 100 &&
+        data.education is string && data.education.size() <= 120 &&
+        data.bio is string && data.bio.size() <= 1000 &&
+        data.relationshipGoal is string && data.relationshipGoal.size() <= 100 &&
+        data.isVerified is bool &&
+        data.isVisible is bool &&
+        data.createdAt is string && data.createdAt.size() <= 64 &&
+        data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidMatch(data) {
+      return data.keys().hasAll(['id', 'user1Id', 'user2Id', 'status', 'startedAt', 'expiresAt', 'extendedCount']) &&
+        data.keys().hasOnly(['id', 'user1Id', 'user2Id', 'status', 'startedAt', 'expiresAt', 'endedAt', 'extendedCount']) &&
+        isValidId(data.id) &&
+        isValidId(data.user1Id) &&
+        isValidId(data.user2Id) &&
+        data.status in ['active', 'expired', 'ended'] &&
+        data.startedAt is string && data.startedAt.size() <= 64 &&
+        data.expiresAt is string && data.expiresAt.size() <= 64 &&
+        (!('endedAt' in data) || (data.endedAt is string && data.endedAt.size() <= 64)) &&
+        data.extendedCount is int && data.extendedCount >= 0;
+    }
+
+    // --- 1. Users Collection (/users/{userId}) ---
+    // Contains PII (email, phone). Read restricted strictly to owner or admin.
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId &&
+        isValidUser(incoming()) && incoming().id == userId && incoming().role == 'client';
+      allow update: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin()) &&
+        isValidUser(incoming()) && (
+          isAdmin() ||
+          (
+            incoming().id == existing().id &&
+            incoming().role == existing().role &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'isActive'])
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    // --- 2. Profiles Collection (/profiles/{profileId}) ---
+    // Public discoverable profiles.
+    match /profiles/{profileId} {
+      allow get: if isSignedIn() && isValidId(profileId) && (
+        resource.data.isVisible == true || resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.isVisible == true || resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(profileId) &&
+        isValidProfile(incoming()) && incoming().userId == request.auth.uid &&
+        incoming().isVerified == false;
+      allow update: if isSignedIn() && isValidId(profileId) &&
+        isValidProfile(incoming()) && (
+          isAdmin() ||
+          (
+            incoming().userId == request.auth.uid &&
+            incoming().userId == existing().userId &&
+            incoming().id == existing().id &&
+            incoming().isVerified == existing().isVerified &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'age', 'gender', 'location', 'profession',
+              'education', 'bio', 'relationshipGoal', 'isVisible', 'updatedAt', 'photoUrl'
+            ])
+          )
+        );
+      allow delete: if isAdmin() || (isSignedIn() && isValidId(profileId) && existing().userId == request.auth.uid);
+    }
+
+    // --- 3. Matches Collection (/matches/{matchId}) ---
+    // Bilateral matching pairs accessible strictly to participants or admin.
+    match /matches/{matchId} {
+      allow get: if isSignedIn() && isValidId(matchId) && (
+        request.auth.uid == resource.data.user1Id ||
+        request.auth.uid == resource.data.user2Id ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.user1Id == request.auth.uid ||
+        resource.data.user2Id == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAdmin() || (
+        isSignedIn() && isValidId(matchId) && isValidMatch(incoming()) &&
+        (request.auth.uid == incoming().user1Id || request.auth.uid == incoming().user2Id)
+      );
+      allow update: if isSignedIn() && isValidId(matchId) &&
+        isValidMatch(incoming()) && (
+          isAdmin() ||
+          (
+            (request.auth.uid == existing().user1Id || request.auth.uid == existing().user2Id) &&
+            incoming().id == existing().id &&
+            incoming().user1Id == existing().user1Id &&
+            incoming().user2Id == existing().user2Id &&
+            incoming().startedAt == existing().startedAt &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'expiresAt', 'extendedCount', 'endedAt'])
+          )
+        );
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        function parentMatch() {
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
+        }
+
+        function isParticipant() {
+          return isSignedIn() && exists(/databases/$(database)/documents/matches/$(matchId)) && (
+            request.auth.uid == parentMatch().user1Id ||
+            request.auth.uid == parentMatch().user2Id ||
+            isAdmin()
+          );
+        }
+
+        function isValidMessage(data) {
+          return data.keys().hasAll(['id', 'matchId', 'senderId', 'content', 'createdAt']) &&
+            data.keys().hasOnly(['id', 'matchId', 'senderId', 'content', 'createdAt', 'readAt']) &&
+            isValidId(data.id) &&
+            data.id == messageId &&
+            data.matchId == matchId &&
+            isValidId(data.matchId) &&
+            isValidId(data.senderId) &&
+            data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
+            data.createdAt is string && data.createdAt.size() <= 64 &&
+            (!('readAt' in data) || (data.readAt is string && data.readAt.size() <= 64));
+        }
+
+        allow read: if isParticipant();
+        allow create: if isParticipant() &&
+          isValidMessage(incoming()) &&
+          incoming().senderId == request.auth.uid &&
+          parentMatch().status == 'active';
+        allow update: if isParticipant() &&
+          isValidMessage(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().matchId == existing().matchId &&
+          incoming().senderId == existing().senderId &&
+          incoming().content == existing().content &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['readAt']);
+        allow delete: if isAdmin();
+      }
+
+      match /contact/{contactId} {
+        function parentMatchC() {
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
+        }
+        function isParticipantC() {
+          return isSignedIn() && exists(/databases/$(database)/documents/matches/$(matchId)) && (
+            request.auth.uid == parentMatchC().user1Id ||
+            request.auth.uid == parentMatchC().user2Id ||
+            isAdmin()
+          );
+        }
+        function stateHasNoSecrets(data) {
+          return !('user1Contact' in data) && !('user2Contact' in data);
+        }
+        function isValidContactState(data) {
+          return data.keys().hasAll(['id', 'matchId', 'initiatorId', 'user1Id', 'user2Id', 'user1Consented', 'user2Consented', 'status']) &&
+            data.keys().hasOnly(['id', 'matchId', 'initiatorId', 'user1Id', 'user2Id', 'user1Consented', 'user2Consented', 'status', 'createdAt', 'updatedAt', 'consentedAt']) &&
+            data.id == 'state' &&
+            data.matchId == matchId &&
+            data.user1Id == parentMatchC().user1Id &&
+            data.user2Id == parentMatchC().user2Id &&
+            data.status in ['pending', 'completed', 'declined'] &&
+            data.user1Consented is bool &&
+            data.user2Consented is bool &&
+            stateHasNoSecrets(data);
+        }
+        allow read: if isParticipantC() && contactId == 'state';
+        allow create: if isParticipantC() && contactId == 'state' &&
+          isValidContactState(incoming()) &&
+          incoming().status == 'pending' &&
+          incoming().initiatorId == request.auth.uid &&
+          incoming().user1Consented == (request.auth.uid == incoming().user1Id) &&
+          incoming().user2Consented == (request.auth.uid == incoming().user2Id);
+        allow update: if isParticipantC() && contactId == 'state' &&
+          isValidContactState(incoming()) &&
+          incoming().user1Id == existing().user1Id &&
+          incoming().user2Id == existing().user2Id &&
+          incoming().matchId == existing().matchId &&
+          incoming().id == existing().id &&
+          (
+            isAdmin() ||
+            (
+              incoming().status == 'declined' &&
+              incoming().user1Consented == existing().user1Consented &&
+              incoming().user2Consented == existing().user2Consented
+            ) ||
+            (
+              request.auth.uid == existing().user1Id &&
+              incoming().user2Consented == existing().user2Consented &&
+              incoming().initiatorId == existing().initiatorId
+            ) ||
+            (
+              request.auth.uid == existing().user2Id &&
+              incoming().user1Consented == existing().user1Consented &&
+              incoming().initiatorId == existing().initiatorId
+            )
+          );
+        allow delete: if isAdmin();
+      }
+
+      match /contactSecrets/{secretUid} {
+        function parentMatchS() {
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
+        }
+        function isParticipantS() {
+          return isSignedIn() && exists(/databases/$(database)/documents/matches/$(matchId)) && (
+            request.auth.uid == parentMatchS().user1Id ||
+            request.auth.uid == parentMatchS().user2Id ||
+            isAdmin()
+          );
+        }
+        function mutualConsentComplete() {
+          return exists(/databases/$(database)/documents/matches/$(matchId)/contact/state) &&
+            get(/databases/$(database)/documents/matches/$(matchId)/contact/state).data.user1Consented == true &&
+            get(/databases/$(database)/documents/matches/$(matchId)/contact/state).data.user2Consented == true &&
+            get(/databases/$(database)/documents/matches/$(matchId)/contact/state).data.status == 'completed';
+        }
+        allow read: if isParticipantS() && isValidId(secretUid) && (
+          request.auth.uid == secretUid ||
+          isAdmin() ||
+          mutualConsentComplete()
+        );
+        allow create, update: if isParticipantS() &&
+          request.auth.uid == secretUid &&
+          (secretUid == parentMatchS().user1Id || secretUid == parentMatchS().user2Id) &&
+          incoming().email is string && incoming().email.size() <= 254 &&
+          incoming().phone is string && incoming().phone.size() <= 32;
+        allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == secretUid);
+      }
+    }
+
+    // --- 4. Interest / match requests (/matchRequests/{requestId}) ---
+    match /matchRequests/{requestId} {
+      function isValidMatchRequest(data) {
+        return data.keys().hasAll(['id', 'senderId', 'receiverId', 'status', 'createdAt', 'updatedAt']) &&
+          data.keys().hasOnly(['id', 'senderId', 'receiverId', 'status', 'createdAt', 'updatedAt']) &&
+          isValidId(data.id) &&
+          data.id == requestId &&
+          isValidId(data.senderId) &&
+          isValidId(data.receiverId) &&
+          data.senderId != data.receiverId &&
+          data.status in ['pending', 'matched', 'declined'] &&
+          data.createdAt is string && data.createdAt.size() <= 64 &&
+          data.updatedAt is string && data.updatedAt.size() <= 64;
+      }
+
+      allow get: if isSignedIn() && isValidId(requestId) && (
+        request.auth.uid == resource.data.senderId ||
+        request.auth.uid == resource.data.receiverId ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(requestId) &&
+        isValidMatchRequest(incoming()) &&
+        incoming().senderId == request.auth.uid &&
+        incoming().status == 'pending';
+      allow update: if isSignedIn() && isValidId(requestId) &&
+        isValidMatchRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().senderId == existing().senderId &&
+        incoming().receiverId == existing().receiverId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (
+            request.auth.uid == existing().receiverId &&
+            existing().status == 'pending' &&
+            incoming().status in ['matched', 'declined']
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    // --- 5. Admin Privileges Record ---
+    match /admins/{adminId} {
+      allow read, write: if false;
     }
   }
 }
-
-testConnection();
