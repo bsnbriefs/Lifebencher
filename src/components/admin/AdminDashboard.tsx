@@ -40,84 +40,17 @@ interface VerificationCandidate {
   status: 'pending' | 'approved' | 'rejected' | 'changes_requested';
 }
 
-const INITIAL_VERIFICATION_QUEUE: VerificationCandidate[] = [
-  {
-    id: 'cand_1',
-    displayName: 'David Adeleke',
-    age: 32,
-    gender: 'male',
-    location: 'Ikoyi, Lagos',
-    profession: 'Investment Director & Founder',
-    education: 'M.Sc. Finance (London Business School)',
-    bio: 'Looking for a faith-rooted, intellectual partnership. Seeking marriage within the next 18 months.',
-    submittedAt: 'Today at 08:30 AM',
-    idDocument: 'National Identity Number (NIN) & Verified LinkedIn',
-    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80',
-    status: 'pending'
-  },
-  {
-    id: 'cand_2',
-    displayName: 'Ngozi Okonjo',
-    age: 28,
-    gender: 'female',
-    location: 'Victoria Island, Lagos',
-    profession: 'Principal Consultant',
-    education: 'B.Sc. Law & Economics (Cambridge)',
-    bio: 'Dedicated to impactful infrastructure projects. Values kindness, shared values, and mutual respect.',
-    submittedAt: 'Yesterday at 4:15 PM',
-    idDocument: 'International Passport & Bar Council ID',
-    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80',
-    status: 'pending'
-  }
-];
+const INITIAL_VERIFICATION_QUEUE: VerificationCandidate[] = [];
 
-const REGISTERED_CLIENTS_SAMPLE = [
-  {
-    id: 'usr_1',
-    displayName: 'Chukwudi',
-    age: 31,
-    profession: 'Senior Software Architect',
-    location: 'Lagos, Nigeria',
-    isVerified: true,
-    status: 'Active'
-  },
-  {
-    id: 'usr_2',
-    displayName: 'Amaka',
-    age: 28,
-    profession: 'Senior Financial Analyst',
-    location: 'Lagos, Nigeria',
-    isVerified: true,
-    status: 'Active'
-  },
-  {
-    id: 'usr_3',
-    displayName: 'Kemi',
-    age: 29,
-    profession: 'Pediatric Specialist',
-    location: 'Lagos, Nigeria',
-    isVerified: true,
-    status: 'Active'
-  },
-  {
-    id: 'usr_4',
-    displayName: 'Zainab',
-    age: 30,
-    profession: 'Corporate Legal Counsel',
-    location: 'Abuja, Nigeria',
-    isVerified: true,
-    status: 'Active'
-  },
-  {
-    id: 'usr_5',
-    displayName: 'Fatima',
-    age: 27,
-    profession: 'Energy Consultant',
-    location: 'Abuja, Nigeria',
-    isVerified: true,
-    status: 'Active'
-  }
-];
+const REGISTERED_CLIENTS_SAMPLE: {
+  id: string;
+  displayName: string;
+  age: number;
+  profession: string;
+  location: string;
+  isVerified: boolean;
+  status: string;
+}[] = [];
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) => {
   const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches'>('verifications');
@@ -128,40 +61,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [notification, setNotification] = useState<string | null>(null);
 
   // Manual Curation Matchmaker state
-  const [clientA, setClientA] = useState('usr_1');
-  const [clientB, setClientB] = useState('usr_2');
-  const [curatorNote, setCuratorNote] = useState(
-    'Both candidates share strong Christian faith, high emotional intelligence, and are seeking intentional marriage within Lagos.'
-  );
+  const [clientA, setClientA] = useState('');
+  const [clientB, setClientB] = useState('');
+  const [curatorNote, setCuratorNote] = useState('');
   const [isIntroducing, setIsIntroducing] = useState(false);
 
   // Active matches overview state
-  const [systemMatches, setSystemMatches] = useState([
+  const [systemMatches, setSystemMatches] = useState<
     {
-      id: 'sm_1',
-      partyA: 'Chukwudi (31, Architect)',
-      partyB: 'Amaka (28, Financial Analyst)',
-      daysLeft: 5,
-      extendedCount: 0,
-      totalExtensionRevenue: '₦0'
-    },
-    {
-      id: 'sm_2',
-      partyA: 'Chukwudi (31, Architect)',
-      partyB: 'Kemi (29, Pediatrician)',
-      daysLeft: 1,
-      extendedCount: 1,
-      totalExtensionRevenue: '₦9,000'
-    },
-    {
-      id: 'sm_3',
-      partyA: 'David (32, Founder)',
-      partyB: 'Zainab (30, Legal Counsel)',
-      daysLeft: 6,
-      extendedCount: 0,
-      totalExtensionRevenue: '₦0'
-    }
-  ]);
+      id: string;
+      partyA: string;
+      partyB: string;
+      daysLeft: number;
+      extendedCount: number;
+      totalExtensionRevenue: string;
+    }[]
+  >([]);
 
   const handleApprove = (id: string) => {
     setQueue((prev) =>
@@ -182,11 +97,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   };
 
   const handleDispatchIntroduction = () => {
+    if (!clientA || !clientB || clientA === clientB) return;
     setIsIntroducing(true);
     setTimeout(() => {
       setIsIntroducing(false);
       const nameA = REGISTERED_CLIENTS_SAMPLE.find((c) => c.id === clientA)?.displayName;
       const nameB = REGISTERED_CLIENTS_SAMPLE.find((c) => c.id === clientB)?.displayName;
+      if (!nameA || !nameB) return;
 
       setSystemMatches((prev) => [
         {
@@ -350,6 +267,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <span>{queue.filter((c) => c.status === 'pending').length} remaining</span>
             </div>
 
+            {queue.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-3xl border border-stone-200 text-xs text-stone-500">
+                No verification submissions yet.
+              </div>
+            )}
             {queue.map((cand) => (
               <div
                 key={cand.id}
@@ -440,6 +362,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   onChange={(e) => setClientA(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-300 outline-hidden font-medium"
                 >
+                  <option value="">Select member</option>
                   {REGISTERED_CLIENTS_SAMPLE.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.displayName} ({c.profession.split(' ')[0]})
@@ -455,6 +378,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   onChange={(e) => setClientB(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-300 outline-hidden font-medium"
                 >
+                  <option value="">Select member</option>
                   {REGISTERED_CLIENTS_SAMPLE.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.displayName} ({c.profession.split(' ')[0]})
@@ -479,7 +403,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
             <button
               onClick={handleDispatchIntroduction}
-              disabled={isIntroducing || clientA === clientB}
+              disabled={isIntroducing || !clientA || !clientB || clientA === clientB}
               className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-900 via-rose-800 to-amber-700 text-white font-bold text-xs shadow-md hover:from-rose-950 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isIntroducing ? (
@@ -502,6 +426,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <span>7-Day Window Tracking</span>
             </div>
 
+            {systemMatches.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-3xl border border-stone-200 text-xs text-stone-500">
+                No live matches in the system yet.
+              </div>
+            )}
             {systemMatches.map((m) => (
               <div
                 key={m.id}
@@ -555,6 +484,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             </h3>
 
             <div className="space-y-2">
+              {REGISTERED_CLIENTS_SAMPLE.length === 0 && (
+                <p className="text-xs text-stone-500 py-8 text-center">
+                  No registered clients loaded. Directory will list live members when connected to Firestore.
+                </p>
+              )}
               {REGISTERED_CLIENTS_SAMPLE.map((c) => (
                 <div
                   key={c.id}
