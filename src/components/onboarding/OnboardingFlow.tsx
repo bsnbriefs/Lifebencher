@@ -175,8 +175,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       }
       await login(loginEmail, loginPassword);
       if (onCompleted) onCompleted();
-    } catch {
-      setErrorMessage('Failed to log in. Please check your credentials.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to log in. Please check your credentials.');
     } finally {
       setIsSubmitting(false);
     }
@@ -250,6 +250,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     setIsSubmitting(true);
     const photoToUse = customPhotoUrl.trim() || selectedPhoto;
 
+    try {
     await completeOnboarding(
       {
         displayName,
@@ -278,7 +279,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         preferredLocations: [location]
       }
     );
-
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(err instanceof Error ? err.message : 'Could not save profile. You can tap Activate again.');
+    } finally {
     setIsSubmitting(false);
     try {
       sessionStorage.removeItem('lifebencher_onboarding_step');
@@ -286,6 +290,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       /* ignore */
     }
     if (onCompleted) onCompleted();
+    }
   };
 
   return (
