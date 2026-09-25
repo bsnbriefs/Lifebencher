@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -11,6 +11,7 @@ export const db =
     ? getFirestore(app)
     : getFirestore(app, namedDb);
 export const auth = getAuth(app);
+void setPersistence(auth, browserLocalPersistence);
 export const storage = getStorage(app);
 
 export enum OperationType {
