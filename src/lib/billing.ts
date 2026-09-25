@@ -29,15 +29,11 @@ export interface BillingTransaction {
 
 export interface Entitlements {
   userId: string;
-  plan: 'free' | 'plus' | 'priority';
+  plan: 'free' | 'plus';
   planExpiresAt: string | null;
   spotlightUntil: string | null;
-  superInterestCredits: number;
   matchmakingPackage: 'none' | 'local' | 'international';
   matchmakingRemaining: number;
-  conciergeTier: 'none' | 'concierge_150' | 'concierge_200' | 'concierge_350';
-  conciergeStatus: 'none' | 'pending' | 'active' | 'completed';
-  verificationRequested: boolean;
   extraMatches: number;
   updatedAt: string;
 }
@@ -47,12 +43,8 @@ export const EMPTY_ENTITLEMENTS = (uid: string): Entitlements => ({
   plan: 'free',
   planExpiresAt: null,
   spotlightUntil: null,
-  superInterestCredits: 0,
   matchmakingPackage: 'none',
   matchmakingRemaining: 0,
-  conciergeTier: 'none',
-  conciergeStatus: 'none',
-  verificationRequested: false,
   extraMatches: 0,
   updatedAt: new Date().toISOString()
 });
@@ -145,31 +137,14 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
   if (product?.id === 'plus_monthly') {
     patch.plan = 'plus';
     patch.planExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
-  } else if (product?.id === 'priority_monthly') {
-    patch.plan = 'priority';
-    patch.planExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
   } else if (product?.id === 'matchmaking_local') {
     patch.matchmakingPackage = 'local';
     patch.matchmakingRemaining = 3;
   } else if (product?.id === 'matchmaking_international') {
     patch.matchmakingPackage = 'international';
     patch.matchmakingRemaining = 3;
-  } else if (product?.id === 'concierge_150' || product?.id === 'concierge_200' || product?.id === 'concierge_350') {
-    patch.conciergeTier = product.id;
-    patch.conciergeStatus = 'pending';
-  } else if (product?.kind === 'spotlight') {
-    const hours = product.id === 'spotlight_7d' ? 24 * 7 : product.id === 'spotlight_3d' ? 24 * 3 : 24;
-    patch.spotlightUntil = new Date(Date.now() + hours * 3600000).toISOString();
-  } else if (product?.kind === 'super_interest') {
-    const add = product.id === 'super_15' ? 15 : product.id === 'super_5' ? 5 : 1;
-    patch.superInterestCredits = add;
-  } else if (product?.id === 'verification_request') {
-    patch.verificationRequested = true;
-    await setDoc(
-      doc(db, 'verificationRequests', uid),
-      { userId: uid, status: 'pending', transactionId: tx.id, createdAt: new Date().toISOString() },
-      { merge: true }
-    );
+  } else if (product?.id === 'boost_24h' || product?.kind === 'boost') {
+    patch.spotlightUntil = new Date(Date.now() + 24 * 3600000).toISOString();
   } else if (product?.id === 'extra_match') {
     patch.extraMatches = 1;
   }

@@ -1,13 +1,4 @@
-export type ProductKind =
-  | 'subscription'
-  | 'matchmaking'
-  | 'concierge'
-  | 'spotlight'
-  | 'super_interest'
-  | 'verification'
-  | 'extra_match'
-  | 'extension'
-  | 'event';
+export type ProductKind = 'subscription' | 'matchmaking' | 'boost' | 'extra_match' | 'extension';
 
 export interface Product {
   id: string;
@@ -28,28 +19,34 @@ export const PRODUCTS: Product[] = [
     priceNgn: 5000,
     priceLabel: '₦5,000/mo',
     cadence: 'monthly',
-    summary: 'More discovery tools and one Spotlight each month.',
-    bullets: ['Advanced discovery tools', '1 Spotlight / month', 'Priority support queue']
+    summary: 'See who liked you, extra filters, visibility, and 1 boost each month.',
+    bullets: [
+      'See who likes you',
+      'Advanced filters',
+      'Increased visibility',
+      'Priority access to new profiles',
+      '1 profile boost per month'
+    ]
   },
   {
-    id: 'priority_monthly',
-    kind: 'subscription',
-    name: 'Lifebencher Priority',
-    priceNgn: 15000,
-    priceLabel: '₦15,000/mo',
-    cadence: 'monthly',
-    summary: 'Higher visibility and three Spotlights each month.',
-    bullets: ['Everything in Plus', '3 Spotlights / month', 'Priority discovery placement']
+    id: 'boost_24h',
+    kind: 'boost',
+    name: 'Profile Boost',
+    priceNgn: 1000,
+    priceLabel: '₦1,000 / 24 hours',
+    cadence: 'one_time',
+    summary: 'Higher placement in Discover for 24 hours.',
+    bullets: ['24-hour Discover boost']
   },
   {
     id: 'matchmaking_local',
     kind: 'matchmaking',
-    name: 'Local Matchmaking',
+    name: 'Nigeria Matchmaking',
     priceNgn: 30000,
     priceLabel: '₦30,000',
     cadence: 'one_time',
     summary: 'Human-assisted introductions in Nigeria. Up to 3 matches.',
-    bullets: ['Concierge introductions', 'Up to 3 matches', 'Existing 7-day connection rules apply']
+    bullets: ['Up to 3 introductions', 'Existing 7-day connection rules']
   },
   {
     id: 'matchmaking_international',
@@ -58,108 +55,8 @@ export const PRODUCTS: Product[] = [
     priceNgn: 50000,
     priceLabel: '₦50,000',
     cadence: 'one_time',
-    summary: 'Human-assisted introductions across borders. Up to 3 matches.',
-    bullets: ['International search', 'Up to 3 matches', 'Existing matching workflow unchanged']
-  },
-  {
-    id: 'concierge_150',
-    kind: 'concierge',
-    name: 'Concierge Essential',
-    priceNgn: 150000,
-    priceLabel: '₦150,000',
-    cadence: 'one_time',
-    summary: 'Dedicated human matchmaking support. Not automated.',
-    bullets: ['Personal coordinator', 'Candidate screening', 'Follow-up support']
-  },
-  {
-    id: 'concierge_200',
-    kind: 'concierge',
-    name: 'Concierge Plus',
-    priceNgn: 200000,
-    priceLabel: '₦200,000',
-    cadence: 'one_time',
-    summary: 'Expanded search and coordination by the concierge team.',
-    bullets: ['Dedicated search', 'Introductions', 'Ongoing coordination']
-  },
-  {
-    id: 'concierge_350',
-    kind: 'concierge',
-    name: 'Concierge Private',
-    priceNgn: 350000,
-    priceLabel: '₦350,000',
-    cadence: 'one_time',
-    summary: 'Highest-touch private matchmaking service.',
-    bullets: ['Private search', 'Screening & coordination', 'Priority concierge desk']
-  },
-  {
-    id: 'spotlight_24h',
-    kind: 'spotlight',
-    name: 'Spotlight 24 hours',
-    priceNgn: 1000,
-    priceLabel: '₦1,000',
-    cadence: 'one_time',
-    summary: 'Raise visibility in Discover for 24 hours.',
-    bullets: ['24-hour Discover boost']
-  },
-  {
-    id: 'spotlight_3d',
-    kind: 'spotlight',
-    name: 'Spotlight 3 days',
-    priceNgn: 2500,
-    priceLabel: '₦2,500',
-    cadence: 'one_time',
-    summary: 'Raise visibility in Discover for 3 days.',
-    bullets: ['3-day Discover boost']
-  },
-  {
-    id: 'spotlight_7d',
-    kind: 'spotlight',
-    name: 'Spotlight 7 days',
-    priceNgn: 5000,
-    priceLabel: '₦5,000',
-    cadence: 'one_time',
-    summary: 'Raise visibility in Discover for 7 days.',
-    bullets: ['7-day Discover boost']
-  },
-  {
-    id: 'super_1',
-    kind: 'super_interest',
-    name: '1 Super Interest',
-    priceNgn: 500,
-    priceLabel: '₦500',
-    cadence: 'one_time',
-    summary: 'Send one highlighted interest.',
-    bullets: ['1 Super Interest credit']
-  },
-  {
-    id: 'super_5',
-    kind: 'super_interest',
-    name: '5 Super Interests',
-    priceNgn: 2000,
-    priceLabel: '₦2,000',
-    cadence: 'one_time',
-    summary: 'Bundle of five highlighted interests.',
-    bullets: ['5 Super Interest credits']
-  },
-  {
-    id: 'super_15',
-    kind: 'super_interest',
-    name: '15 Super Interests',
-    priceNgn: 5000,
-    priceLabel: '₦5,000',
-    cadence: 'one_time',
-    summary: 'Bundle of fifteen highlighted interests.',
-    bullets: ['15 Super Interest credits']
-  },
-  {
-    id: 'verification_request',
-    kind: 'verification',
-    name: 'Verification request',
-    priceNgn: 5000,
-    priceLabel: '₦5,000',
-    cadence: 'one_time',
-    summary: 'Pays for a review. Admin still approves the badge.',
-    bullets: ['Verification review', 'Badge only after admin approval']
+    summary: 'Human-assisted introductions abroad. Up to 3 matches.',
+    bullets: ['Up to 3 introductions', 'Existing matching workflow']
   },
   {
     id: 'extra_match',
@@ -168,7 +65,7 @@ export const PRODUCTS: Product[] = [
     priceNgn: 10000,
     priceLabel: '₦10,000',
     cadence: 'one_time',
-    summary: 'One additional matchmaking introduction after your included allocation.',
+    summary: 'One more introduction after your included 3 are used.',
     bullets: ['+1 introduction']
   },
   {
@@ -178,7 +75,7 @@ export const PRODUCTS: Product[] = [
     priceNgn: 5000,
     priceLabel: '₦5,000',
     cadence: 'one_time',
-    summary: 'Extend an active 7-day connection.',
+    summary: 'Extend an active connection by 7 days.',
     bullets: ['+7 days']
   },
   {
