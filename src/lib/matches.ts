@@ -143,9 +143,12 @@ export async function createOrGetMatch(otherUserId: string): Promise<string> {
 
   const id = matchIdFor(uid, otherUserId);
   const ref = doc(db, 'matches', id);
-  const existing = await getDoc(ref);
-  if (existing.exists()) {
-    return id;
+
+  try {
+    const existing = await getDoc(ref);
+    if (existing.exists()) return id;
+  } catch {
+    /* missing docs can deny get; create instead */
   }
 
   const now = new Date().toISOString();
@@ -162,7 +165,11 @@ export async function createOrGetMatch(otherUserId: string): Promise<string> {
   try {
     await setDoc(ref, payload);
   } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, `/matches/${id}`);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.toLowerCase().includes('permission') || message.toLowerCase().includes('insufficient')) {
+      throw new Error('Could not open the 7-day connection. Publish the latest firestore.rules and try again.');
+    }
+    throw new Error(message);
   }
   return id;
 }
