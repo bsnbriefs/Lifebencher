@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Crown, Sparkles } from 'lucide-react';
+import { Crown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   BillingTransaction,
@@ -8,9 +8,10 @@ import {
   createPendingTransaction,
   listenEntitlements,
   listenMyTransactions,
-  planActive
+  planActive,
+  spotlightActive
 } from '../../lib/billing';
-import { PRODUCTS, formatNgn } from '../../lib/products';
+import { productById, formatNgn } from '../../lib/products';
 
 export const MembershipPanel: React.FC = () => {
   const { user } = useAuth();
@@ -34,7 +35,7 @@ export const MembershipPanel: React.FC = () => {
     setNote(null);
     try {
       await createPendingTransaction(productId);
-      setNote('Request recorded as pending. Access unlocks after Lifebencher confirms payment — the app will not unlock from this screen alone.');
+      setNote('Request is pending. Plus, Boost, and extra matches unlock only after Lifebencher confirms payment.');
     } catch (err) {
       setNote(err instanceof Error ? err.message : 'Could not start this request.');
     } finally {
@@ -42,76 +43,91 @@ export const MembershipPanel: React.FC = () => {
     }
   };
 
-  const activePlan = planActive(ent) ? ent.plan : 'free';
+  const plusOn = planActive(ent);
+  const boostOn = spotlightActive(ent);
+  const showExtra = ent.matchmakingPackage !== 'none' && ent.matchmakingRemaining <= 0;
+  const plus = productById('plus_monthly');
+  const boost = productById('boost_24h');
 
   return (
     <div className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-serif font-bold text-base text-stone-900 flex items-center gap-2">
-            <Crown className="w-4 h-4 text-amber-700" />
-            Membership & Billing
-          </h3>
-          <p className="text-[11px] text-stone-500 mt-1">
-            Current plan: <span className="font-semibold text-stone-800 capitalize">{activePlan}</span>
-            {ent.planExpiresAt && planActive(ent) ? ` · until ${new Date(ent.planExpiresAt).toLocaleDateString()}` : ''}
+      <div>
+        <h3 className="font-serif font-bold text-base text-stone-900 flex items-center gap-2">
+          <Crown className="w-4 h-4 text-amber-700" />
+          Lifebencher Plus
+        </h3>
+        <p className="text-[11px] text-stone-500 mt-1">
+          {plusOn
+            ? `Active until ${new Date(ent.planExpiresAt || '').toLocaleDateString()}`
+            : 'Free members keep Discover, interest, and chat after a match.'}
+        </p>
+      </div>
+
+      {plus && (
+        <div className="rounded-2xl border border-stone-200 p-3 space-y-2">
+          <div className="flex justify-between text-xs font-semibold">
+            <span>{plus.name}</span>
+            <span className="text-rose-900">{plus.priceLabel}</span>
+          </div>
+          <ul className="text-[11px] text-stone-600 space-y-0.5">
+            {plus.bullets.map((b) => (
+              <li key={b}>✓ {b}</li>
+            ))}
+          </ul>
+          {!plusOn && (
+            <button
+              type="button"
+              disabled={busy === plus.id}
+              onClick={() => void requestProduct(plus.id)}
+              className="w-full py-2.5 rounded-xl bg-rose-900 text-amber-100 text-xs font-semibold"
+            >
+              Upgrade to Plus
+            </button>
+          )}
+        </div>
+      )}
+
+      {boost && (
+        <div className="rounded-2xl border border-stone-200 p-3 space-y-2">
+          <div className="flex justify-between text-xs font-semibold">
+            <span>Boost Your Profile</span>
+            <span className="text-rose-900">{boost.priceLabel}</span>
+          </div>
+          <p className="text-[11px] text-stone-500">
+            {boostOn ? `Boost on until ${new Date(ent.spotlightUntil || '').toLocaleString()}` : '24 hours higher in Discover.'}
           </p>
+          {!boostOn && (
+            <button
+              type="button"
+              disabled={busy === boost.id}
+              onClick={() => void requestProduct(boost.id)}
+              className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
+            >
+              Boost Profile
+            </button>
+          )}
         </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
-        <div className="p-2.5 rounded-2xl bg-stone-50 border border-stone-200/70">
-          <span className="block text-stone-400 uppercase font-bold text-[10px]">Spotlights</span>
-          {ent.spotlightUntil && new Date(ent.spotlightUntil) > new Date()
-            ? `Active to ${new Date(ent.spotlightUntil).toLocaleString()}`
-            : 'None active'}
+      {showExtra && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+          <p className="text-xs font-semibold text-stone-900">Want another introduction?</p>
+          <button
+            type="button"
+            disabled={busy === 'extra_match'}
+            onClick={() => void requestProduct('extra_match')}
+            className="w-full py-2.5 rounded-xl bg-stone-900 text-amber-100 text-xs font-semibold"
+          >
+            Get Another Match — ₦10,000
+          </button>
         </div>
-        <div className="p-2.5 rounded-2xl bg-stone-50 border border-stone-200/70">
-          <span className="block text-stone-400 uppercase font-bold text-[10px]">Super Interest</span>
-          {ent.superInterestCredits} credit{ent.superInterestCredits === 1 ? '' : 's'}
-        </div>
-        <div className="p-2.5 rounded-2xl bg-stone-50 border border-stone-200/70">
-          <span className="block text-stone-400 uppercase font-bold text-[10px]">Matchmaking</span>
-          {ent.matchmakingPackage === 'none'
-            ? 'Not purchased'
-            : `${ent.matchmakingPackage} · ${ent.matchmakingRemaining} left`}
-        </div>
-        <div className="p-2.5 rounded-2xl bg-stone-50 border border-stone-200/70">
-          <span className="block text-stone-400 uppercase font-bold text-[10px]">Concierge</span>
-          {ent.conciergeStatus === 'none' ? 'Not started' : ent.conciergeStatus}
-        </div>
-      </div>
-
-      <p className="text-[11px] text-stone-500 leading-relaxed">
-        Paid plans do not guarantee a relationship or a match. Free members keep profile, Discover, interest, and chat after a match.
-      </p>
+      )}
 
       {note && <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl p-2.5">{note}</p>}
 
-      <div className="space-y-2">
-        {PRODUCTS.filter((p) => p.kind !== 'extension').map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            disabled={busy === p.id}
-            onClick={() => void requestProduct(p.id)}
-            className="w-full text-left p-3 rounded-2xl border border-stone-200 hover:border-rose-300 bg-stone-50/80 cursor-pointer"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-stone-900">{p.name}</span>
-              <span className="text-[11px] font-bold text-rose-900">{p.priceLabel}</span>
-            </div>
-            <p className="text-[11px] text-stone-500 mt-0.5">{p.summary}</p>
-          </button>
-        ))}
-      </div>
-
       {txs.length > 0 && (
-        <div className="pt-2 border-t border-stone-100 space-y-1.5">
-          <p className="text-[10px] uppercase font-bold text-stone-400 flex items-center gap-1">
-            <Sparkles className="w-3 h-3" /> Recent requests
-          </p>
-          {txs.slice(0, 6).map((t) => (
+        <div className="pt-2 border-t border-stone-100 space-y-1">
+          {txs.slice(0, 5).map((t) => (
             <div key={t.id} className="flex justify-between text-[11px] text-stone-600">
               <span>{t.productName}</span>
               <span>
