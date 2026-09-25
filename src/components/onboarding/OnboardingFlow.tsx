@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { AppLogo } from '../common/AppLogo';
+import { useTheme } from '../../context/ThemeContext';
+import { Sun, Moon } from 'lucide-react';
 import { Gender } from '../../types';
 
 interface OnboardingFlowProps {
@@ -79,6 +82,7 @@ const AVAILABLE_INTERESTS = [
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) => {
   const { register, login, loginWithGoogle, sendEmailLink, completeOnboarding } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   // Mode: 'register' vs 'login'
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
@@ -300,9 +304,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       {/* Top Brand Header */}
       <header className="max-w-md w-full mx-auto pt-2 pb-4 flex items-center justify-between border-b border-stone-200/70">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-900 to-rose-700 flex items-center justify-center text-amber-300 shadow-xs">
-            <Sparkles className="w-4 h-4" />
-          </div>
+          <AppLogo size={32} className="rounded-xl shadow-xs" />
           <div>
             <h1 className="font-serif font-bold text-lg text-rose-950 leading-tight">
               Lifebencher
@@ -313,6 +315,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
           </div>
         </div>
 
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="w-9 h-9 rounded-full bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-600"
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
         {/* Toggle Login vs Register */}
         <button
           onClick={() => {
@@ -323,6 +334,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         >
           {authMode === 'register' ? 'Already have an account? Log In' : 'New Client? Register'}
         </button>
+        </div>
       </header>
 
       {/* Main Body */}
