@@ -58,7 +58,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  const raw = errInfo.error.toLowerCase();
+  if (raw.includes('permission') || raw.includes('insufficient')) {
+    throw new Error('You do not have permission for that action. Try again or refresh.');
+  }
+  if (raw.includes('offline') || raw.includes('unavailable') || raw.includes('network')) {
+    throw new Error('Network problem. Check your connection and try again.');
+  }
+  throw new Error('Something went wrong. Please try again.');
 }
 
 // Test connectivity on initial boot as required by Firebase integration guidelines
