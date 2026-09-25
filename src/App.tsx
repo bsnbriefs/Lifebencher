@@ -11,21 +11,42 @@ import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { WifiOff } from 'lucide-react';
 
+const TABS: NavigationTab[] = ['discover', 'matches', 'messages', 'profile'];
+
+function tabFromHash(): NavigationTab {
+  const raw = window.location.hash.replace('#', '');
+  return TABS.includes(raw as NavigationTab) ? (raw as NavigationTab) : 'discover';
+}
+
 function AppContent() {
   const { isAuthenticated, isOnboarded, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<NavigationTab>('discover');
+  const [activeTab, setActiveTab] = useState<NavigationTab>(tabFromHash);
   const [targetChatMatchId, setTargetChatMatchId] = useState<string | null>(null);
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+  const selectTab = (tab: NavigationTab) => {
+    setActiveTab(tab);
+    const next = `#${tab}`;
+    if (window.location.hash !== next) {
+      window.history.pushState({ tab }, '', next);
+    }
+  };
+
   useEffect(() => {
+    if (!window.location.hash) {
+      window.history.replaceState({ tab: activeTab }, '', `#${activeTab}`);
+    }
+    const onPop = () => setActiveTab(tabFromHash());
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('hashchange', onPop);
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('hashchange', onPop);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -33,20 +54,10 @@ function AppContent() {
 
   const handleOpenChat = (matchId: string) => {
     setTargetChatMatchId(matchId);
-    setActiveTab('messages');
+    selectTab('messages');
   };
 
-  if (isAdminMode) {
-    return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
-  }
-
-  // Keep OnboardingFlow mounted through Auth hydration so step state is not
-  // destroyed after createUserWithEmailAndPassword → onAuthStateChanged.
-  if (!isOnboarded) {
-    return <OnboardingFlow />;
-  }
-
-  if (isLoading && !isAuthenticated) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
         <p className="text-sm text-stone-500">Connecting to Lifebencher…</p>
@@ -54,7 +65,11 @@ function AppContent() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (isAdminMode) {
+    return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
+  }
+
+  if (!isAuthenticated || !isOnboarded) {
     return <OnboardingFlow />;
   }
 
@@ -68,7 +83,7 @@ function AppContent() {
         </div>
       )}
 
-      <MobileAppShell activeTab={activeTab} onSelectTab={setActiveTab}>
+      <MobileAppShell activeTab={activeTab} onSelectTab={selectTab}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
