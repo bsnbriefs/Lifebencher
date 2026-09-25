@@ -380,6 +380,44 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == prefUid);
     }
 
+    match /transactions/{txId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().currency == 'NGN' &&
+        incoming().amountNgn is int &&
+        incoming().productId is string &&
+        incoming().reference is string;
+      allow update, delete: if isAdmin();
+    }
+
+    match /entitlements/{entUid} {
+      allow get: if isSignedIn() && (request.auth.uid == entUid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /verificationRequests/{reqUid} {
+      allow get: if isSignedIn() && (request.auth.uid == reqUid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == reqUid && incoming().status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    match /conciergeOrders/{orderId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    match /boosts/{boostId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /admins/{adminId} {
       allow read, write: if false;
     }
