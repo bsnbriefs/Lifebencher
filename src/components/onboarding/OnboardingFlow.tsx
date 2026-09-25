@@ -175,6 +175,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       }
       await login(loginEmail, loginPassword);
       if (onCompleted) onCompleted();
+      sessionStorage.setItem('lifebencher_onboarding_step', '2');
+      setCurrentStep(2);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to log in. Please check your credentials.');
     } finally {
