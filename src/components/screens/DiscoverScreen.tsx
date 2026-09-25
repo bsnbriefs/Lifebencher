@@ -188,7 +188,7 @@ export const DiscoverScreen: React.FC = () => {
 
       {entitlements.plan === 'free' && (
         <p className="text-[11px] text-stone-500 px-1">
-          Free Discover is open. Spotlight and Plus live under Profile → Membership & Billing. No payment is required to send a normal interest.
+          Free Discover is open. Plus and Boost are on Profile when you want them. Sending an interest stays free.
         </p>
       )}
 
