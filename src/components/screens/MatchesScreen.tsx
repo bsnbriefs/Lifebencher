@@ -18,8 +18,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Match, MatchRequest } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
-import { endMatch, extendMatch, listenUserMatches } from '../../lib/matches';
+import { endMatch, listenUserMatches } from '../../lib/matches';
 import { acceptInterest, declineInterest, listenIncomingInterests } from '../../lib/interests';
+import { createPendingTransaction } from '../../lib/billing';
 
 interface MatchesScreenProps {
   onOpenChat: (matchId: string) => void;
@@ -163,21 +164,19 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
   const handleExecutePayment = () => {
     if (!showExtendSheet) return;
     setIsProcessingPayment(true);
-
-    // Simulate Paystack checkout verification
-    setTimeout(() => {
-      setIsProcessingPayment(false);
-
-      // Extend match expiration by selected plan days
-      const daysToAdd = selectedPlan.days;
-      void extendMatch(showExtendSheet.id, showExtendSheet, daysToAdd);
-
-      setShowExtendSheet(null);
-      setExtensionSuccessMsg(
-        `Connection extended by ${selectedPlan.days} days! Receipt delivered to your email.`
-      );
-      setTimeout(() => setExtensionSuccessMsg(null), 4000);
-    }, 1200);
+    void createPendingTransaction(selectedPlan.id, showExtendSheet.id)
+      .then(() => {
+        setShowExtendSheet(null);
+        setExtensionSuccessMsg(
+          `Extension request ${selectedPlan.priceFormatted} is pending. Time is added after Lifebencher confirms payment.`
+        );
+        setTimeout(() => setExtensionSuccessMsg(null), 5000);
+      })
+      .catch((err) => {
+        setExtensionSuccessMsg(err instanceof Error ? err.message : 'Could not start payment request.');
+        setTimeout(() => setExtensionSuccessMsg(null), 4000);
+      })
+      .finally(() => setIsProcessingPayment(false));
   };
 
   return (

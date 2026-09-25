@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { uploadProfilePhoto } from '../../lib/profilePhoto';
+import { MembershipPanel } from '../billing/MembershipPanel';
 
 interface ProfileScreenProps {
   onOpenAdmin?: () => void;
@@ -259,6 +260,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
           </div>
         </div>
       </div>
+
+      <MembershipPanel />
 
       {isInstallable && !isInstalled && (
         <button

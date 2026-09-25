@@ -21,6 +21,7 @@ import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
 import { listenVisibleProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
+import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
 
 const FALLBACK_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
@@ -48,6 +49,7 @@ export const DiscoverScreen: React.FC = () => {
   const [sentInterests, setSentInterests] = useState<Record<string, boolean>>({});
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
 
   useEffect(() => {
     if (!user?.id) {
@@ -60,6 +62,7 @@ export const DiscoverScreen: React.FC = () => {
       setProfiles(list);
       setIsLoadingProfiles(false);
     });
+    const unsubEnt = listenEntitlements(user.id, setEntitlements);
     const unsubOutgoing = listenOutgoingInterestIds(user.id, (ids) => {
       const map: Record<string, boolean> = {};
       ids.forEach((id) => {
@@ -70,6 +73,7 @@ export const DiscoverScreen: React.FC = () => {
     return () => {
       unsubProfiles();
       unsubOutgoing();
+      unsubEnt();
     };
   }, [user?.id]);
 
@@ -181,6 +185,12 @@ export const DiscoverScreen: React.FC = () => {
           )}
         </button>
       </div>
+
+      {entitlements.plan === 'free' && (
+        <p className="text-[11px] text-stone-500 px-1">
+          Free Discover is open. Spotlight and Plus live under Profile → Membership & Billing. No payment is required to send a normal interest.
+        </p>
+      )}
 
       {/* Toast Notification Banner */}
       <AnimatePresence>
