@@ -7,10 +7,22 @@ import {
 } from '../../lib/billing';
 import { formatNgn } from '../../lib/products';
 
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'plus_monthly', label: 'Plus' },
+  { id: 'boost_24h', label: 'Boost' },
+  { id: 'extra_match', label: 'Extra Match' },
+  { id: 'matchmaking_local', label: 'Local' },
+  { id: 'matchmaking_international', label: 'International' }
+];
+
 export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = ({ onNotice }) => {
   const [rows, setRows] = useState<BillingTransaction[]>([]);
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => listenAllTransactions(setRows), []);
+
+  const visible = filter === 'all' ? rows : rows.filter((r) => r.productId === filter);
 
   const totals = useMemo(() => {
     const success = rows.filter((r) => r.status === 'success');
@@ -51,17 +63,32 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
         </div>
       )}
 
+      <div className="flex flex-wrap gap-1.5">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setFilter(f.id)}
+            className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${
+              filter === f.id ? 'bg-rose-900 text-amber-100 border-rose-950' : 'bg-white text-stone-600 border-stone-200'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       <p className="text-[11px] text-stone-500">
         Confirm a transfer only after Paystack (or bank) shows the payment. Confirming grants the entitlement.
       </p>
 
-      {rows.length === 0 && (
+      {visible.length === 0 && (
         <p className="text-xs text-stone-500 bg-white rounded-2xl border border-stone-200 p-4 text-center">
           No billing requests yet.
         </p>
       )}
 
-      {rows.slice(0, 40).map((tx) => (
+      {visible.slice(0, 40).map((tx) => (
         <div key={tx.id} className="bg-white p-3 rounded-2xl border border-stone-200 space-y-2">
           <div className="flex justify-between gap-2 text-xs">
             <div>
