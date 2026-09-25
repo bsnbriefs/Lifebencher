@@ -29,7 +29,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       {/* Top Mobile App Header */}
       <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-stone-200/70 safe-area-top">
         <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => onSelectTab('discover')}
+            className="flex items-center gap-2.5 text-left cursor-pointer"
+            aria-label="Go to Discover"
+          >
             <AppLogo size={32} className="rounded-xl shadow-sm" />
             <div>
               <span className="font-serif font-bold text-lg tracking-tight text-rose-950 block leading-tight">
@@ -39,7 +44,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
                 Match
               </span>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-2">
             <button
