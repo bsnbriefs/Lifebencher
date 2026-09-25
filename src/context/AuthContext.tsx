@@ -453,7 +453,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentProfile,
         preferences,
         isAuthenticated: !!user,
-        isOnboarded: isProfileOnboarded(currentProfile),
+        isOnboarded:
+          isProfileOnboarded(currentProfile) ||
+          user?.email === SUPER_ADMIN_EMAIL ||
+          user?.role === 'admin',
         isLoading,
         isAdmin: user?.role === 'admin' || user?.email === SUPER_ADMIN_EMAIL,
         authError,
