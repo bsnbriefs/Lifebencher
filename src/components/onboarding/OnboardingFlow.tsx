@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { AppLogo } from '../common/AppLogo';
+import { useTheme } from '../../context/ThemeContext';
+import { Sun, Moon } from 'lucide-react';
 import { Gender } from '../../types';
 
 interface OnboardingFlowProps {
@@ -79,6 +82,7 @@ const AVAILABLE_INTERESTS = [
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) => {
   const { register, login, loginWithGoogle, sendEmailLink, completeOnboarding } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   // Mode: 'register' vs 'login'
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
@@ -296,13 +300,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col justify-between p-4 safe-area-top safe-area-bottom">
+    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col p-4 pb-28 safe-area-top">
       {/* Top Brand Header */}
       <header className="max-w-md w-full mx-auto pt-2 pb-4 flex items-center justify-between border-b border-stone-200/70">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-900 to-rose-700 flex items-center justify-center text-amber-300 shadow-xs">
-            <Sparkles className="w-4 h-4" />
-          </div>
+          <AppLogo size={32} className="rounded-xl shadow-xs" />
           <div>
             <h1 className="font-serif font-bold text-lg text-rose-950 leading-tight">
               Lifebencher
@@ -313,16 +315,28 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
           </div>
         </div>
 
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="w-9 h-9 rounded-full bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-600"
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
         {/* Toggle Login vs Register */}
+        {currentStep === 1 && (
         <button
           onClick={() => {
             setAuthMode((prev) => (prev === 'register' ? 'login' : 'register'));
             setErrorMessage(null);
           }}
-          className="text-xs font-semibold text-rose-900 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+          className="text-[11px] font-semibold text-rose-900 bg-rose-50 px-2.5 py-1.5 rounded-full border border-rose-200 hover:bg-rose-100 transition cursor-pointer max-w-[9.5rem] leading-tight"
         >
-          {authMode === 'register' ? 'Already have an account? Log In' : 'New Client? Register'}
+          {authMode === 'register' ? 'Log In' : 'Register'}
         </button>
+        )}
+        </div>
       </header>
 
       {/* Main Body */}
@@ -1034,55 +1048,51 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                 )}
               </AnimatePresence>
 
-              {/* Navigation Controls */}
-              <div className="pt-4 flex items-center justify-between border-t border-stone-100 mt-2">
-                {currentStep > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStep((prev) => prev - 1)}
-                    className="flex items-center gap-1 text-xs font-semibold text-stone-600 hover:text-stone-900 px-3 py-2 rounded-xl transition cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    Back
-                  </button>
-                ) : (
-                  <div />
-                )}
-
-                {currentStep < 6 ? (
-                  <button
-                    type="button"
-                    onClick={handleNextStep}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-rose-900 text-amber-100 font-semibold text-xs shadow-sm hover:bg-rose-950 transition active:scale-95 cursor-pointer ml-auto"
-                  >
-                    <span>Continue</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleFinishOnboarding}
-                    disabled={isSubmitting}
-                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-900 to-amber-700 text-white font-bold text-xs shadow-md hover:from-rose-950 transition active:scale-95 cursor-pointer ml-auto"
-                  >
-                    {isSubmitting ? (
-                      <span>Saving Profile...</span>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Complete Profile & Enter</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         )}
       </div>
 
+      {authMode !== 'login' && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#FAF8F5]/95 dark:bg-[#161210]/95 backdrop-blur-md border-t border-stone-200 px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom,0px)+48px)]">
+          <div className="max-w-md mx-auto flex items-center justify-between gap-2">
+            {currentStep > 1 ? (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((prev) => prev - 1)}
+                className="flex items-center gap-1 text-xs font-semibold text-stone-600 px-3 py-3 rounded-xl"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+            ) : (
+              <div />
+            )}
+            {currentStep < 6 ? (
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="flex items-center gap-1.5 px-5 py-3 rounded-2xl bg-rose-900 text-amber-100 font-semibold text-sm shadow-sm ml-auto min-h-12"
+              >
+                <span>Continue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFinishOnboarding}
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-5 py-3 rounded-2xl bg-gradient-to-r from-rose-900 to-amber-700 text-white font-bold text-sm shadow-md ml-auto min-h-12"
+              >
+                {isSubmitting ? 'Saving Profile...' : 'Complete Profile & Enter'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Safety & Trust Footer */}
-      <footer className="max-w-md w-full mx-auto pt-3 text-center text-[11px] text-stone-400 flex items-center justify-center gap-1.5">
+      <footer className="max-w-md w-full mx-auto pt-3 pb-4 text-center text-[11px] text-stone-400 flex items-center justify-center gap-1.5">
         <Shield className="w-3.5 h-3.5 text-rose-800" />
         <span>Lifebencher Match · Verified Intentional Courtship</span>
       </footer>
