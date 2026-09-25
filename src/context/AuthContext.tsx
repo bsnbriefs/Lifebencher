@@ -99,10 +99,12 @@ function profileFromDoc(uid: string, data: Record<string, unknown> | undefined, 
     photos: (typeof data?.photoUrl === 'string' && data.photoUrl
       ? [data.photoUrl]
       : extras?.photos) || [],
-    interests: extras?.interests || [],
-    values: extras?.values || [],
+    interests: Array.isArray(data?.interests) ? (data.interests as string[]) : extras?.interests || [],
+    values: Array.isArray(data?.values) ? (data.values as string[]) : extras?.values || [],
     relationshipGoal: (data?.relationshipGoal as string) || extras?.relationshipGoal || 'Intentional marriage',
-    lifestyle: extras?.lifestyle || {},
+    lifestyle: (data?.lifestyle && typeof data.lifestyle === 'object'
+      ? (data.lifestyle as Profile['lifestyle'])
+      : extras?.lifestyle) || {},
     isVerified: Boolean(data?.isVerified),
     isVisible: data?.isVisible !== false,
     createdAt: (data?.createdAt as string) || nowIso(),
@@ -115,8 +117,13 @@ function isProfileOnboarded(profile: Profile | null): boolean {
   return Boolean(profile.displayName?.trim() && profile.bio?.trim() && profile.profession?.trim());
 }
 
+function clipList(list: string[] | undefined, maxItems: number, maxLen: number): string[] {
+  return (list || []).slice(0, maxItems).map((s) => String(s).slice(0, maxLen));
+}
+
 function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userId: string; createdAt: string }): Record<string, unknown> {
   const photoUrl = profile.photos?.[0];
+  const lifestyle = profile.lifestyle || {};
   return {
     id: profile.id,
     userId: profile.userId,
@@ -132,6 +139,15 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
     isVisible: profile.isVisible !== false,
     createdAt: profile.createdAt,
     updatedAt: nowIso(),
+    interests: clipList(profile.interests, 12, 80),
+    values: clipList(profile.values, 12, 80),
+    lifestyle: {
+      ...(lifestyle.faith ? { faith: String(lifestyle.faith).slice(0, 40) } : {}),
+      ...(lifestyle.smoking ? { smoking: lifestyle.smoking } : {}),
+      ...(lifestyle.drinking ? { drinking: lifestyle.drinking } : {}),
+      ...(lifestyle.exercise ? { exercise: lifestyle.exercise } : {}),
+      ...(lifestyle.kids ? { kids: lifestyle.kids } : {})
+    },
     ...(photoUrl && photoUrl.startsWith('https://') ? { photoUrl: photoUrl.slice(0, 2000) } : {})
   };
 }
@@ -207,20 +223,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mappedProfile = profileFromDoc(uid, profileSnap.data() as Record<string, unknown> | undefined, extras);
       setCurrentProfile(mappedProfile);
 
-      const savedPrefs = localStorage.getItem(`${PREFS_STORAGE_KEY}_${uid}`);
-      if (savedPrefs) {
-        setPreferences(JSON.parse(savedPrefs));
-      } else {
-        setPreferences({
-          id: `pref_${uid}`,
-          profileId: uid,
-          preferredGender: mappedProfile.gender === 'male' ? ['female'] : ['male'],
-          ageMin: 24,
-          ageMax: 35,
-          preferredLocations: [mappedProfile.location || 'Lagos, Nigeria'],
-          preferredRelationshipGoals: [mappedProfile.relationshipGoal]
-        });
+      const prefRef = doc(db, 'preferences', uid);
+      let mappedPrefs: ProfilePreferences | null = null;
+      try {
+        const prefSnap = await getDoc(prefRef);
+        if (prefSnap.exists()) {
+          const p = prefSnap.data() as Record<string, unknown>;
+          mappedPrefs = {
+            id: String(p.id || `pref_${uid}`),
+            profileId: uid,
+            preferredGender: Array.isArray(p.preferredGender) ? (p.preferredGender as ProfilePreferences['preferredGender']) : ['female'],
+            ageMin: typeof p.ageMin === 'number' ? p.ageMin : 24,
+            ageMax: typeof p.ageMax === 'number' ? p.ageMax : 35,
+            preferredLocations: Array.isArray(p.preferredLocations) ? (p.preferredLocations as string[]) : [mappedProfile.location],
+            preferredRelationshipGoals: Array.isArray(p.preferredRelationshipGoals)
+              ? (p.preferredRelationshipGoals as string[])
+              : [mappedProfile.relationshipGoal]
+          };
+        }
+      } catch {
+        mappedPrefs = null;
       }
+      if (!mappedPrefs) {
+        const savedPrefs = localStorage.getItem(`${PREFS_STORAGE_KEY}_${uid}`);
+        mappedPrefs = savedPrefs
+          ? JSON.parse(savedPrefs)
+          : {
+              id: `pref_${uid}`,
+              profileId: uid,
+              preferredGender: mappedProfile.gender === 'male' ? ['female'] : ['male'],
+              ageMin: 24,
+              ageMax: 35,
+              preferredLocations: [mappedProfile.location || 'Lagos, Nigeria'],
+              preferredRelationshipGoals: [mappedProfile.relationshipGoal]
+            };
+      }
+      setPreferences(mappedPrefs);
+      localStorage.setItem(`${PREFS_STORAGE_KEY}_${uid}`, JSON.stringify(mappedPrefs));
     } catch (error) {
       console.error('hydrate read failed', error);
     }
@@ -413,6 +452,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setPreferences(finalPrefs);
     localStorage.setItem(`${PREFS_STORAGE_KEY}_${uid}`, JSON.stringify(finalPrefs));
+    try {
+      await setDoc(doc(db, 'preferences', uid), {
+        id: finalPrefs.id,
+        profileId: uid,
+        preferredGender: finalPrefs.preferredGender.slice(0, 4),
+        ageMin: finalPrefs.ageMin,
+        ageMax: finalPrefs.ageMax,
+        preferredLocations: clipList(finalPrefs.preferredLocations, 8, 100),
+        preferredRelationshipGoals: clipList(finalPrefs.preferredRelationshipGoals, 6, 100)
+      });
+    } catch (err) {
+      console.error('Preferences save failed', err);
+    }
   };
 
   const updateProfile = (updated: Partial<Profile>) => {
@@ -437,6 +489,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const merged = { ...preferences, ...updated };
     setPreferences(merged);
     localStorage.setItem(`${PREFS_STORAGE_KEY}_${auth.currentUser.uid}`, JSON.stringify(merged));
+    setDoc(doc(db, 'preferences', auth.currentUser.uid), {
+      id: merged.id,
+      profileId: auth.currentUser.uid,
+      preferredGender: (merged.preferredGender || []).slice(0, 4),
+      ageMin: merged.ageMin,
+      ageMax: merged.ageMax,
+      preferredLocations: clipList(merged.preferredLocations, 8, 100),
+      preferredRelationshipGoals: clipList(merged.preferredRelationshipGoals, 6, 100)
+    }).catch((err) => console.error('Preferences update failed', err));
   };
 
   const logout = () => {
