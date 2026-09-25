@@ -21,6 +21,7 @@ import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
 import { listenVisibleProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
+import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
 
 const FALLBACK_PHOTO =
@@ -50,6 +51,7 @@ export const DiscoverScreen: React.FC = () => {
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -63,6 +65,7 @@ export const DiscoverScreen: React.FC = () => {
       setIsLoadingProfiles(false);
     });
     const unsubEnt = listenEntitlements(user.id, setEntitlements);
+    const unsubBlocks = listenBlockedIds(user.id, setBlockedIds);
     const unsubOutgoing = listenOutgoingInterestIds(user.id, (ids) => {
       const map: Record<string, boolean> = {};
       ids.forEach((id) => {
@@ -74,6 +77,7 @@ export const DiscoverScreen: React.FC = () => {
       unsubProfiles();
       unsubOutgoing();
       unsubEnt();
+      unsubBlocks();
     };
   }, [user?.id]);
 
@@ -110,16 +114,16 @@ export const DiscoverScreen: React.FC = () => {
         }
       }
 
-      // Faith filter
       if (filters.faith !== 'All Faiths') {
         if (p.lifestyle?.faith?.toLowerCase() !== filters.faith.toLowerCase()) {
           return false;
         }
       }
 
+      if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
       return true;
     });
-  }, [profiles, filters]);
+  }, [profiles, filters, blockedIds]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
@@ -130,6 +134,18 @@ export const DiscoverScreen: React.FC = () => {
     if (filters.faith !== 'All Faiths') count++;
     return count;
   }, [filters]);
+
+  const handleBlock = (profileId: string) => {
+    void blockUser(profileId)
+      .then(() => setToastMessage('Member blocked and hidden from Discover.'))
+      .catch((err) => setToastMessage(err instanceof Error ? err.message : 'Could not block.'));
+  };
+
+  const handleReport = (profileId: string) => {
+    void reportUser(profileId, 'Inappropriate or unsafe')
+      .then(() => setToastMessage('Report sent to Lifebencher admin.'))
+      .catch((err) => setToastMessage(err instanceof Error ? err.message : 'Could not send report.'));
+  };
 
   const handleExploreMatch = (profileId: string) => {
     const target = profiles.find((p) => p.id === profileId);
@@ -364,6 +380,14 @@ export const DiscoverScreen: React.FC = () => {
                           <span>Explore Match</span>
                         </>
                       )}
+                    </button>
+                  </div>
+                  <div className="flex gap-3 pt-1">
+                    <button type="button" className="text-[10px] text-stone-400" onClick={() => handleReport(p.userId || p.id)}>
+                      Report
+                    </button>
+                    <button type="button" className="text-[10px] text-stone-400" onClick={() => handleBlock(p.userId || p.id)}>
+                      Block
                     </button>
                   </div>
                 </div>
