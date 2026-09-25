@@ -52,7 +52,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
             >
-              {/* Active animated indicator pill behind icon */}
               {isActive && (
                 <motion.div
                   layoutId="bottomNavActiveIndicator"
@@ -68,7 +67,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   }`}
                 />
 
-                {/* Badge for unread / new items */}
                 {Boolean(item.badge && item.badge > 0) && (
                   <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-rose-700 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-[#FAF8F5]">
                     {item.badge}
