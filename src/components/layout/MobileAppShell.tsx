@@ -47,7 +47,6 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               aria-label="View notifications"
             >
               <Bell className="w-4 h-4 text-stone-700" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-600 ring-2 ring-white"></span>
             </button>
           </div>
         </div>
@@ -59,12 +58,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       </main>
 
       {/* Persistent Bottom Mobile Navigation Bar */}
-      <BottomNav
-        activeTab={activeTab}
-        onSelectTab={onSelectTab}
-        unreadCount={1}
-        newMatchesCount={2}
-      />
+      <BottomNav activeTab={activeTab} onSelectTab={onSelectTab} />
 
       {/* In-App Notifications Bottom Sheet */}
       <AnimatePresence>
