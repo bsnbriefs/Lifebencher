@@ -163,6 +163,24 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     }
   };
 
+  const formatAuthError = (err: unknown) => {
+    const raw = err instanceof Error ? err.message : String(err);
+    const code = raw.toLowerCase();
+    if (code.includes('operation-not-allowed')) {
+      return 'This sign-in method is turned off in Firebase. Use email and password, or enable Google / email-link in Authentication → Sign-in method.';
+    }
+    if (code.includes('popup-closed') || code.includes('cancelled')) {
+      return 'Google sign-in was closed before finishing.';
+    }
+    if (code.includes('unauthorized-domain')) {
+      return 'Add this Vercel domain under Firebase Authentication → Settings → Authorized domains.';
+    }
+    if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+      return 'Email or password is incorrect.';
+    }
+    return raw.replace(/^Firebase:\s*/i, '').replace(/\s*\(auth\/[^)]+\)\.?/i, '').trim() || 'Sign-in failed. Try email and password.';
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim()) {
@@ -180,9 +198,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       await login(loginEmail, loginPassword);
       if (onCompleted) onCompleted();
       sessionStorage.setItem('lifebencher_onboarding_step', '2');
+      setAuthMode('register');
       setCurrentStep(2);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to log in. Please check your credentials.');
+      setErrorMessage(formatAuthError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -423,8 +442,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                 try {
                   await loginWithGoogle();
                   if (onCompleted) onCompleted();
+                  sessionStorage.setItem('lifebencher_onboarding_step', '2');
+                  setAuthMode('register');
+                  setCurrentStep(2);
                 } catch (err) {
-                  setErrorMessage(err instanceof Error ? err.message : 'Google sign-in failed.');
+                  setErrorMessage(formatAuthError(err));
                 } finally {
                   setIsSubmitting(false);
                 }
