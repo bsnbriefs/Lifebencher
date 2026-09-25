@@ -135,7 +135,8 @@ service cloud.firestore {
     // --- 3. Matches Collection (/matches/{matchId}) ---
     // Bilateral matching pairs accessible strictly to participants or admin.
     match /matches/{matchId} {
-      allow get: if isSignedIn() && isValidId(matchId) && (
+      allow get: if isSignedIn() && (
+        resource == null ||
         request.auth.uid == resource.data.user1Id ||
         request.auth.uid == resource.data.user2Id ||
         isAdmin()
