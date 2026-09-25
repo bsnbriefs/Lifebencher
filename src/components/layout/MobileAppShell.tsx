@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Sparkles, Bell, X, CheckCircle2, Heart, Clock } from 'lucide-react';
+import { Bell, X, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavigationTab } from '../../types';
 import { BottomNav } from './BottomNav';
 import { PWAInstallBanner } from '../common/PWAInstallBanner';
+import { AppLogo } from '../common/AppLogo';
+import { useTheme } from '../../context/ThemeContext';
 
 interface MobileAppShellProps {
   activeTab: NavigationTab;
@@ -17,6 +19,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   children
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col font-sans selection:bg-rose-100 selection:text-rose-900">
@@ -27,9 +30,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-stone-200/70 safe-area-top">
         <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-900 via-rose-800 to-rose-700 flex items-center justify-center text-amber-300 shadow-sm border border-rose-950/20">
-              <Sparkles className="w-4 h-4" />
-            </div>
+            <AppLogo size={32} className="rounded-xl shadow-sm" />
             <div>
               <span className="font-serif font-bold text-lg tracking-tight text-rose-950 block leading-tight">
                 Lifebencher
@@ -41,6 +42,13 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 border border-stone-200/80 flex items-center justify-center text-stone-600 transition active:scale-95 cursor-pointer"
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             <button
               onClick={() => setShowNotifications(true)}
               className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 border border-stone-200/80 flex items-center justify-center text-stone-600 transition active:scale-95 cursor-pointer relative"
