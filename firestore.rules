@@ -51,7 +51,10 @@ service cloud.firestore {
 
     function isValidProfile(data) {
       return data.keys().hasAll(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt', 'photoUrl']) &&
+        data.keys().hasOnly(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt', 'photoUrl', 'interests', 'values', 'lifestyle']) &&
+        (!('interests' in data) || (data.interests is list && data.interests.size() <= 12)) &&
+        (!('values' in data) || (data.values is list && data.values.size() <= 12)) &&
+        (!('lifestyle' in data) || data.lifestyle is map) &&
         (!('photoUrl' in data) || isValidPhotoUrl(data.photoUrl)) &&
         isValidId(data.id) &&
         isValidId(data.userId) &&
@@ -125,7 +128,8 @@ service cloud.firestore {
             incoming().createdAt == existing().createdAt &&
             incoming().diff(existing()).affectedKeys().hasOnly([
               'displayName', 'age', 'gender', 'location', 'profession',
-              'education', 'bio', 'relationshipGoal', 'isVisible', 'updatedAt', 'photoUrl'
+              'education', 'bio', 'relationshipGoal', 'isVisible', 'updatedAt', 'photoUrl',
+              'interests', 'values', 'lifestyle'
             ])
           )
         );
@@ -146,9 +150,28 @@ service cloud.firestore {
         resource.data.user2Id == request.auth.uid ||
         isAdmin()
       );
+      function pairRequestMatched() {
+        let a = incoming().user1Id;
+        let b = incoming().user2Id;
+        let idAb = 'r_' + a + '_' + b;
+        let idBa = 'r_' + b + '_' + a;
+        return (exists(/databases/$(database)/documents/matchRequests/$(idAb)) &&
+            get(/databases/$(database)/documents/matchRequests/$(idAb)).data.status in ['pending', 'matched'] &&
+            (
+              get(/databases/$(database)/documents/matchRequests/$(idAb)).data.senderId == incoming().user1Id ||
+              get(/databases/$(database)/documents/matchRequests/$(idAb)).data.senderId == incoming().user2Id
+            )) ||
+          (exists(/databases/$(database)/documents/matchRequests/$(idBa)) &&
+            get(/databases/$(database)/documents/matchRequests/$(idBa)).data.status in ['pending', 'matched'] &&
+            (
+              get(/databases/$(database)/documents/matchRequests/$(idBa)).data.senderId == incoming().user1Id ||
+              get(/databases/$(database)/documents/matchRequests/$(idBa)).data.senderId == incoming().user2Id
+            ));
+      }
       allow create: if isAdmin() || (
         isSignedIn() && isValidId(matchId) && isValidMatch(incoming()) &&
-        (request.auth.uid == incoming().user1Id || request.auth.uid == incoming().user2Id)
+        (request.auth.uid == incoming().user1Id || request.auth.uid == incoming().user2Id) &&
+        pairRequestMatched()
       );
       allow update: if isSignedIn() && isValidId(matchId) &&
         isValidMatch(incoming()) && (
@@ -345,6 +368,18 @@ service cloud.firestore {
     }
 
     // --- 5. Admin Privileges Record ---
+    match /preferences/{prefUid} {
+      allow get: if isSignedIn() && (request.auth.uid == prefUid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && request.auth.uid == prefUid &&
+        incoming().profileId == prefUid &&
+        incoming().ageMin is int && incoming().ageMax is int &&
+        incoming().preferredGender is list &&
+        incoming().preferredLocations is list &&
+        incoming().preferredRelationshipGoals is list;
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == prefUid);
+    }
+
     match /admins/{adminId} {
       allow read, write: if false;
     }
