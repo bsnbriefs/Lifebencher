@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
 import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
 import { useAuth } from '../../context/AuthContext';
+import { MonetizationPanel } from './MonetizationPanel';
 
 interface AdminDashboardProps {
   onBackToApp: () => void;
@@ -44,7 +45,7 @@ interface VerificationCandidate {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) => {
   const { isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing'>('verifications');
   const [liveProfiles, setLiveProfiles] = useState<Profile[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -301,6 +302,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           >
             Clients
           </button>
+          <button
+            onClick={() => setActiveTab('billing')}
+            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
+              activeTab === 'billing'
+                ? 'bg-white text-rose-950 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            Billing
+          </button>
         </div>
 
         {/* TAB 1: VERIFICATION QUEUE */}
@@ -553,6 +564,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             </div>
           </div>
         )}
+
+        {activeTab === 'billing' && <MonetizationPanel onNotice={setNotification} />}
       </div>
     </div>
   );
