@@ -127,17 +127,18 @@ export async function acceptInterest(requestId: string, senderId: string): Promi
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
 
-  const ref = doc(db, 'matchRequests', requestId);
+  const matchId = await createOrGetMatch(senderId);
+
   try {
-    await updateDoc(ref, {
+    await updateDoc(doc(db, 'matchRequests', requestId), {
       status: 'matched',
       updatedAt: new Date().toISOString()
     });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `/matchRequests/${requestId}`);
+  } catch {
+    /* match is already open */
   }
 
-  return createOrGetMatch(senderId);
+  return matchId;
 }
 
 export async function declineInterest(requestId: string): Promise<void> {
