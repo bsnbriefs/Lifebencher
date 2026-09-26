@@ -126,15 +126,14 @@ export const MatchmakingPaywall: React.FC = () => {
         </button>
 
         <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-stone-800">Payment proof required</p>
+          <p className="text-xs font-semibold text-stone-800">Already a paying client?</p>
           <p className="text-[11px] text-stone-500">
-            Paid by bank transfer before Flutterwave? Upload the receipt or bank alert, then submit. Admin reviews on Billing. New Flutterwave payments still unlock by themselves.
+            Use this only if you paid Lifebencher before this website. Choose a receipt or bank-alert image from your gallery, then submit the package you bought. Do not pay again.
           </p>
           <input
             ref={receiptInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/*"
-            capture="environment"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             className="sr-only"
             onChange={(e) => {
               const file = e.target.files?.[0] || null;
@@ -147,7 +146,7 @@ export const MatchmakingPaywall: React.FC = () => {
             onClick={() => receiptInputRef.current?.click()}
             className="w-full py-3 rounded-xl bg-white border border-stone-300 text-xs font-semibold text-stone-900"
           >
-            Upload Receipt / Bank Alert
+            Choose receipt from gallery
           </button>
           {receiptPreview && (
             <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-48 object-contain rounded-2xl border border-stone-200 bg-white" />
