@@ -527,14 +527,14 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
             </form>
             ) : (
             <div className="space-y-3">
-              <p className="text-xs text-stone-500">Nigerian numbers work as 0803… or +234…</p>
+              <p className="text-xs text-stone-500">Use an international number with country code (+1, +44, +234…).</p>
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300">
                 <Phone className="w-4 h-4 text-stone-400" />
                 <input
                   type="tel"
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
-                  placeholder="0803 000 0000"
+                  placeholder="+44 7700 900123"
                   className="w-full text-xs bg-transparent outline-hidden"
                 />
               </div>
@@ -732,7 +732,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                           type="tel"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="+234 800 000 0000"
+                          placeholder="+234 800 000 0000 or +1 415…"
                           className="w-full text-xs text-stone-900 bg-transparent outline-hidden"
                         />
                       </div>
