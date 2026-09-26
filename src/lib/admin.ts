@@ -23,17 +23,16 @@ export function listenAllProfiles(
       onChange(list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     },
     (err) => {
+      console.error('Admin profile list', err);
       void fetchProfilesViaAdminApi()
         .then((list) => {
           onChange(list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
-          onError?.(null as unknown as string);
+          onError?.('');
         })
-        .catch(() => {
+        .catch((apiErr) => {
+          console.error('Admin profile API', apiErr);
           onChange([]);
-          onError?.(
-            err.message ||
-              'Cannot list profiles. Create Firestore admins/{yourUid} or set users/{yourUid}.role to admin.'
-          );
+          onError?.('Unable to load verification requests. Please try again.');
         });
     }
   );
