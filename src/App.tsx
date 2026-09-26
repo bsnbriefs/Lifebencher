@@ -100,14 +100,7 @@ function AppContent() {
     return <OnboardingFlow />;
   }
 
-  if (!isOnboarded) {
-    if (payReturn) {
-      return (
-        <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6 text-center">
-          <p className="text-sm text-stone-500">Restoring your profile after payment. Stay on this page…</p>
-        </div>
-      );
-    }
+  if (!isOnboarded && !payReturn) {
     return <OnboardingFlow />;
   }
 
