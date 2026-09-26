@@ -45,6 +45,20 @@ export async function grantVerifiedTransaction(txSnap) {
       confirmedAt: new Date().toISOString(),
       source: 'flutterwave'
     });
+    const pid = data.productId;
+    if (pid === 'matchmaking_local' || pid === 'matchmaking_international') {
+      const pref = db.collection('profiles').doc(data.userId);
+      const psnap = await t.get(pref);
+      const p = psnap.data() || {};
+      const complete = Boolean(p.displayName) && (Boolean(p.bio) || Boolean(p.profession) || Boolean(p.photoUrl));
+      if (complete) {
+        t.set(
+          pref,
+          { isVisible: true, isVerified: true, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+      }
+    }
     return { granted: true };
   });
 }
