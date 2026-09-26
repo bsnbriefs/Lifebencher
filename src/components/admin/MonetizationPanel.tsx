@@ -8,6 +8,7 @@ import {
 import { formatNgn } from '../../lib/products';
 
 const FILTERS = [
+  { id: 'pending', label: 'Pending proof' },
   { id: 'all', label: 'All' },
   { id: 'plus_monthly', label: 'Plus' },
   { id: 'boost_24h', label: 'Boost' },
@@ -18,11 +19,22 @@ const FILTERS = [
 
 export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = ({ onNotice }) => {
   const [rows, setRows] = useState<BillingTransaction[]>([]);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('pending');
+  const [listError, setListError] = useState<string | null>(null);
 
-  useEffect(() => listenAllTransactions(setRows), []);
+  useEffect(
+    () =>
+      listenAllTransactions(setRows, (msg) => {
+        setListError(msg);
+      }),
+    []
+  );
 
-  const visible = filter === 'all' ? rows : rows.filter((r) => r.productId === filter);
+  const visible = (filter === 'all' ? rows : filter === 'pending' ? rows.filter((r) => r.status === 'pending') : rows.filter((r) => r.productId === filter)).sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (b.status === 'pending' && a.status !== 'pending') return 1;
+    return 0;
+  });
 
   const totals = useMemo(() => {
     const success = rows.filter((r) => r.status === 'success');
@@ -82,9 +94,13 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
         Flutterwave checkouts confirm themselves after verification. Use Confirm only for bank or already-paid claims.
       </p>
 
-      {visible.length === 0 && (
+      {listError && (
+        <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{listError}</p>
+      )}
+
+      {visible.length === 0 && !listError && (
         <p className="text-xs text-stone-500 bg-white rounded-2xl border border-stone-200 p-4 text-center">
-          No billing requests yet.
+          No billing requests in this filter.
         </p>
       )}
 
