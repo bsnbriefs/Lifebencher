@@ -9,6 +9,7 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   sendPasswordResetEmail,
+  sendEmailVerification,
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
@@ -388,6 +389,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // user doc may still be creating; hydrate will retry
       }
     }
+    try {
+      await sendEmailVerification(cred.user, {
+        url: `${window.location.origin}/`,
+        handleCodeInApp: false
+      });
+    } catch {
+      /* verification email is optional; account already exists */
+    }
   };
 
   const loginWithGoogle = async () => {
@@ -408,7 +417,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     if (!email.trim()) throw new Error('Enter the email on your account.');
-    await sendPasswordResetEmail(auth, email.trim());
+    await sendPasswordResetEmail(auth, email.trim(), {
+      url: `${window.location.origin}/`,
+      handleCodeInApp: false
+    });
   };
 
   const sendPhoneCode = async (phone: string) => {
