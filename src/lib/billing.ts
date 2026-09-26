@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   setDoc,
@@ -144,6 +145,22 @@ export async function createPendingTransaction(
   return ref.id;
 }
 
+async function publishProfileIfComplete(uid: string): Promise<void> {
+  try {
+    const snap = await getDoc(doc(db, 'profiles', uid));
+    const d = snap.data() || {};
+    const complete = Boolean(d.displayName) && (Boolean(d.bio) || Boolean(d.profession) || Boolean(d.photoUrl));
+    if (!complete) return;
+    await updateDoc(doc(db, 'profiles', uid), {
+      isVisible: true,
+      isVerified: true,
+      updatedAt: new Date().toISOString()
+    });
+  } catch {
+    /* admin session required to flip visibility */
+  }
+}
+
 export async function adminSetTransactionStatus(id: string, status: TxStatus): Promise<void> {
   await updateDoc(doc(db, 'transactions', id), {
     status,
@@ -176,6 +193,9 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
 
   await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   await adminSetTransactionStatus(tx.id, 'success');
+  if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
+    await publishProfileIfComplete(uid);
+  }
 }
 
 export async function adminGrantMatchmaking(
@@ -192,6 +212,7 @@ export async function adminGrantMatchmaking(
     },
     { merge: true }
   );
+  await publishProfileIfComplete(uid);
 }
 
 export { PRODUCTS };
