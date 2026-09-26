@@ -51,7 +51,7 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     relationshipGoal: String(d.relationshipGoal || ''),
     lifestyle: d.lifestyle && typeof d.lifestyle === 'object' ? (d.lifestyle as Profile['lifestyle']) : {},
     isVerified: Boolean(d.isVerified),
-    isVisible: d.isVisible !== false,
+    isVisible: d.isVisible === true,
     createdAt: String(d.createdAt || ''),
     updatedAt: String(d.updatedAt || '')
   };
