@@ -534,8 +534,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
             </form>
             ) : (
             <div className="space-y-3">
-              <p className="text-xs text-stone-500">Use country code (+234…). Complete the check below, then send the code.</p>
-              <div id="lifebencher-recaptcha" className="flex justify-center min-h-[78px]" />
+              <p className="text-xs text-stone-500">Use country code (+234…). Enter your phone number to continue.</p>
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300">
                 <Phone className="w-4 h-4 text-stone-400" />
                 <input
