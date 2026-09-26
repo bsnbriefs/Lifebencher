@@ -65,7 +65,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const queue: VerificationCandidate[] = useMemo(
     () =>
       liveProfiles
-        .filter((p) => !p.isVerified)
+        .filter((p) => !p.isVerified || !p.isVisible)
         .map((p) => ({
           id: p.id,
           displayName: p.displayName,
@@ -340,13 +340,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <span>{queue.filter((c) => c.status === 'pending').length} remaining</span>
             </div>
 
-            {queue.length === 0 && (
-              <div className="text-center py-8 px-4 bg-white rounded-3xl border border-stone-200 text-xs text-stone-500 space-y-2">
-                <p className="font-semibold text-stone-800">No pending profiles in this session.</p>
-                <p>
-                  Verification lists every unverified profile. If this stays empty, Firestore is blocking the admin list: publish rules, then set
-                  users/{'{yourUid}'}.role = admin or create admins/{'{yourUid}'}.
-                </p>
+            {profileError && (
+              <div className="text-center py-8 px-4 bg-white rounded-3xl border border-stone-200 text-xs text-stone-600">
+                Unable to load verification requests. Please try again.
+              </div>
+            )}
+            {!profileError && queue.length === 0 && (
+              <div className="text-center py-8 px-4 bg-white rounded-3xl border border-stone-200 text-xs text-stone-500 space-y-1">
+                <p className="font-semibold text-stone-800">No pending profiles</p>
+                <p>There are currently no profiles awaiting verification.</p>
               </div>
             )}
             {queue.map((cand) => (
