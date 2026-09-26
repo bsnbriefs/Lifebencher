@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Heart,
@@ -33,6 +33,18 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
   onExploreMatch
 }) => {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+
+  useEffect(() => {
+    setActivePhotoIdx(0);
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile || profile.photos.length < 2) return;
+    const id = window.setInterval(() => {
+      setActivePhotoIdx((i) => (i + 1) % profile.photos.length);
+    }, 3500);
+    return () => window.clearInterval(id);
+  }, [profile]);
 
   if (!profile) return null;
 
