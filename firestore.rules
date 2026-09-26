@@ -51,7 +51,8 @@ service cloud.firestore {
 
     function isValidProfile(data) {
       return data.keys().hasAll(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt', 'photoUrl', 'interests', 'values', 'lifestyle']) &&
+        data.keys().hasOnly(['id', 'userId', 'displayName', 'age', 'gender', 'location', 'profession', 'education', 'bio', 'relationshipGoal', 'isVerified', 'isVisible', 'createdAt', 'updatedAt', 'photoUrl', 'photoUrls', 'interests', 'values', 'lifestyle']) &&
+        (!('photoUrls' in data) || (data.photoUrls is list && data.photoUrls.size() <= 3)) &&
         (!('interests' in data) || (data.interests is list && data.interests.size() <= 12)) &&
         (!('values' in data) || (data.values is list && data.values.size() <= 12)) &&
         (!('lifestyle' in data) || data.lifestyle is map) &&
@@ -128,7 +129,7 @@ service cloud.firestore {
             incoming().createdAt == existing().createdAt &&
             incoming().diff(existing()).affectedKeys().hasOnly([
               'displayName', 'age', 'gender', 'location', 'profession',
-              'education', 'bio', 'relationshipGoal', 'isVisible', 'updatedAt', 'photoUrl',
+              'education', 'bio', 'relationshipGoal', 'isVisible', 'updatedAt', 'photoUrl', 'photoUrls',
               'interests', 'values', 'lifestyle'
             ])
           )
