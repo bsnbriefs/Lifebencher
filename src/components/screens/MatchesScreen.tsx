@@ -20,7 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
 import { acceptInterest, declineInterest, listenIncomingInterests } from '../../lib/interests';
-import { createPendingTransaction } from '../../lib/billing';
+import { startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
 
 interface MatchesScreenProps {
   onOpenChat: (matchId: string) => void;
@@ -164,13 +164,9 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
   const handleExecutePayment = () => {
     if (!showExtendSheet) return;
     setIsProcessingPayment(true);
-    void createPendingTransaction(selectedPlan.id, showExtendSheet.id)
+    void startFlutterwaveCheckout(selectedPlan.id, { matchId: showExtendSheet.id })
       .then(() => {
         setShowExtendSheet(null);
-        setExtensionSuccessMsg(
-          `Extension request ${selectedPlan.priceFormatted} is pending. Time is added after Lifebencher confirms payment.`
-        );
-        setTimeout(() => setExtensionSuccessMsg(null), 5000);
       })
       .catch((err) => {
         setExtensionSuccessMsg(err instanceof Error ? err.message : 'Could not start payment request.');
@@ -545,7 +541,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
               {/* Paystack Trust badge */}
               <div className="p-3 bg-stone-100 rounded-2xl flex items-center gap-2 text-stone-600 text-[11px] mb-4">
                 <Lock className="w-3.5 h-3.5 text-stone-500 shrink-0" />
-                <span>Processed securely via Paystack · Instant activation</span>
+                <span>Processed securely via Flutterwave · Unlocks after verification</span>
               </div>
 
               {/* Action Button */}
@@ -555,11 +551,11 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-900 to-rose-800 text-amber-100 font-bold text-xs shadow-md hover:from-rose-950 hover:to-rose-900 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
               >
                 {isProcessingPayment ? (
-                  <span>Processing with Paystack...</span>
+                  <span>Opening Flutterwave...</span>
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4 text-amber-300" />
-                    <span>Pay {selectedPlan.priceFormatted} with Paystack</span>
+                    <span>Pay {selectedPlan.priceFormatted} with Flutterwave</span>
                   </>
                 )}
               </button>
