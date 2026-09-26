@@ -96,9 +96,11 @@ function profileFromDoc(uid: string, data: Record<string, unknown> | undefined, 
     profession: (data?.profession as string) || extras?.profession || '',
     education: (data?.education as string) || extras?.education || '',
     bio: (data?.bio as string) || extras?.bio || '',
-    photos: (typeof data?.photoUrl === 'string' && data.photoUrl
-      ? [data.photoUrl]
-      : extras?.photos) || [],
+    photos: Array.isArray(data?.photoUrls) && data.photoUrls.length
+      ? (data.photoUrls as string[])
+      : (typeof data?.photoUrl === 'string' && data.photoUrl
+        ? [data.photoUrl]
+        : extras?.photos) || [],
     interests: Array.isArray(data?.interests) ? (data.interests as string[]) : extras?.interests || [],
     values: Array.isArray(data?.values) ? (data.values as string[]) : extras?.values || [],
     relationshipGoal: (data?.relationshipGoal as string) || extras?.relationshipGoal || 'Intentional marriage',
@@ -148,7 +150,10 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
       ...(lifestyle.exercise ? { exercise: lifestyle.exercise } : {}),
       ...(lifestyle.kids ? { kids: lifestyle.kids } : {})
     },
-    ...(photoUrl && photoUrl.startsWith('https://') ? { photoUrl: photoUrl.slice(0, 2000) } : {})
+    ...(photoUrl && photoUrl.startsWith('https://') ? { photoUrl: photoUrl.slice(0, 2000) } : {}),
+    ...(profile.photos && profile.photos.length
+      ? { photoUrls: profile.photos.filter((u) => u.startsWith('https://')).slice(0, 3).map((u) => u.slice(0, 2000)) }
+      : {})
   };
 }
 
