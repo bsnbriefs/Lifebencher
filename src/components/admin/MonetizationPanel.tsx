@@ -79,7 +79,7 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
       </div>
 
       <p className="text-[11px] text-stone-500">
-        Confirm a transfer only after Paystack (or bank) shows the payment. Confirming grants the entitlement.
+        Flutterwave checkouts confirm themselves after verification. Use Confirm only for bank or already-paid claims.
       </p>
 
       {visible.length === 0 && (
