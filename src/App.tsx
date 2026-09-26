@@ -9,8 +9,10 @@ import { MatchesScreen } from './components/screens/MatchesScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { MatchmakingPaywall } from './components/onboarding/MatchmakingPaywall';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { WifiOff } from 'lucide-react';
+import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
 
 const TABS: NavigationTab[] = ['discover', 'matches', 'messages', 'profile'];
 
@@ -20,7 +22,9 @@ function tabFromHash(): NavigationTab {
 }
 
 function AppContent() {
-  const { isAuthenticated, isOnboarded, isLoading } = useAuth();
+  const { isAuthenticated, isOnboarded, isLoading, isAdmin, user } = useAuth();
+  const [entitlements, setEntitlements] = useState(EMPTY_ENTITLEMENTS(''));
+  const [entReady, setEntReady] = useState(false);
   const [activeTab, setActiveTab] = useState<NavigationTab>(tabFromHash);
   const [targetChatMatchId, setTargetChatMatchId] = useState<string | null>(null);
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -33,6 +37,20 @@ function AppContent() {
       window.history.pushState({ tab }, '', next);
     }
   };
+
+  useEffect(() => {
+    if (!user?.id) {
+      setEntitlements(EMPTY_ENTITLEMENTS(''));
+      setEntReady(true);
+      return;
+    }
+    setEntReady(false);
+    const unsub = listenEntitlements(user.id, (ent) => {
+      setEntitlements(ent);
+      setEntReady(true);
+    });
+    return () => unsub();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!window.location.hash) {
@@ -72,6 +90,10 @@ function AppContent() {
 
   if (!isAuthenticated || !isOnboarded) {
     return <OnboardingFlow />;
+  }
+
+  if (!isAdmin && entReady && entitlements.matchmakingPackage === 'none') {
+    return <MatchmakingPaywall />;
   }
 
   return (
