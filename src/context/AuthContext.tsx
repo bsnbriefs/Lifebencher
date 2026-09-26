@@ -8,6 +8,10 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
+  sendPasswordResetEmail,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult,
   signOut,
   updateProfile as updateAuthProfile,
   User as FirebaseUser
@@ -18,7 +22,22 @@ import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 
 
+declare global {
+  interface Window {
+    lifebencherRecaptcha?: RecaptchaVerifier;
+    lifebencherPhoneConfirm?: ConfirmationResult;
+  }
+}
+
 const SUPER_ADMIN_EMAIL = 'admin@barristerstreet.org';
+
+export function toE164Nigeria(raw: string): string {
+  const digits = raw.replace(/[^\d+]/g, '').trim();
+  if (digits.startsWith('+')) return digits;
+  if (digits.startsWith('234')) return `+${digits}`;
+  if (digits.startsWith('0')) return `+234${digits.slice(1)}`;
+  return `+234${digits}`;
+}
 const EMAIL_LINK_STORAGE_KEY = 'lifebencher_email_for_sign_in';
 const EXTRAS_STORAGE_KEY = 'lifebencher_profile_extras';
 const PREFS_STORAGE_KEY = 'lifebencher_prefs';
@@ -36,6 +55,9 @@ interface AuthContextType {
   register: (accountData: { email: string; phone?: string; displayName: string; password?: string }) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   sendEmailLink: (email: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  sendPhoneCode: (phone: string) => Promise<void>;
+  confirmPhoneCode: (code: string) => Promise<void>;
   completeOnboarding: (profileData: Partial<Profile>, prefsData?: Partial<ProfilePreferences>) => Promise<void>;
   updateProfile: (updated: Partial<Profile>) => void;
   updatePreferences: (updated: Partial<ProfilePreferences>) => void;
@@ -383,6 +405,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, email.trim());
   };
 
+  const resetPassword = async (email: string) => {
+    if (!email.trim()) throw new Error('Enter the email on your account.');
+    await sendPasswordResetEmail(auth, email.trim());
+  };
+
+  const sendPhoneCode = async (phone: string) => {
+    const e164 = toE164Nigeria(phone);
+    if (e164.replace(/\D/g, '').length < 11) {
+      throw new Error('Enter a valid Nigerian number, e.g. 0803… or +234…');
+    }
+    if (typeof document !== 'undefined' && !document.getElementById('lifebencher-recaptcha')) {
+      const holder = document.createElement('div');
+      holder.id = 'lifebencher-recaptcha';
+      holder.style.display = 'none';
+      document.body.appendChild(holder);
+    }
+    window.lifebencherRecaptcha?.clear();
+    window.lifebencherRecaptcha = new RecaptchaVerifier(auth, 'lifebencher-recaptcha', {
+      size: 'invisible'
+    });
+    window.lifebencherPhoneConfirm = await signInWithPhoneNumber(auth, e164, window.lifebencherRecaptcha);
+  };
+
+  const confirmPhoneCode = async (code: string) => {
+    const pending = window.lifebencherPhoneConfirm;
+    if (!pending) throw new Error('Request a code first.');
+    await pending.confirm(code.trim());
+  };
+
   const completeOnboarding = async (
     profileData: Partial<Profile>,
     prefsData?: Partial<ProfilePreferences>
@@ -530,6 +581,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         loginWithGoogle,
         sendEmailLink,
+        resetPassword,
+        sendPhoneCode,
+        confirmPhoneCode,
         completeOnboarding,
         updateProfile,
         updatePreferences,
