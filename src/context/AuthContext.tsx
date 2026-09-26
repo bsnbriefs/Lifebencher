@@ -14,10 +14,11 @@ import {
   signInWithPhoneNumber,
   ConfirmationResult,
   signOut,
+  deleteUser,
   updateProfile as updateAuthProfile,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { User, Profile, ProfilePreferences } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
@@ -84,6 +85,7 @@ interface AuthContextType {
   updateProfile: (updated: Partial<Profile>) => void;
   updatePreferences: (updated: Partial<ProfilePreferences>) => void;
   logout: () => void;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -619,6 +621,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPreferences(null);
   };
 
+  const deleteAccount = async () => {
+    const u = auth.currentUser;
+    if (!u) throw new Error('Not signed in');
+    const uid = u.uid;
+    try {
+      await updateDoc(doc(db, 'profiles', uid), { isVisible: false, isVerified: false, updatedAt: nowIso() });
+    } catch {
+      /* may already be hidden */
+    }
+    try {
+      await deleteDoc(doc(db, 'profiles', uid));
+    } catch {
+      /* ignore */
+    }
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+    } catch {
+      /* ignore */
+    }
+    await deleteUser(u);
+    setUser(null);
+    setCurrentProfile(null);
+    setPreferences(null);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -644,7 +671,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeOnboarding,
         updateProfile,
         updatePreferences,
-        logout
+        logout,
+        deleteAccount
       }}
     >
       {children}
