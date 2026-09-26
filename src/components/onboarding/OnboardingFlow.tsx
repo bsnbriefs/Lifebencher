@@ -105,6 +105,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     }
   }, [currentStep]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (authMode === 'login') setAuthMode('register');
+    if (currentStep === 1) setCurrentStep(2);
+  }, [isAuthenticated]);
+
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -172,8 +178,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     if (code.includes('popup-closed') || code.includes('cancelled')) {
       return 'Google sign-in was closed before finishing.';
     }
-    if (code.includes('unauthorized-domain')) {
-      return 'Add this Vercel domain under Firebase Authentication → Settings → Authorized domains.';
+    if (code.includes('unauthorized-domain') || code.includes('allowlisted')) {
+      return 'Add lifebencher.xyz under Firebase Authentication → Settings → Authorized domains, then wait a minute.';
     }
     if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
       return 'Email or password is incorrect.';
@@ -205,10 +211,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         return;
       }
       await login(loginEmail, loginPassword);
-      if (onCompleted) onCompleted();
-      sessionStorage.setItem('lifebencher_onboarding_step', '2');
-      setAuthMode('register');
-      setCurrentStep(2);
+      try {
+        sessionStorage.removeItem('lifebencher_onboarding_step');
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       setErrorMessage(formatAuthError(err));
     } finally {
