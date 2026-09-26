@@ -59,7 +59,14 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   const { theme, toggleTheme } = useTheme();
 
   // Mode: 'register' vs 'login'
-  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+  const [authMode, setAuthMode] = useState<'register' | 'login'>(() => {
+    try {
+      if (sessionStorage.getItem('lifebencher_flw_return') === '1') return 'login';
+    } catch {
+      /* ignore */
+    }
+    return 'register';
+  });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
