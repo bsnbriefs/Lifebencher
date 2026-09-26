@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { uploadProfilePhoto } from '../../lib/profilePhoto';
 import { AppLogo } from '../common/AppLogo';
 import { useTheme } from '../../context/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
@@ -26,33 +27,6 @@ import { Gender } from '../../types';
 interface OnboardingFlowProps {
   onCompleted?: () => void;
 }
-
-const PRESET_PHOTOS = [
-  {
-    label: 'Warm Portrait 1',
-    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    label: 'Warm Portrait 2',
-    url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    label: 'Warm Portrait 3',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    label: 'Warm Portrait 4',
-    url: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    label: 'Warm Portrait 5',
-    url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    label: 'Warm Portrait 6',
-    url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=800&auto=format&fit=crop&q=80'
-  }
-];
 
 const AVAILABLE_VALUES = [
   'Faith & Spirituality',
@@ -145,8 +119,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   const [prefAgeMax, setPrefAgeMax] = useState(33);
 
   // Step 5: Profile Photo
-  const [selectedPhoto, setSelectedPhoto] = useState<string>(PRESET_PHOTOS[0].url);
-  const [customPhotoUrl, setCustomPhotoUrl] = useState('');
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
+  const [primaryPhotoIndex, setPrimaryPhotoIndex] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // Processing state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -207,6 +182,24 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     }
   };
 
+  const addPhotoFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (galleryPhotos.length >= 3) {
+      setErrorMessage('You can add up to 3 photos.');
+      return;
+    }
+    setPhotoBusy(true);
+    setErrorMessage(null);
+    try {
+      const url = await uploadProfilePhoto(file, undefined, galleryPhotos.length);
+      setGalleryPhotos((prev) => [...prev, url]);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Could not upload that photo.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const handleNextStep = () => {
     setErrorMessage(null);
     if (currentStep === 1) {
@@ -261,9 +254,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     }
 
     if (currentStep === 5) {
-      const activePhoto = customPhotoUrl.trim() || selectedPhoto;
-      if (!activePhoto) {
-        setErrorMessage('Please select or provide a profile photo.');
+      if (galleryPhotos.length < 2) {
+        setErrorMessage('Add at least 2 recent photos of yourself. Tap one to set it as your profile picture.');
         return;
       }
       setCurrentStep(6);
@@ -273,7 +265,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
   const handleFinishOnboarding = async () => {
     setIsSubmitting(true);
-    const photoToUse = customPhotoUrl.trim() || selectedPhoto;
+    const ordered = [...galleryPhotos];
+    if (primaryPhotoIndex > 0 && primaryPhotoIndex < ordered.length) {
+      const [main] = ordered.splice(primaryPhotoIndex, 1);
+      ordered.unshift(main);
+    }
+    const photoToUse = ordered[0] || '';
 
     try {
     await completeOnboarding(
@@ -285,7 +282,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         profession,
         education,
         bio,
-        photos: [photoToUse],
+        photos: ordered.length ? ordered : photoToUse ? [photoToUse] : [],
         interests: selectedInterests,
         values: selectedValues,
         relationshipGoal,
@@ -938,63 +935,53 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                   >
                     <div>
                       <h2 className="font-serif text-xl font-bold text-stone-900">
-                        Profile Portrait
+                        Your photos
                       </h2>
                       <p className="text-xs text-stone-500 mt-0.5">
-                        Choose a representative photo or paste an image URL
+                        Add 2–3 recent photos of yourself. Tap one to use it as your profile picture.
                       </p>
                     </div>
 
-                    {/* Active preview */}
-                    <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200">
-                      <img
-                        src={customPhotoUrl.trim() || selectedPhoto}
-                        alt="Preview"
-                        className="w-16 h-16 rounded-2xl object-cover border border-stone-200"
-                      />
-                      <div className="text-xs">
-                        <p className="font-semibold text-stone-900">Selected Photo Preview</p>
-                        <p className="text-stone-500 text-[11px]">Clean, high-resolution portrait</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-stone-700 block mb-1.5">
-                        Quick Mobile Presets
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {PRESET_PHOTOS.map((p, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setSelectedPhoto(p.url);
-                              setCustomPhotoUrl('');
+                    <div className="grid grid-cols-3 gap-2">
+                      {galleryPhotos.map((url, idx) => (
+                        <button
+                          key={url}
+                          type="button"
+                          onClick={() => setPrimaryPhotoIndex(idx)}
+                          className={`relative rounded-xl overflow-hidden aspect-square border-2 ${
+                            primaryPhotoIndex === idx ? 'border-rose-900 ring-2 ring-rose-200' : 'border-stone-200'
+                          }`}
+                        >
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                          {primaryPhotoIndex === idx && (
+                            <span className="absolute bottom-1 left-1 right-1 text-[9px] font-bold bg-rose-900 text-amber-100 rounded px-1 py-0.5">
+                              Profile
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                      {galleryPhotos.length < 3 && (
+                        <label className="rounded-xl border-2 border-dashed border-stone-300 aspect-square flex flex-col items-center justify-center text-stone-500 text-[11px] font-semibold cursor-pointer">
+                          <Camera className="w-5 h-5 mb-1" />
+                          {photoBusy ? 'Uploading…' : 'Add photo'}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            capture="user"
+                            className="hidden"
+                            disabled={photoBusy}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              void addPhotoFile(file);
                             }}
-                            className={`relative rounded-xl overflow-hidden aspect-square border-2 transition ${
-                              selectedPhoto === p.url && !customPhotoUrl
-                                ? 'border-rose-900 ring-2 ring-rose-200'
-                                : 'border-transparent'
-                            }`}
-                          >
-                            <img src={p.url} alt={p.label} className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                      </div>
+                          />
+                        </label>
+                      )}
                     </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-stone-700 block mb-1">
-                        Or Custom Image URL
-                      </label>
-                      <input
-                        type="url"
-                        value={customPhotoUrl}
-                        onChange={(e) => setCustomPhotoUrl(e.target.value)}
-                        placeholder="https://example.com/my-photo.jpg"
-                        className="w-full text-xs text-stone-900 p-2.5 rounded-xl bg-stone-50 border border-stone-300 outline-hidden"
-                      />
-                    </div>
+                    <p className="text-[11px] text-stone-500">
+                      {galleryPhotos.length}/3 photos · JPG, PNG or WebP · max 5MB each
+                    </p>
                   </motion.div>
                 )}
 
@@ -1020,7 +1007,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                     <div className="bg-stone-50 rounded-2xl overflow-hidden border border-stone-200 p-3 space-y-3">
                       <div className="flex items-center gap-3">
                         <img
-                          src={customPhotoUrl.trim() || selectedPhoto}
+                          src={galleryPhotos[primaryPhotoIndex] || galleryPhotos[0] || ''}
                           alt={displayName}
                           className="w-16 h-16 rounded-2xl object-cover border border-stone-200"
                         />
