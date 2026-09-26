@@ -13,7 +13,7 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.email == 'admin@barristerstreet.org' && request.auth.token.email_verified == true;
+      return isSignedIn() && request.auth.token.email == 'admin@barristerstreet.org';
     }
 
     function isAdmin() {
