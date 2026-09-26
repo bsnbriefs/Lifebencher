@@ -118,6 +118,12 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
               <p className="text-[10px] uppercase font-bold text-stone-500">{tx.status}</p>
             </div>
           </div>
+          {tx.aiReceiptNote && (
+            <p className="text-[11px] text-stone-700 bg-amber-50 border border-amber-200 rounded-xl p-2">
+              AI: {tx.aiReceiptNote}
+              {typeof tx.aiReceiptConfidence === 'number' ? ` (${Math.round(tx.aiReceiptConfidence * 100)}%)` : ''}
+            </p>
+          )}
           {tx.receiptUrl && (
             <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="block">
               <img src={tx.receiptUrl} alt="Payment proof" className="w-full max-h-40 object-contain rounded-xl border border-stone-200 bg-stone-50" />

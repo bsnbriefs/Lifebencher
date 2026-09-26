@@ -24,6 +24,7 @@ import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
 import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
+import { closeReviewItem, listenReviewQueue, ReviewItem } from '../../lib/reviewQueue';
 
 interface AdminDashboardProps {
   onBackToApp: () => void;
@@ -46,12 +47,18 @@ interface VerificationCandidate {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) => {
   const { isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing' | 'review'>('verifications');
   const [liveProfiles, setLiveProfiles] = useState<Profile[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
 
   useEffect(() => {
-    return listenAllProfiles(setLiveProfiles);
+    const a = listenAllProfiles(setLiveProfiles);
+    const b = listenReviewQueue(setReviewItems);
+    return () => {
+      a();
+      b();
+    };
   }, []);
 
   const queue: VerificationCandidate[] = useMemo(
@@ -312,6 +319,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             }`}
           >
             Billing
+          </button>
+          <button
+            onClick={() => setActiveTab('review')}
+            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
+              activeTab === 'review' ? 'bg-white text-rose-950 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            Review ({reviewItems.filter((i) => i.status === 'open').length})
           </button>
         </div>
 
@@ -591,6 +606,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         )}
 
         {activeTab === 'billing' && <MonetizationPanel onNotice={setNotification} />}
+        {activeTab === 'review' && (
+          <div className="space-y-2">
+            <p className="text-[11px] text-stone-500">AI flags only. No automatic bans. Decide after reading the evidence.</p>
+            {reviewItems.filter((i) => i.status !== 'closed').length === 0 && (
+              <p className="text-xs text-stone-500 bg-white rounded-2xl border border-stone-200 p-4 text-center">No open flags.</p>
+            )}
+            {reviewItems
+              .filter((i) => i.status !== 'closed')
+              .map((item) => (
+                <div key={item.id} className="bg-white rounded-2xl border border-stone-200 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-stone-900">{item.type}</p>
+                  <p className="text-[11px] text-stone-600">{item.reason}</p>
+                  {item.evidence && <p className="text-[11px] text-stone-500 line-clamp-4">{item.evidence}</p>}
+                  <p className="text-[10px] text-stone-400">
+                    {item.recommendedAction} · {Math.round((item.confidence || 0) * 100)}%
+                  </p>
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-rose-900"
+                    onClick={() => void closeReviewItem(item.id)}
+                  >
+                    Mark reviewed
+                  </button>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );
