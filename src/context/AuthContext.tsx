@@ -444,12 +444,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof document !== 'undefined' && !document.getElementById('lifebencher-recaptcha')) {
       const holder = document.createElement('div');
       holder.id = 'lifebencher-recaptcha';
-      holder.style.display = 'none';
       document.body.appendChild(holder);
     }
-    window.lifebencherRecaptcha?.clear();
+    try {
+      window.lifebencherRecaptcha?.clear();
+    } catch {
+      /* ignore */
+    }
     window.lifebencherRecaptcha = new RecaptchaVerifier(auth, 'lifebencher-recaptcha', {
-      size: 'invisible'
+      size: 'normal'
     });
     window.lifebencherPhoneConfirm = await signInWithPhoneNumber(auth, e164, window.lifebencherRecaptcha);
   };
