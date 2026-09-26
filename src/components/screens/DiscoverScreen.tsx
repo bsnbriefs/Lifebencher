@@ -269,12 +269,7 @@ export const DiscoverScreen: React.FC = () => {
                   className="relative aspect-4/5 w-full bg-stone-200 cursor-pointer group"
                   onClick={() => setDetailProfile(p)}
                 >
-                  <img
-                    src={p.photos[0] || FALLBACK_PHOTO}
-                    alt={p.displayName}
-                    className="w-full h-full object-cover group-hover:scale-101 transition duration-300"
-                    loading="lazy"
-                  />
+                  <DiscoverCardPhoto photos={p.photos} name={p.displayName} />
                   <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/20 to-transparent" />
 
                   {/* Compatibility score badge at top right */}
@@ -414,3 +409,30 @@ export const DiscoverScreen: React.FC = () => {
     </div>
   );
 };
+
+function DiscoverCardPhoto({ photos, name }: { photos: string[]; name: string }) {
+  const list = photos.length ? photos : [FALLBACK_PHOTO];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (list.length < 2) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % list.length), 4000);
+    return () => window.clearInterval(id);
+  }, [list.length]);
+  return (
+    <>
+      <img
+        src={list[idx] || FALLBACK_PHOTO}
+        alt={name}
+        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
+        loading="lazy"
+      />
+      {list.length > 1 && (
+        <div className="absolute top-3 left-3 z-20 flex gap-1">
+          {list.map((_, i) => (
+            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
