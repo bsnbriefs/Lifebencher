@@ -31,12 +31,13 @@ declare global {
 
 const SUPER_ADMIN_EMAIL = 'admin@barristerstreet.org';
 
-export function toE164Nigeria(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, '').trim();
-  if (digits.startsWith('+')) return digits;
-  if (digits.startsWith('234')) return `+${digits}`;
-  if (digits.startsWith('0')) return `+234${digits.slice(1)}`;
-  return `+234${digits}`;
+export function toE164(raw: string): string {
+  const compact = raw.trim().replace(/[^\d+]/g, '');
+  if (compact.startsWith('+')) return compact;
+  if (compact.startsWith('00')) return `+${compact.slice(2)}`;
+  if (/^0[789][01]\d{8}$/.test(compact)) return `+234${compact.slice(1)}`;
+  if (/^\d{10,15}$/.test(compact)) return `+${compact}`;
+  throw new Error('Enter a number with country code, e.g. +44 7700 900123.');
 }
 const EMAIL_LINK_STORAGE_KEY = 'lifebencher_email_for_sign_in';
 const EXTRAS_STORAGE_KEY = 'lifebencher_profile_extras';
@@ -411,9 +412,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendPhoneCode = async (phone: string) => {
-    const e164 = toE164Nigeria(phone);
-    if (e164.replace(/\D/g, '').length < 11) {
-      throw new Error('Enter a valid Nigerian number, e.g. 0803… or +234…');
+    const e164 = toE164(phone);
+    if (e164.replace(/\D/g, '').length < 8) {
+      throw new Error('Enter a valid mobile number with country code.');
     }
     if (typeof document !== 'undefined' && !document.getElementById('lifebencher-recaptcha')) {
       const holder = document.createElement('div');
