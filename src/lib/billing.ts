@@ -28,6 +28,8 @@ export interface BillingTransaction {
   matchId?: string;
   receiptUrl?: string;
   source?: string;
+  aiReceiptNote?: string;
+  aiReceiptConfidence?: number;
 }
 
 export interface Entitlements {
@@ -89,14 +91,20 @@ export function listenMyTransactions(uid: string, onChange: (rows: BillingTransa
   );
 }
 
-export function listenAllTransactions(onChange: (rows: BillingTransaction[]) => void): () => void {
+export function listenAllTransactions(
+  onChange: (rows: BillingTransaction[]) => void,
+  onError?: (message: string) => void
+): () => void {
   return onSnapshot(
     collection(db, 'transactions'),
     (snap) => {
       const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<BillingTransaction, 'id'>) }));
       onChange(rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
-    () => onChange([])
+    (err) => {
+      onChange([]);
+      onError?.(err.message || 'Cannot list billing. Publish Firestore rules and set users/{uid}.role to admin.');
+    }
   );
 }
 
@@ -168,6 +176,13 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
 
   await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   await adminSetTransactionStatus(tx.id, 'success');
+  if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
+    try {
+      await updateDoc(doc(db, 'profiles', uid), { isVisible: true, updatedAt: new Date().toISOString() });
+    } catch {
+      /* profile may still be draft */
+    }
+  }
 }
 
 export async function adminGrantMatchmaking(
