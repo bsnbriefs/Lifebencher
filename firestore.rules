@@ -17,7 +17,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+      return isSuperAdmin()
+        || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
+        || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     function isValidId(id) {
