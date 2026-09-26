@@ -22,6 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { uploadProfilePhoto } from '../../lib/profilePhoto';
 import { MembershipPanel } from '../billing/MembershipPanel';
+import { SupportAssist } from '../common/SupportAssist';
 
 interface ProfileScreenProps {
   onOpenAdmin?: () => void;
@@ -266,6 +267,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
       </div>
 
       <MembershipPanel />
+      <SupportAssist />
 
       {isInstallable && !isInstalled && (
         <button
@@ -449,6 +451,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
                     onChange={(e) => setBio(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-white border border-stone-300"
                   />
+                  <button
+                    type="button"
+                    className="mt-2 text-[11px] font-semibold text-rose-900"
+                    onClick={() => {
+                      void import('../../lib/aiClient').then(({ assistProfile, scanText }) =>
+                        assistProfile({
+                          bio,
+                          displayName,
+                          profession,
+                          location,
+                          relationshipGoal
+                        }).then((r) => {
+                          if (r.suggestedBio) setBio(r.suggestedBio);
+                          void scanText({ text: bio || r.suggestedBio, kind: 'bio' });
+                        })
+                      );
+                    }}
+                  >
+                    Improve wording
+                  </button>
                 </div>
 
                 <button

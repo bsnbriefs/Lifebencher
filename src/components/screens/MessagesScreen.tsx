@@ -172,6 +172,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     sounds.playSend();
     try {
       await sendMatchMessage(activeConvId, text);
+      void import('../../lib/aiClient').then(({ scanText }) =>
+        scanText({ text, kind: 'message', targetId: activeConvId }).catch(() => undefined)
+      );
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Could not send message');
     }
