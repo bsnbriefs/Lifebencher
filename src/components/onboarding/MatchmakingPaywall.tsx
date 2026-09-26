@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Globe2, MapPin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -20,6 +20,8 @@ export const MatchmakingPaywall: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -123,24 +125,41 @@ export const MatchmakingPaywall: React.FC = () => {
           <p className="text-[11px] text-stone-500">International introductions. Up to 3 matches. One-time.</p>
         </button>
 
-        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-2">
-          <p className="text-xs font-semibold text-stone-800">Already paid?</p>
+        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-3">
+          <p className="text-xs font-semibold text-stone-800">Payment proof required</p>
           <p className="text-[11px] text-stone-500">
-            Upload a receipt or bank alert, then choose the package you already bought. Admin confirms on Billing. New Flutterwave payments unlock automatically — no admin step.
+            Paid by bank transfer before Flutterwave? Upload the receipt or bank alert, then submit. Admin reviews on Billing. New Flutterwave payments still unlock by themselves.
           </p>
           <input
+            ref={receiptInputRef}
             type="file"
-            accept="image/*"
-            onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-            className="block w-full text-[11px]"
+            accept="image/jpeg,image/png,image/webp,image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setReceiptFile(file);
+              setReceiptPreview(file ? URL.createObjectURL(file) : null);
+            }}
           />
+          <button
+            type="button"
+            onClick={() => receiptInputRef.current?.click()}
+            className="w-full py-3 rounded-xl bg-white border border-stone-300 text-xs font-semibold text-stone-900"
+          >
+            Upload Receipt / Bank Alert
+          </button>
+          {receiptPreview && (
+            <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-48 object-contain rounded-2xl border border-stone-200 bg-white" />
+          )}
+          {receiptFile && <p className="text-[11px] text-stone-600">{receiptFile.name}</p>}
           <button
             type="button"
             disabled={!!busy}
             onClick={() => void alreadyPaid('matchmaking_local')}
             className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
           >
-            I already paid — Nigeria ₦30,000
+            Submit proof — Nigeria ₦30,000
           </button>
           <button
             type="button"
@@ -148,7 +167,7 @@ export const MatchmakingPaywall: React.FC = () => {
             onClick={() => void alreadyPaid('matchmaking_international')}
             className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
           >
-            I already paid — Abroad ₦50,000
+            Submit proof — Abroad ₦50,000
           </button>
         </div>
 
