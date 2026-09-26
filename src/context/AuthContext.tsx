@@ -469,8 +469,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       /* ignore */
     }
+    const holder = document.getElementById('lifebencher-recaptcha');
+    if (holder) {
+      holder.style.position = 'fixed';
+      holder.style.left = '-9999px';
+      holder.style.width = '1px';
+      holder.style.height = '1px';
+      holder.style.overflow = 'hidden';
+    }
     window.lifebencherRecaptcha = new RecaptchaVerifier(auth, 'lifebencher-recaptcha', {
-      size: 'normal'
+      size: 'invisible'
     });
     window.lifebencherPhoneConfirm = await signInWithPhoneNumber(auth, e164, window.lifebencherRecaptcha);
   };
@@ -493,7 +501,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: uid,
       userId: uid,
       isVerified: currentProfile?.isVerified ?? false,
-      isVisible: true,
+      isVisible: false,
       updatedAt: nowIso()
     };
 
