@@ -427,6 +427,11 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    match /reviewQueue/{itemId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin();
+    }
+
     match /blocks/{blockId} {
       allow get, list: if isSignedIn() && (resource.data.blockerId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && incoming().blockerId == request.auth.uid;
