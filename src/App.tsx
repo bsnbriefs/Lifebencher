@@ -53,6 +53,16 @@ function AppContent() {
   }, [user?.id]);
 
   useEffect(() => {
+    const titles: Record<NavigationTab, string> = {
+      discover: 'Lifebencher Match | Discover',
+      matches: 'Lifebencher Match | Matches',
+      messages: 'Lifebencher Match | Messages',
+      profile: 'Lifebencher Match | Profile'
+    };
+    document.title = titles[activeTab] || 'Lifebencher Match | Find Your Match';
+  }, [activeTab]);
+
+  useEffect(() => {
     if (!window.location.hash) {
       window.history.replaceState({ tab: activeTab }, '', `#${activeTab}`);
     }
