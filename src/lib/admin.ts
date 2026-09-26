@@ -1,7 +1,16 @@
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { Profile } from '../types';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { mapProfileDoc } from './matches';
+
+async function fetchProfilesViaAdminApi(): Promise<Profile[]> {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error('Not signed in');
+  const res = await fetch('/api/admin/profiles', { headers: { Authorization: `Bearer ${token}` } });
+  const body = (await res.json()) as { profiles?: Record<string, unknown>[]; error?: string };
+  if (!res.ok) throw new Error(body.error || 'Admin list failed');
+  return (body.profiles || []).map((d) => mapProfileDoc(String(d.id), d));
+}
 
 export function listenAllProfiles(
   onChange: (profiles: Profile[]) => void,
@@ -14,11 +23,18 @@ export function listenAllProfiles(
       onChange(list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     },
     (err) => {
-      onChange([]);
-      onError?.(
-        err.message ||
-          'Cannot list profiles. Publish Firestore rules and set users/{yourUid}.role to admin or create admins/{yourUid}.'
-      );
+      void fetchProfilesViaAdminApi()
+        .then((list) => {
+          onChange(list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+          onError?.(null as unknown as string);
+        })
+        .catch(() => {
+          onChange([]);
+          onError?.(
+            err.message ||
+              'Cannot list profiles. Create Firestore admins/{yourUid} or set users/{yourUid}.role to admin.'
+          );
+        });
     }
   );
 }
