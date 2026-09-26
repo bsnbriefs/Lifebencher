@@ -202,12 +202,6 @@ export const DiscoverScreen: React.FC = () => {
         </button>
       </div>
 
-      {entitlements.plan === 'free' && (
-        <p className="text-[11px] text-stone-500 px-1">
-          Free Discover is open. Plus and Boost are on Profile when you want them. Sending an interest stays free.
-        </p>
-      )}
-
       {/* Toast Notification Banner */}
       <AnimatePresence>
         {toastMessage && (
