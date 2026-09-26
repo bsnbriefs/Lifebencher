@@ -996,9 +996,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                             className="hidden"
                             disabled={photoBusy}
                             onChange={(e) => {
-                              const files = e.target.files;
+                              const file = e.target.files && e.target.files[0];
                               e.target.value = '';
-                              void addPhotoFiles(files);
+                              if (file) void addPhotoFiles([file]);
+                              else setErrorMessage('Camera did not return a photo. Try gallery.');
                             }}
                           />
                         </label>
@@ -1007,14 +1008,14 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                           {photoBusy ? 'Uploading…' : 'Upload from gallery'}
                           <input
                             type="file"
-                            accept="image/*"
-                            multiple
+                            accept="image/jpeg,image/png,image/webp,image/*"
                             className="hidden"
                             disabled={photoBusy}
                             onChange={(e) => {
-                              const files = e.target.files;
+                              const file = e.target.files && e.target.files[0];
                               e.target.value = '';
-                              void addPhotoFiles(files);
+                              if (file) void addPhotoFiles([file]);
+                              else setErrorMessage('Gallery did not return a photo. Pick a JPG or PNG.');
                             }}
                           />
                         </label>
