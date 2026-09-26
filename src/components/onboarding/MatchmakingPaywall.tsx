@@ -76,7 +76,10 @@ export const MatchmakingPaywall: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 p-4 safe-area-top safe-area-bottom flex flex-col">
+    <div
+      className="h-[100dvh] max-h-[100dvh] overflow-y-auto bg-[#FAF8F5] text-stone-900 p-4 safe-area-top"
+      style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       <header className="max-w-md w-full mx-auto flex items-center gap-2.5 pb-4">
         <AppLogo size={32} className="rounded-xl" />
         <div>
@@ -149,7 +152,7 @@ export const MatchmakingPaywall: React.FC = () => {
             Choose receipt from gallery
           </button>
           {receiptPreview && (
-            <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-48 object-contain rounded-2xl border border-stone-200 bg-white" />
+            <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-36 object-contain rounded-2xl border border-stone-200 bg-white" />
           )}
           {receiptFile && <p className="text-[11px] text-stone-600">{receiptFile.name}</p>}
           <button
