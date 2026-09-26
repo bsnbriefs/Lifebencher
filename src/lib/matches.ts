@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  limit,
   query,
   setDoc,
   updateDoc,
@@ -75,7 +76,7 @@ export function listenVisibleProfiles(
   currentUid: string,
   onChange: (profiles: Profile[]) => void
 ): () => void {
-  const q = query(collection(db, 'profiles'), where('isVisible', '==', true));
+  const q = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(80));
   return onSnapshot(
     q,
     (snap) => {
