@@ -8,8 +8,9 @@ import {
   updateDoc,
   where
 } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { PRODUCTS, productById } from './products';
-import { auth, db } from './firebase';
+import { auth, db, storage } from './firebase';
 
 export type TxStatus = 'pending' | 'success' | 'failed';
 
@@ -25,6 +26,8 @@ export interface BillingTransaction {
   createdAt: string;
   confirmedAt?: string;
   matchId?: string;
+  receiptUrl?: string;
+  source?: string;
 }
 
 export interface Entitlements {
@@ -97,7 +100,19 @@ export function listenAllTransactions(onChange: (rows: BillingTransaction[]) => 
   );
 }
 
-export async function createPendingTransaction(productId: string, matchId?: string): Promise<string> {
+export async function uploadPaymentReceipt(file: File): Promise<string> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Receipt must be under 5MB');
+  const path = `receipts/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '')}`;
+  const snap = await uploadBytes(ref(storage, path), file, { contentType: file.type || 'image/jpeg' });
+  return getDownloadURL(snap.ref);
+}
+
+export async function createPendingTransaction(
+  productId: string,
+  extras?: { matchId?: string; receiptUrl?: string }
+): Promise<string> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   const product = productById(productId);
@@ -113,7 +128,9 @@ export async function createPendingTransaction(productId: string, matchId?: stri
     status: 'pending' as const,
     reference,
     createdAt: now,
-    ...(matchId ? { matchId } : {})
+    source: extras?.receiptUrl ? 'receipt_claim' : 'claim',
+    ...(extras?.matchId ? { matchId: extras.matchId } : {}),
+    ...(extras?.receiptUrl ? { receiptUrl: extras.receiptUrl } : {})
   };
   const ref = await addDoc(collection(db, 'transactions'), payload);
   return ref.id;
