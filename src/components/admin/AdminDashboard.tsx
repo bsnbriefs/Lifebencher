@@ -51,9 +51,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [liveProfiles, setLiveProfiles] = useState<Profile[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    const a = listenAllProfiles(setLiveProfiles);
+    const a = listenAllProfiles(setLiveProfiles, setProfileError);
     const b = listenReviewQueue(setReviewItems);
     return () => {
       a();
@@ -260,14 +261,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           )}
         </AnimatePresence>
 
-        {/* Admin Tab Switcher */}
-        <div className="flex bg-stone-200/80 p-1 rounded-2xl text-xs font-semibold">
+        {profileError && (
+          <p className="text-xs text-rose-900 bg-rose-50 border border-rose-200 rounded-2xl p-3">{profileError}</p>
+        )}
+
+        <div
+          className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           <button
             onClick={() => setActiveTab('verifications')}
-            className={`flex-1 py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
               activeTab === 'verifications'
-                ? 'bg-white text-rose-950 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+                ? 'bg-stone-900 text-amber-100 border-stone-900'
+                : 'bg-white text-stone-700 border-stone-200'
             }`}
           >
             <span>Verification</span>
@@ -280,10 +287,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
           <button
             onClick={() => setActiveTab('curate')}
-            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
-              activeTab === 'curate'
-                ? 'bg-white text-rose-950 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'curate' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
             }`}
           >
             Matchmaker
@@ -291,10 +296,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
           <button
             onClick={() => setActiveTab('matches')}
-            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
-              activeTab === 'matches'
-                ? 'bg-white text-rose-950 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'matches' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
             }`}
           >
             Matches ({systemMatches.length})
@@ -302,28 +305,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
           <button
             onClick={() => setActiveTab('clients')}
-            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
-              activeTab === 'clients'
-                ? 'bg-white text-rose-950 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'clients' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
             }`}
           >
             Clients
           </button>
           <button
             onClick={() => setActiveTab('billing')}
-            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
-              activeTab === 'billing'
-                ? 'bg-white text-rose-950 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'billing' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
             }`}
           >
             Billing
           </button>
           <button
             onClick={() => setActiveTab('review')}
-            className={`flex-1 py-2 rounded-xl transition cursor-pointer ${
-              activeTab === 'review' ? 'bg-white text-rose-950 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'review' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
             }`}
           >
             Review ({reviewItems.filter((i) => i.status === 'open').length})
@@ -339,8 +338,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             </div>
 
             {queue.length === 0 && (
-              <div className="text-center py-12 bg-white rounded-3xl border border-stone-200 text-xs text-stone-500">
-                No verification submissions yet.
+              <div className="text-center py-8 px-4 bg-white rounded-3xl border border-stone-200 text-xs text-stone-500 space-y-2">
+                <p className="font-semibold text-stone-800">No pending profiles in this session.</p>
+                <p>
+                  Verification lists every unverified profile. If this stays empty, Firestore is blocking the admin list: publish rules, then set
+                  users/{'{yourUid}'}.role = admin or create admins/{'{yourUid}'}.
+                </p>
               </div>
             )}
             {queue.map((cand) => (
