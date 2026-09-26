@@ -45,7 +45,7 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     profession: String(d.profession || ''),
     education: String(d.education || ''),
     bio: String(d.bio || ''),
-    photos: resolved ? [resolved] : [],
+    photos: Array.isArray(d.photoUrls) && d.photoUrls.length ? (d.photoUrls as string[]) : resolved ? [resolved] : [],
     interests: Array.isArray(d.interests) ? (d.interests as string[]) : [],
     values: Array.isArray(d.values) ? (d.values as string[]) : [],
     relationshipGoal: String(d.relationshipGoal || ''),

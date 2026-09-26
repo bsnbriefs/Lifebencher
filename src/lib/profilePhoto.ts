@@ -1,8 +1,8 @@
 import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import { auth, storage } from './firebase';
 
-export function profilePhotoPath(uid: string) {
-  return `profilePhotos/${uid}/avatar`;
+export function profilePhotoPath(uid: string, slot = 0) {
+  return slot === 0 ? `profilePhotos/${uid}/avatar` : `profilePhotos/${uid}/gallery_${slot}`;
 }
 
 export async function fetchProfilePhotoUrl(uid: string): Promise<string | null> {
@@ -15,7 +15,8 @@ export async function fetchProfilePhotoUrl(uid: string): Promise<string | null> 
 
 export function uploadProfilePhoto(
   file: File,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  slot = 0
 ): Promise<string> {
   const uid = auth.currentUser?.uid;
   if (!uid) return Promise.reject(new Error('Not signed in'));
@@ -25,7 +26,7 @@ export function uploadProfilePhoto(
   }
   if (file.size > 5 * 1024 * 1024) return Promise.reject(new Error('Image must be under 5MB'));
 
-  const storageRef = ref(storage, profilePhotoPath(uid));
+  const storageRef = ref(storage, profilePhotoPath(uid, slot));
   const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
 
   return new Promise((resolve, reject) => {
