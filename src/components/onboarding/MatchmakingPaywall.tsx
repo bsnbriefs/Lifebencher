@@ -9,6 +9,7 @@ import {
   EMPTY_ENTITLEMENTS,
   Entitlements
 } from '../../lib/billing';
+import { confirmFlutterwaveReturn, startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
 import { AppLogo } from '../common/AppLogo';
 
 export const MatchmakingPaywall: React.FC = () => {
@@ -22,6 +23,9 @@ export const MatchmakingPaywall: React.FC = () => {
     if (!user?.id) return;
     const a = listenEntitlements(user.id, setEnt);
     const b = listenMyTransactions(user.id, setTxs);
+    void confirmFlutterwaveReturn().then((result) => {
+      if (result.message) setNote(result.message);
+    });
     return () => {
       a();
       b();
@@ -34,16 +38,25 @@ export const MatchmakingPaywall: React.FC = () => {
       (t.productId === 'matchmaking_local' || t.productId === 'matchmaking_international')
   );
 
-  const choose = async (productId: string) => {
+  const pay = async (productId: string) => {
+    setBusy(productId);
+    setNote(null);
+    try {
+      await startFlutterwaveCheckout(productId);
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'Could not start Flutterwave checkout.');
+      setBusy(null);
+    }
+  };
+
+  const alreadyPaid = async (productId: string) => {
     setBusy(productId);
     setNote(null);
     try {
       await createPendingTransaction(productId);
-      setNote(
-        'Payment request saved. Transfer ₦30,000 (Nigeria) or ₦50,000 (Abroad) via Paystack when checkout is enabled. Discover opens after Lifebencher confirms the payment — not from this button alone.'
-      );
+      setNote('Claim saved. Discover stays locked until Lifebencher confirms your earlier payment.');
     } catch (err) {
-      setNote(err instanceof Error ? err.message : 'Could not start payment.');
+      setNote(err instanceof Error ? err.message : 'Could not save claim.');
     } finally {
       setBusy(null);
     }
@@ -74,7 +87,7 @@ export const MatchmakingPaywall: React.FC = () => {
         <button
           type="button"
           disabled={!!busy}
-          onClick={() => void choose('matchmaking_local')}
+          onClick={() => void pay('matchmaking_local')}
           className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
         >
           <div className="flex items-center justify-between">
@@ -90,7 +103,7 @@ export const MatchmakingPaywall: React.FC = () => {
         <button
           type="button"
           disabled={!!busy}
-          onClick={() => void choose('matchmaking_international')}
+          onClick={() => void pay('matchmaking_international')}
           className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
         >
           <div className="flex items-center justify-between">
@@ -111,7 +124,7 @@ export const MatchmakingPaywall: React.FC = () => {
           <button
             type="button"
             disabled={!!busy}
-            onClick={() => void choose('matchmaking_local')}
+            onClick={() => void alreadyPaid('matchmaking_local')}
             className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
           >
             I already paid — Nigeria ₦30,000
@@ -119,7 +132,7 @@ export const MatchmakingPaywall: React.FC = () => {
           <button
             type="button"
             disabled={!!busy}
-            onClick={() => void choose('matchmaking_international')}
+            onClick={() => void alreadyPaid('matchmaking_international')}
             className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
           >
             I already paid — Abroad ₦50,000
