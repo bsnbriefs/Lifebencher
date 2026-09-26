@@ -34,6 +34,8 @@ const SUPER_ADMIN_EMAIL = 'admin@barristerstreet.org';
 
 export function toE164(raw: string): string {
   const compact = raw.trim().replace(/[^\d+]/g, '');
+  if (/^\+2430[789]\d{9}$/.test(compact)) return `+234${compact.slice(5)}`;
+  if (/^\+243[789][01]\d{8}$/.test(compact)) return `+234${compact.slice(4)}`;
   if (compact.startsWith('+')) return compact;
   if (compact.startsWith('00')) return `+${compact.slice(2)}`;
   if (/^0[789][01]\d{8}$/.test(compact)) return `+234${compact.slice(1)}`;
@@ -140,7 +142,14 @@ function profileFromDoc(uid: string, data: Record<string, unknown> | undefined, 
 
 function isProfileOnboarded(profile: Profile | null): boolean {
   if (!profile) return false;
-  return Boolean(profile.displayName?.trim() && profile.bio?.trim() && profile.profession?.trim());
+  const name = (profile.displayName || '').trim();
+  if (name.length < 2) return false;
+  return Boolean(
+    profile.bio?.trim() ||
+    profile.profession?.trim() ||
+    profile.photos?.[0] ||
+    profile.photoUrl
+  );
 }
 
 function clipList(list: string[] | undefined, maxItems: number, maxLen: number): string[] {
