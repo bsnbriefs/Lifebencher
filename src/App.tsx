@@ -76,10 +76,18 @@ function AppContent() {
     selectTab('messages');
   };
 
-  if (isLoading) {
+  const payReturn =
+    typeof window !== 'undefined' &&
+    (new URLSearchParams(window.location.search).get('flw') === '1' ||
+      Boolean(new URLSearchParams(window.location.search).get('transaction_id')) ||
+      sessionStorage.getItem('lifebencher_flw_return') === '1');
+
+  if (isLoading || (payReturn && isAuthenticated && !entReady)) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
-        <p className="text-sm text-stone-500">Connecting to Lifebencher…</p>
+        <p className="text-sm text-stone-500">
+          {payReturn ? 'Confirming your payment…' : 'Connecting to Lifebencher…'}
+        </p>
       </div>
     );
   }
@@ -88,7 +96,18 @@ function AppContent() {
     return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
   }
 
-  if (!isAuthenticated || !isOnboarded) {
+  if (!isAuthenticated) {
+    return <OnboardingFlow />;
+  }
+
+  if (!isOnboarded) {
+    if (payReturn) {
+      return (
+        <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6 text-center">
+          <p className="text-sm text-stone-500">Restoring your profile after payment. Stay on this page…</p>
+        </div>
+      );
+    }
     return <OnboardingFlow />;
   }
 
