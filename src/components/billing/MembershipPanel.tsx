@@ -5,13 +5,13 @@ import {
   BillingTransaction,
   EMPTY_ENTITLEMENTS,
   Entitlements,
-  createPendingTransaction,
   listenEntitlements,
   listenMyTransactions,
   planActive,
   spotlightActive
 } from '../../lib/billing';
 import { productById, formatNgn } from '../../lib/products';
+import { confirmFlutterwaveReturn, startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
 
 export const MembershipPanel: React.FC = () => {
   const { user } = useAuth();
@@ -24,6 +24,13 @@ export const MembershipPanel: React.FC = () => {
     if (!user?.id) return;
     const a = listenEntitlements(user.id, setEnt);
     const b = listenMyTransactions(user.id, setTxs);
+    confirmFlutterwaveReturn()
+      .then((r) => {
+        if (r.message) setNote(r.message);
+      })
+      .catch(() => {
+        /* ignore */
+      });
     return () => {
       a();
       b();
@@ -34,11 +41,9 @@ export const MembershipPanel: React.FC = () => {
     setBusy(productId);
     setNote(null);
     try {
-      await createPendingTransaction(productId);
-      setNote('Request is pending. Plus, Boost, and extra matches unlock only after Lifebencher confirms payment.');
+      await startFlutterwaveCheckout(productId);
     } catch (err) {
-      setNote(err instanceof Error ? err.message : 'Could not start this request.');
-    } finally {
+      setNote(err instanceof Error ? err.message : 'Could not start Flutterwave checkout.');
       setBusy(null);
     }
   };
