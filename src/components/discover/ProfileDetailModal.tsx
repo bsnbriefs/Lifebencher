@@ -80,7 +80,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-          className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-[#FAF8F5] text-stone-900 rounded-3xl shadow-2xl border border-stone-200 relative flex flex-col"
+          className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-[#1a1614] text-[#f3ece6] rounded-3xl shadow-2xl border border-white/10 relative flex flex-col"
         >
           {/* Close Button Top Right */}
           <button
@@ -143,100 +143,84 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
           <div className="p-5 space-y-4">
             {/* Compatibility Insight Card */}
             {compatibility && (
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-900 to-rose-950 text-white shadow-sm space-y-2">
+              <div className="p-4 rounded-2xl bg-[#241c1b] border border-amber-200/20 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                  <div className="flex items-center gap-1.5 text-amber-200/90 font-bold text-xs">
                     <Sparkles className="w-4 h-4" />
                     <span>Compatibility Index</span>
                   </div>
-                  <span className="font-serif text-xl font-bold text-amber-300">
+                  <span className="font-serif text-xl font-bold text-amber-200">
                     {compatibility.score}%
                   </span>
                 </div>
-                <p className="text-xs text-rose-100 leading-relaxed">
+                <p className="text-xs text-stone-300 leading-relaxed">
                   {aiExplain?.explanation || compatibility.summary}
                 </p>
                 {aiExplain?.starters?.length ? (
-                  <ul className="text-[11px] text-amber-100/90 space-y-1 pt-1">
+                  <ul className="text-[11px] text-stone-400 space-y-1 pt-1">
                     {aiExplain.starters.map((s) => (
                       <li key={s}>“{s}”</li>
                     ))}
                   </ul>
                 ) : null}
-
-                {/* Compatibility Breakdown Indicators */}
-                <div className="pt-2 border-t border-rose-800/80 grid grid-cols-2 gap-2 text-[11px] text-rose-200">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Goal: Compatible</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{compatibility.breakdown.valuesSharedCount} Shared Values</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Lifestyle: Balanced</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Location: Matched</span>
-                  </div>
+                <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px] text-stone-400">
+                  <span>Goal aligned</span>
+                  <span>{compatibility.breakdown.valuesSharedCount} shared values</span>
+                  <span>Lifestyle balanced</span>
+                  <span>Location matched</span>
                 </div>
               </div>
             )}
 
             {/* About / Bio */}
-            <div className="bg-white p-4 rounded-2xl border border-stone-200 space-y-1.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400">
+            <div className="bg-[#241c1b] p-4 rounded-2xl border border-white/10 space-y-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500">
                 Personal Background & Ethos
               </h3>
-              <p className="text-xs text-stone-800 leading-relaxed italic">
+              <p className="text-xs text-stone-200 leading-relaxed italic">
                 "{profile.bio}"
               </p>
             </div>
 
-            {/* Seeking Relationship Goal */}
-            <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-2.5">
-              <Heart className="w-4 h-4 text-rose-800 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-2xl bg-[#241c1b] border border-amber-200/25 flex items-start gap-2.5">
+              <Heart className="w-4 h-4 text-amber-200/80 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-xs text-stone-900 block">
+                <span className="font-semibold text-xs text-[#f3ece6] block">
                   Relationship Goal:
                 </span>
-                <span className="text-xs text-stone-700">
+                <span className="text-xs text-stone-300">
                   {profile.relationshipGoal}
                 </span>
               </div>
             </div>
 
-            {/* Lifestyle Grid */}
-            <div className="bg-white p-4 rounded-2xl border border-stone-200 space-y-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400">
+            <div className="bg-[#241c1b] p-4 rounded-2xl border border-white/10 space-y-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500">
                 Lifestyle & Habits
               </h3>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {profile.lifestyle?.faith && (
-                  <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-150">
-                    <span className="text-stone-400 text-[10px] uppercase font-bold block">Faith</span>
-                    <span className="font-semibold text-stone-800">{profile.lifestyle.faith}</span>
+                  <div className="p-2.5 rounded-xl bg-black/20 border border-white/10">
+                    <span className="text-stone-500 text-[10px] uppercase font-bold block">Faith</span>
+                    <span className="font-semibold text-stone-200">{profile.lifestyle.faith}</span>
                   </div>
                 )}
                 {profile.lifestyle?.kids && (
-                  <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-150">
-                    <span className="text-stone-400 text-[10px] uppercase font-bold block">Family</span>
-                    <span className="font-semibold text-stone-800 capitalize">{profile.lifestyle.kids}</span>
+                  <div className="p-2.5 rounded-xl bg-black/20 border border-white/10">
+                    <span className="text-stone-500 text-[10px] uppercase font-bold block">Family</span>
+                    <span className="font-semibold text-stone-200 capitalize">{profile.lifestyle.kids}</span>
                   </div>
                 )}
                 {profile.lifestyle?.drinking && (
-                  <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-150">
-                    <span className="text-stone-400 text-[10px] uppercase font-bold block">Drinking</span>
-                    <span className="font-semibold text-stone-800 capitalize">{profile.lifestyle.drinking}</span>
+                  <div className="p-2.5 rounded-xl bg-black/20 border border-white/10">
+                    <span className="text-stone-500 text-[10px] uppercase font-bold block">Drinking</span>
+                    <span className="font-semibold text-stone-200 capitalize">{profile.lifestyle.drinking}</span>
                   </div>
                 )}
                 {profile.lifestyle?.exercise && (
-                  <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-150">
-                    <span className="text-stone-400 text-[10px] uppercase font-bold block">Exercise</span>
-                    <span className="font-semibold text-stone-800 capitalize">{profile.lifestyle.exercise}</span>
+                  <div className="p-2.5 rounded-xl bg-black/20 border border-white/10">
+                    <span className="text-stone-500 text-[10px] uppercase font-bold block">Exercise</span>
+                    <span className="font-semibold text-stone-200 capitalize">{profile.lifestyle.exercise}</span>
                   </div>
                 )}
               </div>
@@ -252,7 +236,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                   {profile.values.map((v) => (
                     <span
                       key={v}
-                      className="px-3 py-1 rounded-xl bg-rose-50 text-rose-950 border border-rose-200 text-xs font-medium"
+                      className="px-3 py-1 rounded-xl bg-black/25 text-stone-200 border border-white/10 text-xs font-medium"
                     >
                       {v}
                     </span>
@@ -271,7 +255,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                   {profile.interests.map((i) => (
                     <span
                       key={i}
-                      className="px-3 py-1 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-medium"
+                      className="px-3 py-1 rounded-xl bg-black/25 text-amber-100/80 border border-amber-200/20 text-xs font-medium"
                     >
                       {i}
                     </span>
@@ -282,10 +266,10 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
           </div>
 
           {/* Sticky Bottom Action Bar */}
-          <div className="p-4 bg-white border-t border-stone-200 sticky bottom-0 z-30 flex items-center gap-3">
+          <div className="p-4 bg-[#1a1614] border-t border-white/10 sticky bottom-0 z-30 flex items-center gap-3">
             <button
               onClick={onClose}
-              className="py-3 px-4 rounded-2xl border border-stone-300 text-stone-700 font-semibold text-xs hover:bg-stone-50 transition cursor-pointer"
+              className="py-3 px-4 rounded-2xl border border-white/15 text-stone-200 font-semibold text-xs"
             >
               Back
             </button>
@@ -295,8 +279,8 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
               disabled={hasSentInterest || isLoading}
               className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition active:scale-98 cursor-pointer ${
                 hasSentInterest
-                  ? 'bg-emerald-600 text-white cursor-default'
-                  : 'bg-gradient-to-r from-rose-900 via-rose-800 to-amber-700 text-white hover:opacity-95'
+                  ? 'bg-emerald-800 text-white cursor-default'
+                  : 'bg-amber-200/90 text-stone-950 hover:opacity-95'
               }`}
             >
               {isLoading ? (
