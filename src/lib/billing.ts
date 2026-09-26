@@ -176,13 +176,6 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
 
   await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   await adminSetTransactionStatus(tx.id, 'success');
-  if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
-    try {
-      await updateDoc(doc(db, 'profiles', uid), { isVisible: true, updatedAt: new Date().toISOString() });
-    } catch {
-      /* profile may still be draft */
-    }
-  }
 }
 
 export async function adminGrantMatchmaking(

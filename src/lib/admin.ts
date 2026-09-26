@@ -3,14 +3,23 @@ import { Profile } from '../types';
 import { db } from './firebase';
 import { mapProfileDoc } from './matches';
 
-export function listenAllProfiles(onChange: (profiles: Profile[]) => void): () => void {
+export function listenAllProfiles(
+  onChange: (profiles: Profile[]) => void,
+  onError?: (message: string) => void
+): () => void {
   return onSnapshot(
     collection(db, 'profiles'),
     (snap) => {
       const list = snap.docs.map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>));
       onChange(list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     },
-    () => onChange([])
+    (err) => {
+      onChange([]);
+      onError?.(
+        err.message ||
+          'Cannot list profiles. Publish Firestore rules and set users/{yourUid}.role to admin or create admins/{yourUid}.'
+      );
+    }
   );
 }
 
@@ -28,7 +37,7 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
     bio: (profile.bio || '').slice(0, 1000),
     relationshipGoal: (profile.relationshipGoal || 'Intentional marriage').slice(0, 100),
     isVerified,
-    isVisible: profile.isVisible !== false,
+    isVisible: isVerified ? true : false,
     createdAt: profile.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...(photoUrl && photoUrl.startsWith('https://') ? { photoUrl: photoUrl.slice(0, 2000) } : {})
