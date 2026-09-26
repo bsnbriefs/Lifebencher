@@ -155,12 +155,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <h2 className="font-serif text-xl font-bold text-stone-900 truncate">
-                {currentProfile.displayName}, {currentProfile.age}
+                {currentProfile.displayName && currentProfile.displayName !== 'Member'
+                  ? currentProfile.displayName
+                  : 'Your name'}, {currentProfile.age}
               </h2>
             </div>
             <p className="text-xs text-stone-600 flex items-center gap-1 mt-0.5">
               <Briefcase className="w-3 h-3 text-stone-400" />
-              <span className="truncate">{currentProfile.profession}</span>
+              <span className="truncate">{currentProfile.profession?.trim() || 'Add your profession'}</span>
             </p>
             <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
               <MapPin className="w-3 h-3 text-stone-400" />
@@ -212,8 +214,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             </button>
           </div>
 
-          <p className="text-xs text-stone-700 leading-relaxed bg-[#FBF7F0]/60 p-3 rounded-2xl border border-stone-100">
-            {currentProfile.bio}
+          <p className="text-xs text-stone-700 leading-relaxed bg-[#FBF7F0]/60 p-3 rounded-2xl border border-stone-100 min-h-[3rem]">
+            {currentProfile.bio?.trim()
+              ? currentProfile.bio
+              : 'Tap Edit Profile to add a short introduction.'}
           </p>
         </div>
 
@@ -227,7 +231,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
           <div className="flex items-center gap-2">
             <GraduationCap className="w-4 h-4 text-stone-400" />
             <span className="font-semibold text-stone-900">Education:</span>
-            <span className="text-stone-700">{currentProfile.education}</span>
+            <span className="text-stone-700">{currentProfile.education?.trim() || 'Add your education'}</span>
           </div>
         </div>
       </div>
