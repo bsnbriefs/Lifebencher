@@ -133,7 +133,7 @@ function AppContent() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#FAF8F5]">
+    <div className="relative h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAF8F5]">
       {/* Offline notification banner */}
       {!isOnline && (
         <div className="bg-amber-600 text-white px-4 py-1.5 text-xs flex items-center justify-center gap-2 sticky top-0 z-50">

@@ -12,7 +12,8 @@
 
   html, body, #root {
     max-width: 100%;
-    overflow-x: hidden;
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -22,7 +23,6 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
-    user-select: none;
     overscroll-behavior-y: none;
   }
 
