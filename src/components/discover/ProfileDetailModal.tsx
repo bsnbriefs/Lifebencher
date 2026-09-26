@@ -33,10 +33,34 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
   onExploreMatch
 }) => {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  const [aiExplain, setAiExplain] = useState<{ explanation: string; starters: string[] } | null>(null);
 
   useEffect(() => {
     setActivePhotoIdx(0);
+    setAiExplain(null);
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile || !compatibility) return;
+    void import('../../lib/aiClient').then(({ explainMatch }) =>
+      explainMatch({
+        score: compatibility.score,
+        summary: compatibility.summary,
+        me: { relationshipGoal: 'as on your profile' },
+        them: {
+          displayName: profile.displayName,
+          profession: profile.profession,
+          location: profile.location,
+          values: profile.values,
+          interests: profile.interests,
+          relationshipGoal: profile.relationshipGoal,
+          lifestyle: profile.lifestyle
+        }
+      })
+        .then(setAiExplain)
+        .catch(() => undefined)
+    );
+  }, [profile, compatibility]);
 
   useEffect(() => {
     if (!profile || profile.photos.length < 2) return;
@@ -130,8 +154,15 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-rose-100 leading-relaxed">
-                  {compatibility.summary}
+                  {aiExplain?.explanation || compatibility.summary}
                 </p>
+                {aiExplain?.starters?.length ? (
+                  <ul className="text-[11px] text-amber-100/90 space-y-1 pt-1">
+                    {aiExplain.starters.map((s) => (
+                      <li key={s}>“{s}”</li>
+                    ))}
+                  </ul>
+                ) : null}
 
                 {/* Compatibility Breakdown Indicators */}
                 <div className="pt-2 border-t border-rose-800/80 grid grid-cols-2 gap-2 text-[11px] text-rose-200">
