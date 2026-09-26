@@ -27,7 +27,8 @@ export default async function handler(req, res) {
     }
     await grantVerifiedTransaction(txSnap);
     return json(res, 200, { ok: true });
-  } catch {
+  } catch (err) {
+    console.error('flutterwave webhook', err);
     return json(res, 200, { ok: true });
   }
 }
