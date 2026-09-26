@@ -44,6 +44,24 @@ export function toE164(raw: string): string {
 }
 const EMAIL_LINK_STORAGE_KEY = 'lifebencher_email_for_sign_in';
 const EXTRAS_STORAGE_KEY = 'lifebencher_profile_extras';
+const ONBOARD_FLAG_KEY = 'lifebencher_onboarded';
+
+function onboardFlag(uid?: string | null): boolean {
+  if (!uid) return false;
+  try {
+    return localStorage.getItem(`${ONBOARD_FLAG_KEY}_${uid}`) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setOnboardFlag(uid: string) {
+  try {
+    localStorage.setItem(`${ONBOARD_FLAG_KEY}_${uid}`, '1');
+  } catch {
+    /* ignore */
+  }
+}
 const PREFS_STORAGE_KEY = 'lifebencher_prefs';
 
 interface AuthContextType {
@@ -480,6 +498,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     saveExtras(uid, merged);
+    setOnboardFlag(uid);
     setCurrentProfile(merged);
 
     const payload = firestoreProfilePayload({
@@ -601,6 +620,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         isOnboarded:
           isProfileOnboarded(currentProfile) ||
+          onboardFlag(user?.id) ||
           user?.email === SUPER_ADMIN_EMAIL ||
           user?.role === 'admin',
         isLoading,
