@@ -339,22 +339,29 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
                     <div className="flex-1 min-w-0">
                       <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-900 text-amber-100 font-semibold cursor-pointer">
                         <Camera className="w-3 h-3" />
-                        {photoBusy ? `Uploading ${photoProgress}%` : currentProfile.photos[0] ? 'Change Photo' : 'Upload Photo'}
+                        {photoBusy ? `Uploading ${photoProgress}%` : 'Upload photos'}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                          multiple
                           className="hidden"
                           disabled={photoBusy}
                           onChange={async (e) => {
-                            const file = e.target.files?.[0];
+                            const files = e.target.files ? Array.from(e.target.files) : [];
                             e.target.value = '';
-                            if (!file) return;
+                            if (!files.length) return;
                             setPhotoError(null);
                             setPhotoBusy(true);
                             setPhotoProgress(0);
                             try {
-                              const url = await uploadProfilePhoto(file, setPhotoProgress);
-                              updateProfile({ photos: [url] });
+                              const existing = currentProfile.photos || [];
+                              const room = Math.max(0, 3 - existing.length);
+                              const batch = files.slice(0, room || 3);
+                              const urls: string[] = [];
+                              for (let i = 0; i < batch.length; i += 1) {
+                                urls.push(await uploadProfilePhoto(batch[i], setPhotoProgress, existing.length + i));
+                              }
+                              updateProfile({ photos: [...existing, ...urls].slice(0, 3) });
                             } catch (err) {
                               setPhotoError(err instanceof Error ? err.message : 'Upload failed');
                             } finally {
