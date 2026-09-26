@@ -960,13 +960,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                           )}
                         </button>
                       ))}
-                      {galleryPhotos.length < 3 && (
-                        <label className="rounded-xl border-2 border-dashed border-stone-300 aspect-square flex flex-col items-center justify-center text-stone-500 text-[11px] font-semibold cursor-pointer">
-                          <Camera className="w-5 h-5 mb-1" />
-                          {photoBusy ? 'Uploading…' : 'Add photo'}
+                    </div>
+                    {galleryPhotos.length < 3 && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="rounded-xl border border-stone-300 py-3 flex flex-col items-center text-stone-600 text-[11px] font-semibold cursor-pointer">
+                          <Camera className="w-4 h-4 mb-1" />
+                          {photoBusy ? 'Uploading…' : 'Take photo'}
                           <input
                             type="file"
-                            accept="image/jpeg,image/png,image/webp"
+                            accept="image/*"
                             capture="user"
                             className="hidden"
                             disabled={photoBusy}
@@ -977,8 +979,23 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                             }}
                           />
                         </label>
-                      )}
-                    </div>
+                        <label className="rounded-xl border border-stone-300 py-3 flex flex-col items-center text-stone-600 text-[11px] font-semibold cursor-pointer">
+                          <Camera className="w-4 h-4 mb-1" />
+                          {photoBusy ? 'Uploading…' : 'Upload from gallery'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={photoBusy}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              void addPhotoFile(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    )}
                     <p className="text-[11px] text-stone-500">
                       {galleryPhotos.length}/3 photos · JPG, PNG or WebP · max 5MB each
                     </p>

@@ -103,6 +103,29 @@ export const MatchmakingPaywall: React.FC = () => {
           <p className="text-[11px] text-stone-500">International introductions. Up to 3 matches. One-time.</p>
         </button>
 
+        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-2">
+          <p className="text-xs font-semibold text-stone-800">Already paid?</p>
+          <p className="text-[11px] text-stone-500">
+            Existing clients should not pay again. Tell us which package you bought. Admin confirms once, then Discover opens.
+          </p>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void choose('matchmaking_local')}
+            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
+          >
+            I already paid — Nigeria ₦30,000
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void choose('matchmaking_international')}
+            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
+          >
+            I already paid — Abroad ₦50,000
+          </button>
+        </div>
+
         {pending && (
           <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl p-3">
             {pending.productName} is pending confirmation ({pending.reference}). Discover stays closed until admin confirms payment.
