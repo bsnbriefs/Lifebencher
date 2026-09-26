@@ -29,7 +29,7 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => {
-  const { currentProfile, updateProfile, preferences, updatePreferences, logout, isAdmin } = useAuth();
+  const { currentProfile, updateProfile, preferences, updatePreferences, logout, deleteAccount, isAdmin } = useAuth();
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
   // Modal / sheet states
@@ -175,6 +175,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         {photoError && (
           <p className="text-[11px] text-rose-700">{photoError}</p>
         )}
+        {!currentProfile.isVisible && (
+          <p className="text-[11px] text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">
+            Hidden from Discover until your matchmaking payment is verified or an admin approves your profile.
+          </p>
+        )}
 
         {/* Visibility Toggle */}
         <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 border border-stone-200/70">
@@ -183,13 +188,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             <div>
               <p className="text-xs font-semibold text-stone-800">Profile Visibility</p>
               <p className="text-[11px] text-stone-500">
-                {currentProfile.isVisible ? 'Visible to eligible matches' : 'Hidden from discovery pool'}
+                {currentProfile.isVisible
+                  ? 'Live on Discover after admin approval'
+                  : 'Hidden until admin approves your profile'}
               </p>
             </div>
           </div>
           <button
-            onClick={() => updateProfile({ isVisible: !currentProfile.isVisible })}
-            className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+            type="button"
+            disabled
+            className={`w-11 h-6 rounded-full relative opacity-70 ${
               currentProfile.isVisible ? 'bg-rose-900' : 'bg-stone-300'
             }`}
           >
@@ -307,6 +315,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Log Out of Lifebencher Match</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm('Delete your Lifebencher account and hide your profile? This cannot be undone.')) return;
+            void deleteAccount().catch((err) => window.alert(err instanceof Error ? err.message : 'Could not delete account'));
+          }}
+          className="w-full mt-2 py-3 rounded-2xl text-stone-400 text-[11px]"
+        >
+          Delete my account
         </button>
       </div>
 
