@@ -190,7 +190,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   };
 
   const addPhotoFiles = async (list: FileList | File[] | null | undefined) => {
-    const incoming = list ? Array.from(list).filter((f) => f instanceof File) : [];
+    const incoming = list ? Array.from(list as unknown as File[]) : [];
     if (!incoming.length) {
       setErrorMessage('No photo was received. Try one picture at a time.');
       return;
