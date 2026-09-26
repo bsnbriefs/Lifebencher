@@ -153,4 +153,20 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
   await adminSetTransactionStatus(tx.id, 'success');
 }
 
+export async function adminGrantMatchmaking(
+  uid: string,
+  pack: 'local' | 'international'
+): Promise<void> {
+  await setDoc(
+    doc(db, 'entitlements', uid),
+    {
+      userId: uid,
+      matchmakingPackage: pack,
+      matchmakingRemaining: 3,
+      updatedAt: new Date().toISOString()
+    },
+    { merge: true }
+  );
+}
+
 export { PRODUCTS };
