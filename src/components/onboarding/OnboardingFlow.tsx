@@ -189,19 +189,26 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     }
   };
 
-  const addPhotoFile = async (file: File | undefined) => {
-    if (!file) return;
-    if (galleryPhotos.length >= 3) {
+  const addPhotoFiles = async (list: FileList | File[] | null | undefined) => {
+    const incoming = list ? Array.from(list).filter((f) => f && f.size) : [];
+    if (!incoming.length) return;
+    const room = 3 - galleryPhotos.length;
+    if (room <= 0) {
       setErrorMessage('You can add up to 3 photos.');
       return;
     }
+    const batch = incoming.slice(0, room);
     setPhotoBusy(true);
     setErrorMessage(null);
     try {
-      const url = await uploadProfilePhoto(file, undefined, galleryPhotos.length);
-      setGalleryPhotos((prev) => [...prev, url]);
+      const urls: string[] = [];
+      for (let i = 0; i < batch.length; i += 1) {
+        urls.push(await uploadProfilePhoto(batch[i], undefined, galleryPhotos.length + i));
+      }
+      setGalleryPhotos((prev) => [...prev, ...urls].slice(0, 3));
+      if (incoming.length > room) setErrorMessage('Only 3 photos are kept. Extra files were skipped.');
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Could not upload that photo.');
+      setErrorMessage(err instanceof Error ? err.message : 'Could not upload those photos.');
     } finally {
       setPhotoBusy(false);
     }
@@ -980,9 +987,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                             className="hidden"
                             disabled={photoBusy}
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
+                              const files = e.target.files;
                               e.target.value = '';
-                              void addPhotoFile(file);
+                              void addPhotoFiles(files);
                             }}
                           />
                         </label>
@@ -992,12 +999,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                           <input
                             type="file"
                             accept="image/*"
+                            multiple
                             className="hidden"
                             disabled={photoBusy}
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
+                              const files = e.target.files;
                               e.target.value = '';
-                              void addPhotoFile(file);
+                              void addPhotoFiles(files);
                             }}
                           />
                         </label>
