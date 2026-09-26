@@ -13,6 +13,7 @@ import { MatchmakingPaywall } from './components/onboarding/MatchmakingPaywall';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { WifiOff } from 'lucide-react';
 import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
+import { AuthActionPage, firebaseActionFromLocation } from './components/auth/AuthActionPage';
 
 const TABS: NavigationTab[] = ['discover', 'matches', 'messages', 'profile'];
 
@@ -22,6 +23,7 @@ function tabFromHash(): NavigationTab {
 }
 
 function AppContent() {
+  const firebaseAction = firebaseActionFromLocation();
   const { isAuthenticated, isOnboarded, isLoading, isAdmin, user } = useAuth();
   const [entitlements, setEntitlements] = useState(EMPTY_ENTITLEMENTS(''));
   const [entReady, setEntReady] = useState(false);
@@ -86,6 +88,10 @@ function AppContent() {
     selectTab('messages');
   };
 
+  if (firebaseAction) {
+    return <AuthActionPage mode={firebaseAction.mode} oobCode={firebaseAction.oobCode} />;
+  }
+
   const payReturn =
     typeof window !== 'undefined' &&
     (new URLSearchParams(window.location.search).get('flw') === '1' ||
@@ -110,11 +116,19 @@ function AppContent() {
     return <OnboardingFlow />;
   }
 
-  if (!isOnboarded && !payReturn) {
-    return <OnboardingFlow />;
+  if (!entReady && !payReturn) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
+        <p className="text-sm text-stone-500">Loading your account…</p>
+      </div>
+    );
   }
 
-  if (!isAdmin && entReady && entitlements.matchmakingPackage === 'none') {
+  if (isAdmin || entitlements.matchmakingPackage !== 'none') {
+    /* existing paid/admin account — never force new registration */
+  } else if (!isOnboarded && !payReturn) {
+    return <OnboardingFlow />;
+  } else if (entitlements.matchmakingPackage === 'none') {
     return <MatchmakingPaywall />;
   }
 
