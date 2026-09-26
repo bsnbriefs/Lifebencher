@@ -82,6 +82,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   const [loginPhone, setLoginPhone] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
+  const [loginTab, setLoginTab] = useState<'email' | 'phone'>('email');
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   // Step indicator: 1 to 6 — restore if Auth hydration remounts this screen
   const [currentStep, setCurrentStep] = useState(() => {
@@ -158,11 +160,14 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     }
   };
 
-  const formatAuthError = (err: unknown) => {
+  const formatAuthError = (err: unknown, method?: 'email' | 'phone' | 'google' | 'reset' | 'link') => {
     const raw = err instanceof Error ? err.message : String(err);
     const code = raw.toLowerCase();
     if (code.includes('operation-not-allowed')) {
-      return 'This sign-in method is turned off in Firebase. Use email and password, or enable Google / email-link in Authentication → Sign-in method.';
+      if (method === 'phone') return 'Phone SMS is not fully enabled. In Firebase open Phone, save it, and add this site under Authorized domains.';
+      if (method === 'google') return 'Google sign-in is off. Enable Google in Authentication → Sign-in method.';
+      if (method === 'link') return 'Email link is off. Enable Email link under Email/Password.';
+      return 'That sign-in method is off in Firebase Authentication.';
     }
     if (code.includes('popup-closed') || code.includes('cancelled')) {
       return 'Google sign-in was closed before finishing.';
@@ -422,12 +427,43 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               </p>
             </div>
 
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-stone-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginTab('email');
+                  setErrorMessage(null);
+                  setInfoMessage(null);
+                }}
+                className={`py-2 rounded-xl text-[11px] font-semibold ${loginTab === 'email' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+              >
+                Email
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginTab('phone');
+                  setErrorMessage(null);
+                  setInfoMessage(null);
+                }}
+                className={`py-2 rounded-xl text-[11px] font-semibold ${loginTab === 'phone' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+              >
+                Phone
+              </button>
+            </div>
+
             {errorMessage && (
               <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
                 {errorMessage}
               </div>
             )}
+            {infoMessage && (
+              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+                {infoMessage}
+              </div>
+            )}
 
+            {loginTab === 'email' ? (
             <form onSubmit={handleLoginSubmit} className="space-y-3.5">
               <div>
                 <label className="text-xs font-semibold text-stone-700 block mb-1">
@@ -469,9 +505,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                   setErrorMessage(null);
                   try {
                     await resetPassword(loginEmail);
-                    setErrorMessage('Password reset email sent. Check your inbox.');
+                    setInfoMessage('Password reset email sent. Check your inbox and spam.');
                   } catch (err) {
-                    setErrorMessage(formatAuthError(err));
+                    setErrorMessage(formatAuthError(err, 'reset'));
                   } finally {
                     setIsSubmitting(false);
                   }
@@ -489,6 +525,59 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                 {isSubmitting ? 'Signing in...' : 'Sign In to Lifebencher Match'}
               </button>
             </form>
+            ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-stone-500">Nigerian numbers work as 0803… or +234…</p>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300">
+                <Phone className="w-4 h-4 text-stone-400" />
+                <input
+                  type="tel"
+                  value={loginPhone}
+                  onChange={(e) => setLoginPhone(e.target.value)}
+                  placeholder="0803 000 0000"
+                  className="w-full text-xs bg-transparent outline-hidden"
+                />
+              </div>
+              {phoneCodeSent && (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  placeholder="6-digit SMS code"
+                  className="w-full text-xs px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300 outline-hidden"
+                />
+              )}
+              <button
+                type="button"
+                disabled={isSubmitting || !loginPhone.trim()}
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  setErrorMessage(null);
+                  setInfoMessage(null);
+                  try {
+                    if (!phoneCodeSent) {
+                      await sendPhoneCode(loginPhone);
+                      setPhoneCodeSent(true);
+                      setInfoMessage('SMS sent. Enter the 6-digit code.');
+                    } else {
+                      await confirmPhoneCode(phoneCode);
+                      sessionStorage.setItem('lifebencher_onboarding_step', '2');
+                      setAuthMode('register');
+                      setCurrentStep(2);
+                    }
+                  } catch (err) {
+                    setErrorMessage(formatAuthError(err, 'phone'));
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-900 to-rose-800 text-amber-100 font-semibold text-xs"
+              >
+                {phoneCodeSent ? 'Verify SMS code' : 'Send SMS code'}
+              </button>
+            </div>
+            )}
 
             <div className="relative py-1">
               <div className="absolute inset-0 flex items-center">
@@ -512,7 +601,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                   setAuthMode('register');
                   setCurrentStep(2);
                 } catch (err) {
-                  setErrorMessage(formatAuthError(err));
+                  setErrorMessage(formatAuthError(err, 'google'));
                 } finally {
                   setIsSubmitting(false);
                 }
@@ -522,80 +611,33 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               Continue with Google
             </button>
 
-            <div className="space-y-2 pt-1">
-              <p className="text-[11px] font-semibold text-stone-700">Sign in with phone</p>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300">
-                <Phone className="w-4 h-4 text-stone-400" />
-                <input
-                  type="tel"
-                  value={loginPhone}
-                  onChange={(e) => setLoginPhone(e.target.value)}
-                  placeholder="0803… or +234…"
-                  className="w-full text-xs bg-transparent outline-hidden"
-                />
-              </div>
-              {phoneCodeSent && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value)}
-                  placeholder="6-digit SMS code"
-                  className="w-full text-xs px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300 outline-hidden"
-                />
-              )}
+            {loginTab === 'email' && (
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !loginEmail.trim()}
                 onClick={async () => {
+                  if (!loginEmail.trim()) {
+                    setErrorMessage('Enter your email first.');
+                    return;
+                  }
                   setIsSubmitting(true);
                   setErrorMessage(null);
+                  setInfoMessage(null);
                   try {
-                    if (!phoneCodeSent) {
-                      await sendPhoneCode(loginPhone);
-                      setPhoneCodeSent(true);
-                      setErrorMessage('Code sent by SMS. Enter it below.');
-                    } else {
-                      await confirmPhoneCode(phoneCode);
-                      sessionStorage.setItem('lifebencher_onboarding_step', '2');
-                      setAuthMode('register');
-                      setCurrentStep(2);
-                    }
+                    await sendEmailLink(loginEmail);
+                    setInfoMessage('Sign-in link sent. Check your inbox.');
                   } catch (err) {
-                    setErrorMessage(formatAuthError(err));
+                    setErrorMessage(formatAuthError(err, 'link'));
                   } finally {
                     setIsSubmitting(false);
                   }
                 }}
-                className="w-full py-3 rounded-2xl border border-stone-300 text-xs font-semibold"
+                className="w-full text-[11px] font-semibold text-stone-500"
               >
-                {phoneCodeSent ? 'Verify code' : 'Send SMS code'}
+                Email me a sign-in link instead
               </button>
-            </div>
+            )}
 
-            <button
-              type="button"
-              disabled={isSubmitting || !loginEmail.trim()}
-              onClick={async () => {
-                if (!loginEmail.trim()) {
-                  setErrorMessage('Enter your email to receive a sign-in link.');
-                  return;
-                }
-                setIsSubmitting(true);
-                setErrorMessage(null);
-                try {
-                  await sendEmailLink(loginEmail);
-                  setErrorMessage('Sign-in link sent. Check your inbox.');
-                } catch (err) {
-                  setErrorMessage(err instanceof Error ? err.message : 'Could not send email link.');
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}
-              className="w-full py-3 rounded-2xl border border-rose-200 bg-rose-50 text-rose-900 font-semibold text-xs hover:bg-rose-100 transition cursor-pointer"
-            >
-              Email me a sign-in link
-            </button>
           </motion.div>
         ) : (
           /* MULTI-STEP ONBOARDING (STEPS 1 TO 6) */
