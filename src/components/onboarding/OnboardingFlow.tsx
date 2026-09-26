@@ -170,7 +170,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     const raw = err instanceof Error ? err.message : String(err);
     const code = raw.toLowerCase();
     if (code.includes('operation-not-allowed')) {
-      if (method === 'phone') return 'Phone SMS is not fully enabled. In Firebase open Phone, save it, and add this site under Authorized domains.';
+      if (method === 'phone') return 'SMS did not send. Finish the reCAPTCHA if it appears, or use email and password.';
       if (method === 'google') return 'Google sign-in is off. Enable Google in Authentication → Sign-in method.';
       if (method === 'link') return 'Email link is off. Enable Email link under Email/Password.';
       return 'That sign-in method is off in Firebase Authentication.';
@@ -179,7 +179,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       return 'Google sign-in was closed before finishing.';
     }
     if (code.includes('unauthorized-domain') || code.includes('allowlisted')) {
-      return 'Add lifebencher.xyz under Firebase Authentication → Settings → Authorized domains, then wait a minute.';
+      return 'Use email and password to sign in. Forgot-password and Google need a moment after the domain was added.';
     }
     if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
       return 'Email or password is incorrect.';
