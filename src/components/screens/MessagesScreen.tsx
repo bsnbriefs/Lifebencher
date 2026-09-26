@@ -456,9 +456,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       <Phone className="w-3 h-3 text-emerald-600" />
                       <span>Phone / WhatsApp</span>
                     </div>
-                    <span className="font-bold text-stone-900 text-xs mt-1 truncate">
+                    <a
+                      href={`tel:${activeConv.otherUserContact.phone}`}
+                      className="font-bold text-stone-900 text-xs mt-1 truncate"
+                    >
                       {activeConv.otherUserContact.phone}
-                    </span>
+                    </a>
                     <button
                       onClick={() => handleCopyPhone(activeConv.otherUserContact!.phone)}
                       className="mt-1 text-[10px] font-semibold text-emerald-700 flex items-center gap-1 hover:underline cursor-pointer"
