@@ -62,8 +62,21 @@ export const MatchmakingPaywall: React.FC = () => {
     setNote(null);
     try {
       const receiptUrl = await uploadPaymentReceipt(receiptFile);
-      await createPendingTransaction(productId, { receiptUrl });
-      setNote('Receipt sent. Admin will confirm on the Billing tab. Flutterwave payments do not need this.');
+      const txId = await createPendingTransaction(productId, { receiptUrl });
+      try {
+        const { reviewReceipt } = await import('../../lib/aiClient');
+        const { productById } = await import('../../lib/products');
+        const product = productById(productId);
+        const ai = await reviewReceipt({
+          receiptUrl,
+          txId,
+          expectedAmountNgn: product?.priceNgn || 0,
+          productName: product?.name || productId
+        });
+        setNote(`Proof submitted for review. ${ai.note}`);
+      } catch {
+        setNote('Receipt sent. Admin will confirm on the Billing tab.');
+      }
     } catch (err) {
       setNote(err instanceof Error ? err.message : 'Could not save claim.');
     } finally {
