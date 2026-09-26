@@ -22,7 +22,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col font-sans selection:bg-rose-100 selection:text-rose-900">
+    <div className="h-[100dvh] max-h-[100dvh] bg-[#FAF8F5] text-stone-900 flex flex-col font-sans selection:bg-rose-100 selection:text-rose-900 overflow-hidden">
       {/* PWA Install Notification Bar */}
       <PWAInstallBanner />
 
@@ -66,7 +66,10 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       </header>
 
       {/* Main Screen Container - Scrollable with safe bottom margin for BottomNav */}
-      <main className="flex-1 max-w-md w-full mx-auto pb-36 px-4 pt-3" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
+      <main
+        className="flex-1 min-h-0 max-w-md w-full mx-auto px-4 pt-3 overflow-y-auto overscroll-y-contain"
+        style={{ paddingBottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))', WebkitOverflowScrolling: 'touch' }}
+      >
         {children}
       </main>
 
