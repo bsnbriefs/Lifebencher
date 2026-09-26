@@ -95,17 +95,19 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
               <p className="font-semibold text-stone-900">{tx.productName}</p>
               <p className="text-[10px] text-stone-500">{tx.reference}</p>
               <p className="text-[10px] text-stone-400">{tx.userId.slice(0, 10)}…</p>
-              {tx.receiptUrl && (
-                <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="text-[10px] text-rose-800 underline">
-                  View receipt
-                </a>
-              )}
+              {tx.source && <p className="text-[10px] text-stone-400">{tx.source}</p>}
             </div>
             <div className="text-right">
               <p className="font-bold text-rose-900">{formatNgn(tx.amountNgn)}</p>
               <p className="text-[10px] uppercase font-bold text-stone-500">{tx.status}</p>
             </div>
           </div>
+          {tx.receiptUrl && (
+            <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="block">
+              <img src={tx.receiptUrl} alt="Payment proof" className="w-full max-h-40 object-contain rounded-xl border border-stone-200 bg-stone-50" />
+              <span className="text-[10px] text-rose-800 underline">Open full receipt</span>
+            </a>
+          )}
           {tx.status === 'pending' && (
             <div className="flex gap-2">
               <button
