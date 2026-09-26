@@ -985,40 +985,21 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       ))}
                     </div>
                     {galleryPhotos.length < 3 && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="rounded-xl border border-stone-300 py-3 flex flex-col items-center text-stone-600 text-[11px] font-semibold cursor-pointer">
-                          <Camera className="w-4 h-4 mb-1" />
-                          {photoBusy ? 'Uploading…' : 'Take photo'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="user"
-                            className="hidden"
-                            disabled={photoBusy}
-                            onChange={(e) => {
-                              const file = e.target.files && e.target.files[0];
-                              e.target.value = '';
-                              if (file) void addPhotoFiles([file]);
-                              else setErrorMessage('Camera did not return a photo. Try gallery.');
-                            }}
-                          />
-                        </label>
-                        <label className="rounded-xl border border-stone-300 py-3 flex flex-col items-center text-stone-600 text-[11px] font-semibold cursor-pointer">
-                          <Camera className="w-4 h-4 mb-1" />
-                          {photoBusy ? 'Uploading…' : 'Upload from gallery'}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,image/*"
-                            className="hidden"
-                            disabled={photoBusy}
-                            onChange={(e) => {
-                              const file = e.target.files && e.target.files[0];
-                              e.target.value = '';
-                              if (file) void addPhotoFiles([file]);
-                              else setErrorMessage('Gallery did not return a photo. Pick a JPG or PNG.');
-                            }}
-                          />
-                        </label>
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold text-stone-700">
+                          {photoBusy ? 'Uploading…' : 'Choose a photo'}
+                        </p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={photoBusy}
+                          className="block w-full text-xs text-stone-700 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-rose-900 file:text-amber-100 file:font-semibold"
+                          onChange={(e) => {
+                            const picked = e.target.files?.[0];
+                            if (!picked) return;
+                            void addPhotoFiles([picked]);
+                          }}
+                        />
                       </div>
                     )}
                     <p className="text-[11px] text-stone-500">
