@@ -312,8 +312,8 @@ export const DiscoverScreen: React.FC = () => {
 
                   {/* Compatibility highlight */}
                   {compatibility && (
-                    <div className="p-2.5 rounded-xl bg-rose-50/80 border border-rose-100 flex items-start gap-2 text-xs text-rose-950">
-                      <Sparkles className="w-3.5 h-3.5 text-rose-800 shrink-0 mt-0.5" />
+                    <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 flex items-start gap-2 text-xs text-stone-700">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
                       <p className="text-[11px] leading-snug">
                         {compatibility.summary}
                       </p>
@@ -331,7 +331,7 @@ export const DiscoverScreen: React.FC = () => {
                       </span>
                     ))}
                     {p.lifestyle?.faith && (
-                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200/50 text-[11px] font-medium">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-stone-100 text-stone-700 text-[11px] font-medium">
                         {p.lifestyle.faith}
                       </span>
                     )}
