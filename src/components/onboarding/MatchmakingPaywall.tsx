@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   BillingTransaction,
   createPendingTransaction,
+  uploadPaymentReceipt,
   listenEntitlements,
   listenMyTransactions,
   EMPTY_ENTITLEMENTS,
@@ -18,6 +19,7 @@ export const MatchmakingPaywall: React.FC = () => {
   const [txs, setTxs] = useState<BillingTransaction[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -50,11 +52,16 @@ export const MatchmakingPaywall: React.FC = () => {
   };
 
   const alreadyPaid = async (productId: string) => {
+    if (!receiptFile) {
+      setNote('Upload a photo of your receipt or bank alert first.');
+      return;
+    }
     setBusy(productId);
     setNote(null);
     try {
-      await createPendingTransaction(productId);
-      setNote('Claim saved. Discover stays locked until Lifebencher confirms your earlier payment.');
+      const receiptUrl = await uploadPaymentReceipt(receiptFile);
+      await createPendingTransaction(productId, { receiptUrl });
+      setNote('Receipt sent. Admin will confirm on the Billing tab. Flutterwave payments do not need this.');
     } catch (err) {
       setNote(err instanceof Error ? err.message : 'Could not save claim.');
     } finally {
@@ -119,8 +126,14 @@ export const MatchmakingPaywall: React.FC = () => {
         <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-2">
           <p className="text-xs font-semibold text-stone-800">Already paid?</p>
           <p className="text-[11px] text-stone-500">
-            Existing clients should not pay again. Tell us which package you bought. Admin confirms once, then Discover opens.
+            Upload a receipt or bank alert, then choose the package you already bought. Admin confirms on Billing. New Flutterwave payments unlock automatically — no admin step.
           </p>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+            className="block w-full text-[11px]"
+          />
           <button
             type="button"
             disabled={!!busy}
