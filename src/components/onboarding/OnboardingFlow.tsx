@@ -55,7 +55,17 @@ const AVAILABLE_INTERESTS = [
 ];
 
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) => {
-  const { register, login, loginWithGoogle, sendEmailLink, completeOnboarding } = useAuth();
+  const {
+    register,
+    login,
+    loginWithGoogle,
+    sendEmailLink,
+    resetPassword,
+    sendPhoneCode,
+    confirmPhoneCode,
+    completeOnboarding,
+    isAuthenticated
+  } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   // Mode: 'register' vs 'login'
@@ -69,6 +79,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
 
   // Step indicator: 1 to 6 — restore if Auth hydration remounts this screen
   const [currentStep, setCurrentStep] = useState(() => {
@@ -160,6 +173,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
       return 'Email or password is incorrect.';
     }
+    if (code.includes('too-many-requests')) {
+      return 'Too many attempts. Wait a minute and try again.';
+    }
+    if (code.includes('invalid-phone') || code.includes('invalid-verification')) {
+      return 'That phone number or code is not valid.';
+    }
+    if (code.includes('missing-phone') || code.includes('captcha')) {
+      return 'Phone sign-in needs Phone enabled in Firebase Authentication → Sign-in method.';
+    }
     return raw.replace(/^Firebase:\s*/i, '').replace(/\s*\(auth\/[^)]+\)\.?/i, '').trim() || 'Sign-in failed. Try email and password.';
   };
 
@@ -230,12 +252,16 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         setErrorMessage('Please enter your display name.');
         return;
       }
+      if (isAuthenticated) {
+        setCurrentStep(2);
+        return;
+      }
       if (!email.trim() || !email.includes('@')) {
-        setErrorMessage('Please enter a valid email address.');
+        setErrorMessage('Please enter a valid email address, or sign up with your phone first.');
         return;
       }
       if (!password || password.length < 6) {
-        setErrorMessage('Password must be at least 6 characters.');
+        setErrorMessage('Password must be at least 6 characters, or sign up with your phone.');
         return;
       }
       setIsSubmitting(true);
@@ -436,6 +462,26 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               </div>
 
               <button
+                type="button"
+                disabled={isSubmitting || !loginEmail.trim()}
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  setErrorMessage(null);
+                  try {
+                    await resetPassword(loginEmail);
+                    setErrorMessage('Password reset email sent. Check your inbox.');
+                  } catch (err) {
+                    setErrorMessage(formatAuthError(err));
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                className="text-[11px] font-semibold text-rose-900"
+              >
+                Forgot password?
+              </button>
+
+              <button
                 type="submit"
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-900 to-rose-800 text-amber-100 font-semibold text-xs shadow-md hover:bg-rose-950 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
@@ -475,6 +521,57 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
             >
               Continue with Google
             </button>
+
+            <div className="space-y-2 pt-1">
+              <p className="text-[11px] font-semibold text-stone-700">Sign in with phone</p>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300">
+                <Phone className="w-4 h-4 text-stone-400" />
+                <input
+                  type="tel"
+                  value={loginPhone}
+                  onChange={(e) => setLoginPhone(e.target.value)}
+                  placeholder="0803… or +234…"
+                  className="w-full text-xs bg-transparent outline-hidden"
+                />
+              </div>
+              {phoneCodeSent && (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  placeholder="6-digit SMS code"
+                  className="w-full text-xs px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300 outline-hidden"
+                />
+              )}
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  setErrorMessage(null);
+                  try {
+                    if (!phoneCodeSent) {
+                      await sendPhoneCode(loginPhone);
+                      setPhoneCodeSent(true);
+                      setErrorMessage('Code sent by SMS. Enter it below.');
+                    } else {
+                      await confirmPhoneCode(phoneCode);
+                      sessionStorage.setItem('lifebencher_onboarding_step', '2');
+                      setAuthMode('register');
+                      setCurrentStep(2);
+                    }
+                  } catch (err) {
+                    setErrorMessage(formatAuthError(err));
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                className="w-full py-3 rounded-2xl border border-stone-300 text-xs font-semibold"
+              >
+                {phoneCodeSent ? 'Verify code' : 'Send SMS code'}
+              </button>
+            </div>
 
             <button
               type="button"
@@ -577,7 +674,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="chukwudi@example.com"
+                          placeholder="you@email.com"
                           className="w-full text-xs text-stone-900 bg-transparent outline-hidden"
                         />
                       </div>
@@ -600,6 +697,59 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       <p className="text-[10px] text-stone-400 mt-1">
                         Never shown publicly. Only shared with mutual consent.
                       </p>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          disabled={isSubmitting || !phone.trim()}
+                          onClick={async () => {
+                            setIsSubmitting(true);
+                            setErrorMessage(null);
+                            try {
+                              await sendPhoneCode(phone);
+                              setPhoneCodeSent(true);
+                              setErrorMessage('SMS code sent. Enter it below, then continue.');
+                            } catch (err) {
+                              setErrorMessage(formatAuthError(err));
+                            } finally {
+                              setIsSubmitting(false);
+                            }
+                          }}
+                          className="flex-1 py-2 rounded-xl border border-stone-300 text-[11px] font-semibold"
+                        >
+                          Sign up with this number
+                        </button>
+                      </div>
+                      {phoneCodeSent && (
+                        <div className="flex gap-2 mt-2">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={phoneCode}
+                            onChange={(e) => setPhoneCode(e.target.value)}
+                            placeholder="SMS code"
+                            className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-300"
+                          />
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={async () => {
+                              setIsSubmitting(true);
+                              setErrorMessage(null);
+                              try {
+                                await confirmPhoneCode(phoneCode);
+                                setCurrentStep(2);
+                              } catch (err) {
+                                setErrorMessage(formatAuthError(err));
+                              } finally {
+                                setIsSubmitting(false);
+                              }
+                            }}
+                            className="px-3 py-2 rounded-xl bg-rose-900 text-amber-100 text-[11px] font-semibold"
+                          >
+                            Verify
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div>
