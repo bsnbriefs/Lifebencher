@@ -180,7 +180,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 pb-16 safe-area-top">
+    <div
+      className="h-[100dvh] max-h-[100dvh] overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 safe-area-top"
+      style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       {/* Top Admin Header Bar */}
       <header className="bg-stone-900 text-white px-4 py-3.5 sticky top-0 z-40 shadow-md">
         <div className="max-w-md mx-auto flex items-center justify-between">
