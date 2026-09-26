@@ -426,10 +426,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     if (!email.trim()) throw new Error('Enter the email on your account.');
-    await sendPasswordResetEmail(auth, email.trim(), {
-      url: `${window.location.origin}/`,
-      handleCodeInApp: false
-    });
+    try {
+      await sendPasswordResetEmail(auth, email.trim(), {
+        url: `${window.location.origin}/`,
+        handleCodeInApp: false
+      });
+    } catch {
+      await sendPasswordResetEmail(auth, email.trim());
+    }
   };
 
   const sendPhoneCode = async (phone: string) => {
