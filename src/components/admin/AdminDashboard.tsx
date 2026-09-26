@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
 import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
+import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
 
@@ -556,9 +557,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     </div>
                     <span className="text-stone-500 text-[11px]">{c.profession} · {c.location}</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    {c.status}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                      {c.status}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-rose-900"
+                      onClick={() =>
+                        void adminGrantMatchmaking(c.id, 'local')
+                          .then(() => setNotification(`${c.displayName}: Nigeria package granted (no new payment)`))
+                          .catch((e) => setNotification(e instanceof Error ? e.message : 'Grant failed'))
+                      }
+                    >
+                      Grant Nigeria
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-rose-900"
+                      onClick={() =>
+                        void adminGrantMatchmaking(c.id, 'international')
+                          .then(() => setNotification(`${c.displayName}: Abroad package granted (no new payment)`))
+                          .catch((e) => setNotification(e instanceof Error ? e.message : 'Grant failed'))
+                      }
+                    >
+                      Grant Abroad
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
