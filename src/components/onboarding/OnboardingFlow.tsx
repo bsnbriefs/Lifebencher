@@ -190,28 +190,37 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   };
 
   const addPhotoFiles = async (list: FileList | File[] | null | undefined) => {
-    const incoming = list ? Array.from(list).filter((f) => f && f.size) : [];
-    if (!incoming.length) return;
+    const incoming = list ? Array.from(list).filter((f) => f instanceof File) : [];
+    if (!incoming.length) {
+      setErrorMessage('No photo was received. Try one picture at a time.');
+      return;
+    }
     const room = 3 - galleryPhotos.length;
     if (room <= 0) {
       setErrorMessage('You can add up to 3 photos.');
       return;
     }
     const batch = incoming.slice(0, room);
+    setGalleryPhotos((prev) => [...prev, ...batch.map((file) => URL.createObjectURL(file))].slice(0, 3));
     setPhotoBusy(true);
     setErrorMessage(null);
-    try {
-      const urls: string[] = [];
-      for (let i = 0; i < batch.length; i += 1) {
-        urls.push(await uploadProfilePhoto(batch[i], undefined, galleryPhotos.length + i));
+    const uploaded: string[] = [];
+    const startSlot = galleryPhotos.length;
+    for (let i = 0; i < batch.length; i += 1) {
+      try {
+        uploaded.push(await uploadProfilePhoto(batch[i], undefined, startSlot + i));
+      } catch (err) {
+        setErrorMessage(
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Stay signed in and use JPG/PNG under 5MB.'
+        );
       }
-      setGalleryPhotos((prev) => [...prev, ...urls].slice(0, 3));
-      if (incoming.length > room) setErrorMessage('Only 3 photos are kept. Extra files were skipped.');
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Could not upload those photos.');
-    } finally {
-      setPhotoBusy(false);
     }
+    if (uploaded.length) {
+      setGalleryPhotos((prev) => [...prev.filter((u) => !u.startsWith('blob:')), ...uploaded].slice(0, 3));
+    }
+    setPhotoBusy(false);
   };
 
   const handleNextStep = () => {
