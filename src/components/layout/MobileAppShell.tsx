@@ -66,7 +66,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       </header>
 
       {/* Main Screen Container - Scrollable with safe bottom margin for BottomNav */}
-      <main className="flex-1 max-w-md w-full mx-auto pb-24 px-4 pt-3">
+      <main className="flex-1 max-w-md w-full mx-auto pb-36 px-4 pt-3" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
         {children}
       </main>
 
