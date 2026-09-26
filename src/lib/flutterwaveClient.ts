@@ -22,6 +22,7 @@ export async function startFlutterwaveCheckout(productId: string, extras?: { mat
   });
   const data = (await res.json()) as { link?: string; error?: string };
   if (!res.ok || !data.link) throw new Error(data.error || 'Could not start Flutterwave checkout');
+  sessionStorage.setItem('lifebencher_flw_return', '1');
   window.location.href = data.link;
 }
 
@@ -51,5 +52,6 @@ export async function confirmFlutterwaveReturn(): Promise<{ verified: boolean; m
   if (!res.ok || !data.verified) {
     return { verified: false, message: data.error || 'Payment is not confirmed yet.' };
   }
+  sessionStorage.removeItem('lifebencher_flw_return');
   return { verified: true, message: 'Payment verified. Your package is now active.' };
 }
