@@ -1,17 +1,11 @@
-import { json, readBody } from "../_lib/admin.js";
-import {
-  findTxByReference,
-  grantVerifiedTransaction,
-  verifyFlutterwave,
-} from "../_lib/grant.js";
+import { json, readBody } from '../_lib/admin.js';
+import { findTxByReference, grantVerifiedTransaction, verifyFlutterwave } from '../_lib/grant.js';
 
 export default async function handler(req, res) {
-  if (req.method !== "POST")
-    return json(res, 405, { error: "Method not allowed" });
-  const hash = process.env.FLW_SECRET_HASH || "";
-  const incoming = req.headers["verif-hash"];
-  if (!hash || incoming !== hash)
-    return json(res, 401, { error: "Invalid webhook" });
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  const hash = process.env.FLW_SECRET_HASH || '';
+  const incoming = req.headers['verif-hash'];
+  if (!hash || incoming !== hash) return json(res, 401, { error: 'Invalid webhook' });
 
   try {
     const body = await readBody(req);
@@ -22,11 +16,7 @@ export default async function handler(req, res) {
 
     const flw = await verifyFlutterwave(id);
     const verified = flw?.data;
-    if (
-      verified?.status !== "successful" ||
-      verified?.tx_ref !== txRef ||
-      verified?.currency !== "NGN"
-    ) {
+    if (verified?.status !== 'successful' || verified?.tx_ref !== txRef || verified?.currency !== 'NGN') {
       return json(res, 200, { ok: true, skipped: true });
     }
 
