@@ -120,7 +120,7 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && isValidId(profileId) &&
         isValidProfile(incoming()) && incoming().userId == request.auth.uid &&
-        incoming().isVerified == false;
+        incoming().isVerified == false && incoming().isVisible == false;
       allow update: if isSignedIn() && isValidId(profileId) &&
         isValidProfile(incoming()) && (
           isAdmin() ||
@@ -130,9 +130,10 @@ service cloud.firestore {
             incoming().id == existing().id &&
             incoming().isVerified == existing().isVerified &&
             incoming().createdAt == existing().createdAt &&
+            incoming().isVisible == existing().isVisible &&
             incoming().diff(existing()).affectedKeys().hasOnly([
               'displayName', 'age', 'gender', 'location', 'profession',
-              'education', 'bio', 'relationshipGoal', 'isVisible', 'updatedAt', 'photoUrl', 'photoUrls',
+              'education', 'bio', 'relationshipGoal', 'updatedAt', 'photoUrl', 'photoUrls',
               'interests', 'values', 'lifestyle'
             ])
           )
