@@ -29,8 +29,8 @@ const FALLBACK_PHOTO =
 
 const DEFAULT_FILTERS: DiscoverFilters = {
   searchTerm: '',
-  minAge: 21,
-  maxAge: 45,
+  minAge: 18,
+  maxAge: 99,
   location: 'All Locations',
   faith: 'All Faiths'
 };
