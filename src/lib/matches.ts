@@ -53,6 +53,7 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     lifestyle: d.lifestyle && typeof d.lifestyle === 'object' ? (d.lifestyle as Profile['lifestyle']) : {},
     isVerified: Boolean(d.isVerified),
     isVisible: d.isVisible === true,
+    matchType: d.matchType === 'local' || d.matchType === 'international' ? d.matchType : null,
     createdAt: String(d.createdAt || ''),
     updatedAt: String(d.updatedAt || '')
   };
