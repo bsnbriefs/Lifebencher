@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { Profile } from '../types';
 import { auth, db } from './firebase';
 import { mapProfileDoc } from './matches';
@@ -40,9 +40,21 @@ export function listenAllProfiles(
 
 export async function setProfileVerified(profile: Profile, isVerified: boolean): Promise<void> {
   const id = profile.id || profile.userId;
+  let matchType = profile.matchType === 'local' || profile.matchType === 'international' ? profile.matchType : null;
+  if (!matchType) {
+    try {
+      const ent = await getDoc(doc(db, 'entitlements', id));
+      const pack = ent.data()?.matchType || ent.data()?.matchmakingPackage;
+      if (pack === 'local' || pack === 'international') matchType = pack;
+    } catch {
+      /* keep existing */
+    }
+  }
   await updateDoc(doc(db, 'profiles', id), {
     isVerified,
     isVisible: isVerified && profile.isAdminProfile !== true,
-    updatedAt: new Date().toISOString()
+    isAdminProfile: profile.isAdminProfile === true,
+    updatedAt: new Date().toISOString(),
+    ...(matchType ? { matchType } : {})
   });
 }
