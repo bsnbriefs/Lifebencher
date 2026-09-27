@@ -236,7 +236,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                   {profile.values.map((v) => (
                     <span
                       key={v}
-                      className="px-3 py-1 rounded-xl bg-black/25 text-stone-200 border border-white/10 text-xs font-medium"
+                      className="px-3 py-1 rounded-xl bg-[#2a2422] text-[#f3ece6] border border-white/15 text-xs font-medium"
                     >
                       {v}
                     </span>
@@ -255,7 +255,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                   {profile.interests.map((i) => (
                     <span
                       key={i}
-                      className="px-3 py-1 rounded-xl bg-black/25 text-amber-100/80 border border-amber-200/20 text-xs font-medium"
+                      className="px-3 py-1 rounded-xl bg-[#2a2422] text-[#f3ece6] border border-white/15 text-xs font-medium"
                     >
                       {i}
                     </span>
