@@ -6,8 +6,30 @@ export function aiConfig() {
     throw err;
   }
   const base = (process.env.AI_BASE_URL || 'https://api.x.ai/v1').replace(/\/$/, '');
-  const model = process.env.AI_MODEL || 'grok-4-fast-non-reasoning';
+  const model = process.env.AI_MODEL || 'grok-3-mini';
   return { key, base, model };
+}
+
+function extractText(body) {
+  return body?.choices?.[0]?.message?.content || '';
+}
+
+function parseJsonLoose(text) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch {
+        /* fall through */
+      }
+    }
+    return { raw: String(text).slice(0, 2000), suggestedBio: String(text).slice(0, 1000), answer: String(text).slice(0, 800) };
+  }
 }
 
 export async function chatJson(system, user, imageUrl) {
@@ -18,30 +40,45 @@ export async function chatJson(system, user, imageUrl) {
         { type: 'image_url', image_url: { url: imageUrl } }
       ]
     : user;
-  const res = await fetch(`${base}/chat/completions`, {
+
+  const payload = {
+    model,
+    temperature: 0.2,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content }
+    ]
+  };
+
+  let res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content }
-      ]
-    })
+    body: JSON.stringify({ ...payload, response_format: { type: 'json_object' } })
   });
-  const body = await res.json();
-  const text = body?.choices?.[0]?.message?.content;
+  let body = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    console.error('AI provider error', res.status, body?.error?.type || body?.error?.code || 'unknown');
+    res = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    body = await res.json().catch(() => ({}));
+  }
+
+  const text = extractText(body);
   if (!res.ok || !text) {
-    throw new Error(body?.error?.message || 'AI request failed');
+    console.error('AI empty response', res.status);
+    const err = new Error('unavailable');
+    err.status = 503;
+    throw err;
   }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: String(text).slice(0, 2000) };
-  }
+  return parseJsonLoose(text);
 }
