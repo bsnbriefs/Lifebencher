@@ -64,7 +64,10 @@ export function listenMatchMessages(
           imagePath: data.imagePath ? String(data.imagePath) : undefined,
           imageUrl: data.imageUrl ? String(data.imageUrl) : undefined,
           viewOnce: Boolean(data.viewOnce),
-          viewedAt: data.viewedAt ? toIso(data.viewedAt) : undefined
+          viewedAt: data.viewedAt ? toIso(data.viewedAt) : undefined,
+          audioPath: data.audioPath ? String(data.audioPath) : undefined,
+          audioUrl: data.audioUrl ? String(data.audioUrl) : undefined,
+          durationMs: typeof data.durationMs === 'number' ? data.durationMs : undefined
         };
       });
       onChange(messages);
@@ -123,6 +126,30 @@ export async function sendMatchImage(matchId: string, file: File, viewOnce: bool
     imagePath: path,
     ...(imageUrl ? { imageUrl } : {}),
     viewOnce
+  });
+}
+
+export async function sendMatchAudio(matchId: string, blob: Blob, durationMs: number): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  if (blob.size > 8 * 1024 * 1024) throw new Error('Voice note is too large.');
+  const type = blob.type || 'audio/webm';
+  const ext = type.includes('mp4') ? 'm4a' : type.includes('mpeg') ? 'mp3' : 'webm';
+  const path = `chatAudio/${matchId}/${uid}/${Date.now()}.${ext}`;
+  await uploadBytes(storageRef(storage, path), blob, { contentType: type });
+  const audioUrl = await getDownloadURL(storageRef(storage, path));
+  const col = collection(db, 'matches', matchId, 'messages');
+  const msgRef = doc(col);
+  await setDoc(msgRef, {
+    id: msgRef.id,
+    matchId,
+    senderId: uid,
+    content: 'Voice message',
+    createdAt: new Date().toISOString(),
+    kind: 'audio',
+    audioPath: path,
+    audioUrl,
+    durationMs: Math.max(1, Math.round(durationMs))
   });
 }
 
