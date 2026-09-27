@@ -160,7 +160,7 @@ async function publishProfileIfComplete(uid: string, matchType?: 'local' | 'inte
     const snap = await getDoc(doc(db, 'profiles', uid));
     const d = snap.data() || {};
     const complete = Boolean(d.displayName) && (Boolean(d.bio) || Boolean(d.profession) || Boolean(d.photoUrl));
-    if (!complete) return;
+    if (!complete || d.isAdminProfile === true) return;
     await updateDoc(doc(db, 'profiles', uid), {
       isVisible: true,
       isVerified: true,
