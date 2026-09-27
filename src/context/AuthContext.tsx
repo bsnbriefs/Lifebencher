@@ -135,7 +135,11 @@ function profileFromDoc(uid: string, data: Record<string, unknown> | undefined, 
   return {
     id: (data?.id as string) || uid,
     userId: (data?.userId as string) || uid,
-    displayName: (data?.displayName as string) || extras?.displayName || 'Member',
+    displayName:
+      (typeof data?.displayName === 'string' && data.displayName.trim()) ||
+      (typeof extras?.displayName === 'string' && extras.displayName.trim()) ||
+      (typeof data?.name === 'string' && data.name.trim()) ||
+      'Member',
     age: typeof data?.age === 'number' ? data.age : extras?.age || 28,
     gender: (data?.gender as Profile['gender']) || extras?.gender || 'male',
     location: (data?.location as string) || extras?.location || 'Lagos, Nigeria',
@@ -182,7 +186,7 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
   return {
     id: profile.id,
     userId: profile.userId,
-    displayName: (profile.displayName || 'Member').slice(0, 60),
+    displayName: ((profile.displayName && profile.displayName.trim()) || 'Member').slice(0, 60),
     age: typeof profile.age === 'number' ? Math.round(profile.age) : 28,
     gender: profile.gender || 'male',
     location: (profile.location || 'Lagos, Nigeria').slice(0, 100),
@@ -275,7 +279,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const [userSnap, profileSnap] = await Promise.all([getDoc(userRef), getDoc(profileRef)]);
-      const mappedUser = mapUserDoc(uid, email, userSnap.data() as Partial<User> | undefined, fbUser.phoneNumber || undefined);
+      let mappedUser = mapUserDoc(uid, email, userSnap.data() as Partial<User> | undefined, fbUser.phoneNumber || undefined);
+      if (mappedUser.role !== 'admin') {
+        try {
+          const adminSnap = await getDoc(doc(db, 'admins', uid));
+          if (adminSnap.exists()) {
+            mappedUser = { ...mappedUser, role: 'admin' };
+          }
+        } catch {
+          /* admins collection may be locked */
+        }
+      }
       setUser(mappedUser);
 
       const mappedProfile = profileFromDoc(uid, profileSnap.data() as Record<string, unknown> | undefined, extras);
