@@ -7,6 +7,7 @@ service firebase.storage {
         && request.auth.uid == userId
         && request.resource.size < 6 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
     match /receipts/{userId}/{allPaths=**} {
       allow read: if request.auth != null && (
@@ -17,6 +18,19 @@ service firebase.storage {
         && request.auth.uid == userId
         && request.resource.size < 6 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    match /chatPhotos/{matchId}/{userId}/{fileName} {
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        firestore.get(/databases/(default)/documents/matches/$(matchId)).data.user1Id == request.auth.uid ||
+        firestore.get(/databases/(default)/documents/matches/$(matchId)).data.user2Id == request.auth.uid
+      );
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
