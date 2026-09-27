@@ -39,7 +39,12 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
   return {
     id: String(d.id || profileId),
     userId: String(d.userId || profileId),
-    displayName: String(d.displayName || 'Member'),
+    displayName: String(
+      (typeof d.displayName === 'string' && d.displayName.trim()) ||
+        (typeof d.name === 'string' && d.name.trim()) ||
+        (typeof d.fullName === 'string' && d.fullName.trim()) ||
+        'Member'
+    ),
     age: typeof d.age === 'number' ? d.age : 28,
     gender: (d.gender as Profile['gender']) || 'other',
     location: String(d.location || ''),
