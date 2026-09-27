@@ -1,6 +1,10 @@
 export function aiConfig() {
   const key = process.env.AI_API_KEY || process.env.XAI_API_KEY || process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('AI_API_KEY is not set on the server');
+  if (!key) {
+    const err = new Error('unavailable');
+    err.status = 503;
+    throw err;
+  }
   const base = (process.env.AI_BASE_URL || 'https://api.x.ai/v1').replace(/\/$/, '');
   const model = process.env.AI_MODEL || 'grok-4-fast-non-reasoning';
   return { key, base, model };
