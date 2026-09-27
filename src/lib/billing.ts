@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   setDoc,
@@ -205,6 +206,21 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
   await adminSetTransactionStatus(tx.id, 'success');
   if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
     await publishProfileIfComplete(uid, matchTypeFromProductId(product.id));
+  }
+}
+
+export async function grantPendingMatchmakingForUser(uid: string): Promise<void> {
+  const snap = await getDocs(query(collection(db, 'transactions'), where('userId', '==', uid)));
+  const pending = snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<BillingTransaction, 'id'>) }))
+    .filter(
+      (t) =>
+        t.status === 'pending' &&
+        (t.productId === 'matchmaking_local' || t.productId === 'matchmaking_international')
+    )
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  if (pending[0]) {
+    await adminGrantFromTransaction(pending[0]);
   }
 }
 

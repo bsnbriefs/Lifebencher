@@ -2,6 +2,7 @@ import { collection, doc, getDoc, onSnapshot, updateDoc } from 'firebase/firesto
 import { Profile } from '../types';
 import { auth, db } from './firebase';
 import { mapProfileDoc } from './matches';
+import { grantPendingMatchmakingForUser } from './billing';
 
 async function fetchProfilesViaAdminApi(): Promise<Profile[]> {
   const token = await auth.currentUser?.getIdToken();
@@ -57,4 +58,7 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
     updatedAt: new Date().toISOString(),
     ...(matchType ? { matchType } : {})
   });
+  if (isVerified && profile.isAdminProfile !== true) {
+    await grantPendingMatchmakingForUser(id);
+  }
 }
