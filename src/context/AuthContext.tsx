@@ -15,6 +15,9 @@ import {
   ConfirmationResult,
   signOut,
   deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
   updateProfile as updateAuthProfile,
   User as FirebaseUser
 } from 'firebase/auth';
@@ -85,7 +88,7 @@ interface AuthContextType {
   updateProfile: (updated: Partial<Profile>) => void;
   updatePreferences: (updated: Partial<ProfilePreferences>) => void;
   logout: () => void;
-  deleteAccount: () => Promise<void>;
+  deleteAccount: (password?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -296,7 +299,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setUser(mappedUser);
 
-      const mappedProfile = profileFromDoc(uid, profileSnap.data() as Record<string, unknown> | undefined, extras);
+      let mappedProfile = profileFromDoc(uid, profileSnap.data() as Record<string, unknown> | undefined, extras);
+      if (!mappedProfile.displayName && displayName && displayName.toLowerCase() !== 'member') {
+        mappedProfile = { ...mappedProfile, displayName };
+        try {
+          await updateDoc(profileRef, { displayName, updatedAt: nowIso() });
+        } catch {
+          /* keep local name */
+        }
+      }
       setCurrentProfile(mappedProfile);
       onSnapshot(profileRef, (live) => {
         if (!live.exists()) return;
@@ -431,7 +442,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const cred = await createUserWithEmailAndPassword(auth, accountData.email.trim(), accountData.password);
     if (accountData.displayName) {
-      await updateAuthProfile(cred.user, { displayName: accountData.displayName });
+      await updateAuthProfile(cred.user, { displayName: accountData.displayName.slice(0, 60) });
+      try {
+        await setDoc(
+          doc(db, 'profiles', cred.user.uid),
+          {
+            ...draftProfile(cred.user.uid, accountData.displayName.slice(0, 60)),
+            isVisible: false,
+            isVerified: false
+          },
+          { merge: true }
+        );
+      } catch {
+        /* hydrate will write the name */
+      }
     }
     if (accountData.phone) {
       try {
@@ -644,26 +668,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPreferences(null);
   };
 
-  const deleteAccount = async () => {
+  const deleteAccount = async (password?: string) => {
     const u = auth.currentUser;
     if (!u) throw new Error('Not signed in');
-    const uid = u.uid;
+    const provider = u.providerData[0]?.providerId;
     try {
-      await updateDoc(doc(db, 'profiles', uid), { isVisible: false, isVerified: false, updatedAt: nowIso() });
-    } catch {
-      /* may already be hidden */
+      if (provider === 'google.com') {
+        await reauthenticateWithPopup(u, new GoogleAuthProvider());
+      } else if (u.email && password) {
+        await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password));
+      }
+    } catch (err) {
+      const code = String((err as { code?: string })?.code || '');
+      if (code.includes('wrong-password') || code.includes('invalid-credential')) {
+        throw new Error('That password is incorrect.');
+      }
+      if (code.includes('popup-closed')) throw new Error('Google confirmation was cancelled.');
+      if (!password && provider !== 'google.com') {
+        const e = new Error('Enter your current password to delete this account.');
+        (e as Error & { code?: string }).code = 'auth/requires-recent-login';
+        throw e;
+      }
+      throw err instanceof Error ? err : new Error('Could not confirm it is you.');
     }
+
+    const token = await u.getIdToken();
     try {
-      await deleteDoc(doc(db, 'profiles', uid));
+      await fetch('/api/account/delete', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+      /* best-effort server cleanup */
+    }
+
+    try {
+      await updateDoc(doc(db, 'profiles', u.uid), { isVisible: false, isVerified: false, updatedAt: nowIso() });
     } catch {
       /* ignore */
     }
     try {
-      await deleteDoc(doc(db, 'users', uid));
+      await deleteDoc(doc(db, 'profiles', u.uid));
     } catch {
       /* ignore */
     }
-    await deleteUser(u);
+    try {
+      await deleteDoc(doc(db, 'users', u.uid));
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      await deleteUser(u);
+    } catch (err) {
+      const code = String((err as { code?: string })?.code || '');
+      if (code.includes('requires-recent-login')) {
+        const e = new Error('Enter your current password to delete this account.');
+        (e as Error & { code?: string }).code = 'auth/requires-recent-login';
+        throw e;
+      }
+      throw err instanceof Error ? err : new Error('Could not delete account');
+    }
     setUser(null);
     setCurrentProfile(null);
     setPreferences(null);
