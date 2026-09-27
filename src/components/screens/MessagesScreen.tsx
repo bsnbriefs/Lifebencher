@@ -55,34 +55,108 @@ const ICEBREAKER_PROMPTS = [
 ];
 
 const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
+  const consumed = Boolean(message.viewedAt) && !mine;
+  const [open, setOpen] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
-  const [gone, setGone] = useState(Boolean(message.viewedAt) && !mine);
-  const open = async () => {
-    if (gone) return;
+  const [status, setStatus] = useState<'idle' | 'loading' | 'shown' | 'error'>(consumed ? 'idle' : 'idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const clearUrl = () => {
+    setUrl(null);
+  };
+
+  useEffect(() => {
+    const hide = () => {
+      if (open) {
+        setOpen(false);
+        clearUrl();
+      }
+    };
+    document.addEventListener('visibilitychange', hide);
+    window.addEventListener('pagehide', hide);
+    window.addEventListener('blur', hide);
+    return () => {
+      document.removeEventListener('visibilitychange', hide);
+      window.removeEventListener('pagehide', hide);
+      window.removeEventListener('blur', hide);
+    };
+  }, [open]);
+
+  const requestOpen = async () => {
+    if (consumed) return;
+    setStatus('loading');
+    setError(null);
     try {
       const { auth } = await import('../../lib/firebase');
       const token = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/chat/view-once', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, messageId: message.id })
+        body: JSON.stringify({ matchId, messageId: message.id, action: 'open' })
       });
       const body = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !body.url) {
-        setGone(true);
+        setStatus('error');
+        setError(res.status === 410 ? '✓ Photo viewed' : 'Unable to load this photo. Please try again.');
         return;
       }
       setUrl(body.url);
-      if (!mine) setGone(true);
+      setOpen(true);
     } catch {
-      setGone(true);
+      setStatus('error');
+      setError('Unable to load this photo. Please try again.');
     }
   };
-  if (url) return <img src={url} alt="" className="max-w-full rounded-xl" />;
+
+  const onLoaded = async () => {
+    setStatus('shown');
+    if (mine) return;
+    try {
+      const { auth } = await import('../../lib/firebase');
+      const token = await auth.currentUser?.getIdToken();
+      await fetch('/api/chat/view-once', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, messageId: message.id, action: 'consume' })
+      });
+    } catch {
+      /* consume is server-enforced on retry */
+    }
+  };
+
+  const close = () => {
+    setOpen(false);
+    clearUrl();
+  };
+
   return (
-    <button type="button" onClick={() => void open()} className="text-left">
-      {gone && !mine ? '✓ Photo viewed' : '📷 View once photo'}
-    </button>
+    <>
+      <button type="button" onClick={() => void requestOpen()} className="text-left" disabled={consumed}>
+        {consumed ? '✓ Photo viewed' : status === 'loading' ? 'Opening photo...' : '📷 View once photo'}
+      </button>
+      {error && !consumed && <p className="text-[10px] mt-1 opacity-80">{error}</p>}
+      {open && url && (
+        <div className="fixed inset-0 z-[80] bg-black/90 flex flex-col items-center justify-center p-4 overflow-hidden">
+          <button type="button" onClick={close} className="absolute top-4 right-4 text-[#f3ece6] text-xs font-semibold">
+            Close
+          </button>
+          <img
+            src={url}
+            alt=""
+            draggable={false}
+            onContextMenu={(e) => e.preventDefault()}
+            onLoad={() => void onLoaded()}
+            onError={() => {
+              setOpen(false);
+              setUrl(null);
+              setStatus('error');
+              setError('Unable to load this photo. Please try again.');
+            }}
+            className="max-w-full max-h-[80dvh] object-contain rounded-xl select-none"
+          />
+        </div>
+      )}
+    </>
   );
 };
 
