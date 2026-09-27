@@ -108,7 +108,7 @@ function AppContent() {
     );
   }
 
-  if (isAdminMode) {
+  if (isAdminMode && isAdmin) {
     return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
   }
 
@@ -154,7 +154,9 @@ function AppContent() {
             {activeTab === 'discover' && <DiscoverScreen />}
             {activeTab === 'matches' && <MatchesScreen onOpenChat={handleOpenChat} />}
             {activeTab === 'messages' && <MessagesScreen initialConversationId={targetChatMatchId} />}
-            {activeTab === 'profile' && <ProfileScreen onOpenAdmin={() => setIsAdminMode(true)} />}
+            {activeTab === 'profile' && (
+              <ProfileScreen onOpenAdmin={isAdmin ? () => setIsAdminMode(true) : undefined} />
+            )}
           </motion.div>
         </AnimatePresence>
       </MobileAppShell>
