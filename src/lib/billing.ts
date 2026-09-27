@@ -10,7 +10,7 @@ import {
   where
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { PRODUCTS, productById } from './products';
+import { PRODUCTS, matchTypeFromProductId, productById } from './products';
 import { auth, db, storage } from './firebase';
 
 export type TxStatus = 'pending' | 'success' | 'failed';
@@ -29,6 +29,7 @@ export interface BillingTransaction {
   matchId?: string;
   receiptUrl?: string;
   source?: string;
+  matchType?: 'local' | 'international' | null;
   aiReceiptNote?: string;
   aiReceiptConfidence?: number;
 }
@@ -39,6 +40,7 @@ export interface Entitlements {
   planExpiresAt: string | null;
   spotlightUntil: string | null;
   matchmakingPackage: 'none' | 'local' | 'international';
+  matchType: 'local' | 'international' | 'none';
   matchmakingRemaining: number;
   extraMatches: number;
   updatedAt: string;
@@ -50,6 +52,7 @@ export const EMPTY_ENTITLEMENTS = (uid: string): Entitlements => ({
   planExpiresAt: null,
   spotlightUntil: null,
   matchmakingPackage: 'none',
+  matchType: 'none',
   matchmakingRemaining: 0,
   extraMatches: 0,
   updatedAt: new Date().toISOString()
@@ -73,8 +76,14 @@ export function listenEntitlements(uid: string, onChange: (ent: Entitlements) =>
         onChange(EMPTY_ENTITLEMENTS(uid));
         return;
       }
-      const d = snap.data() as Partial<Entitlements>;
-      onChange({ ...EMPTY_ENTITLEMENTS(uid), ...d, userId: uid });
+      const d = snap.data() as Partial<Entitlements> & { matchType?: string };
+      const matchType =
+        d.matchType === 'local' || d.matchType === 'international'
+          ? d.matchType
+          : d.matchmakingPackage === 'local' || d.matchmakingPackage === 'international'
+            ? d.matchmakingPackage
+            : 'none';
+      onChange({ ...EMPTY_ENTITLEMENTS(uid), ...d, matchType, userId: uid });
     },
     () => onChange(EMPTY_ENTITLEMENTS(uid))
   );
@@ -138,6 +147,7 @@ export async function createPendingTransaction(
     reference,
     createdAt: now,
     source: extras?.receiptUrl ? 'receipt_claim' : 'claim',
+    ...(matchTypeFromProductId(product.id) ? { matchType: matchTypeFromProductId(product.id) } : {}),
     ...(extras?.matchId ? { matchId: extras.matchId } : {}),
     ...(extras?.receiptUrl ? { receiptUrl: extras.receiptUrl } : {})
   };
@@ -145,7 +155,7 @@ export async function createPendingTransaction(
   return ref.id;
 }
 
-async function publishProfileIfComplete(uid: string): Promise<void> {
+async function publishProfileIfComplete(uid: string, matchType?: 'local' | 'international' | null): Promise<void> {
   try {
     const snap = await getDoc(doc(db, 'profiles', uid));
     const d = snap.data() || {};
@@ -154,7 +164,8 @@ async function publishProfileIfComplete(uid: string): Promise<void> {
     await updateDoc(doc(db, 'profiles', uid), {
       isVisible: true,
       isVerified: true,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      ...(matchType ? { matchType } : {})
     });
   } catch {
     /* admin session required to flip visibility */
@@ -179,11 +190,10 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
   if (product?.id === 'plus_monthly') {
     patch.plan = 'plus';
     patch.planExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
-  } else if (product?.id === 'matchmaking_local') {
-    patch.matchmakingPackage = 'local';
-    patch.matchmakingRemaining = 3;
-  } else if (product?.id === 'matchmaking_international') {
-    patch.matchmakingPackage = 'international';
+  } else if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
+    const matchType = matchTypeFromProductId(product.id);
+    patch.matchmakingPackage = matchType;
+    patch.matchType = matchType;
     patch.matchmakingRemaining = 3;
   } else if (product?.id === 'boost_24h' || product?.kind === 'boost') {
     patch.spotlightUntil = new Date(Date.now() + 24 * 3600000).toISOString();
@@ -194,7 +204,7 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
   await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   await adminSetTransactionStatus(tx.id, 'success');
   if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
-    await publishProfileIfComplete(uid);
+    await publishProfileIfComplete(uid, matchTypeFromProductId(product.id));
   }
 }
 
@@ -207,12 +217,13 @@ export async function adminGrantMatchmaking(
     {
       userId: uid,
       matchmakingPackage: pack,
+      matchType: pack,
       matchmakingRemaining: 3,
       updatedAt: new Date().toISOString()
     },
     { merge: true }
   );
-  await publishProfileIfComplete(uid);
+  await publishProfileIfComplete(uid, pack);
 }
 
 export { PRODUCTS };
