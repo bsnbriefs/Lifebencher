@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { askSupport } from '../../lib/aiClient';
-import { SUPPORT_FAQS, SUGGESTED_FAQ_IDS } from '../../data/supportFaqs';
+import { SUPPORT_FAQS, SUGGESTED_FAQ_IDS, matchSupportFaq, shouldEscalateToAdmin } from '../../data/supportFaqs';
 import {
   addSupportMessage,
   createSupportConversation,
@@ -48,8 +48,20 @@ export const SupportCenter: React.FC = () => {
     setBusy(true);
     setAiLines((prev) => [...prev, { role: 'user', text }]);
     try {
+      const faq = matchSupportFaq(text);
+      if (faq && !shouldEscalateToAdmin(text)) {
+        setAiLines((prev) => [...prev, { role: 'ai', text: faq.answer, escalate: faq.id === 'admin-help' }]);
+        return;
+      }
+      if (shouldEscalateToAdmin(text)) {
+        setAiLines((prev) => [
+          ...prev,
+          { role: 'ai', text: "I'll need to connect you with a Lifebencher admin to help with that.", escalate: true }
+        ]);
+        return;
+      }
       const r = await askSupport(text);
-      const escalate = Boolean(r.escalate) || /admin/i.test(r.answer || '');
+      const escalate = Boolean(r.escalate);
       setAiLines((prev) => [...prev, { role: 'ai', text: r.answer || 'I could not answer that.', escalate }]);
     } catch {
       setAiLines((prev) => [
