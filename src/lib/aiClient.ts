@@ -9,7 +9,10 @@ async function headers(): Promise<HeadersInit> {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, { method: 'POST', headers: await headers(), body: JSON.stringify(body) });
   const data = (await res.json()) as T & { error?: string };
-  if (!res.ok) throw new Error(data.error || 'AI request failed');
+  if (!res.ok) {
+    if (res.status === 503 || data.error === 'unavailable') throw new Error('unavailable');
+    throw new Error('Could not answer right now. Try again shortly.');
+  }
   return data;
 }
 
