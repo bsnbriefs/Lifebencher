@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavigationTab } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -10,7 +10,10 @@ import { MessagesScreen } from './components/screens/MessagesScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { MatchmakingPaywall } from './components/onboarding/MatchmakingPaywall';
-import { AdminDashboard } from './components/admin/AdminDashboard';
+
+const AdminDashboard = lazy(() =>
+  import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
 import { WifiOff } from 'lucide-react';
 import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
 import { AuthActionPage, firebaseActionFromLocation } from './components/auth/AuthActionPage';
@@ -109,7 +112,11 @@ function AppContent() {
   }
 
   if (isAdminMode && isAdmin) {
-    return <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />;
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5]" />}>
+        <AdminDashboard onBackToApp={() => setIsAdminMode(false)} />
+      </Suspense>
+    );
   }
 
   if (!isAuthenticated) {
