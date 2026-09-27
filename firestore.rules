@@ -4,14 +4,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =========================================================
-    // GLOBAL SAFETY NET — DEFAULT DENY
+    // GLOBAL DEFAULT DENY
     // =========================================================
+
     match /{document=**} {
       allow read, write: if false;
     }
 
     // =========================================================
-    // CORE HELPERS
+    // HELPERS
     // =========================================================
 
     function isSignedIn() {
@@ -27,18 +28,12 @@ service cloud.firestore {
       return isSuperAdmin()
         || (
           isSignedIn()
-          && exists(
-            /databases/$(database)/documents/admins/$(request.auth.uid)
-          )
+          && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         )
         || (
           isSignedIn()
-          && exists(
-            /databases/$(database)/documents/users/$(request.auth.uid)
-          )
-          && get(
-            /databases/$(database)/documents/users/$(request.auth.uid)
-          ).data.role == 'admin'
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
         );
     }
 
@@ -46,7 +41,7 @@ service cloud.firestore {
       return id is string
         && id.size() > 0
         && id.size() <= 128
-        && id.matches('^[a-zA-Z0-9_\\-]+$');
+        && id.matches('^[a-zA-Z0-9_-]+$');
     }
 
     function incoming() {
@@ -63,38 +58,36 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll([
-          'id',
-          'email',
-          'role',
-          'isActive',
-          'createdAt'
-        ])
-        && data.keys().hasOnly([
-          'id',
-          'email',
-          'phone',
-          'role',
-          'isActive',
-          'createdAt'
-        ])
-        && isValidId(data.id)
-        && data.email is string
-        && data.email.size() <= 254
-        && (
-          !('phone' in data)
-          || (
-            data.phone is string
-            && data.phone.size() <= 32
-          )
-        )
-        && data.role in ['client', 'admin']
-        && data.isActive is bool
-        && data.createdAt is string
-        && data.createdAt.size() <= 64;
+        'id',
+        'email',
+        'role',
+        'isActive',
+        'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'id',
+        'email',
+        'phone',
+        'role',
+        'isActive',
+        'createdAt'
+      ])
+      && isValidId(data.id)
+      && data.email is string
+      && data.email.size() <= 254
+      && (!('phone' in data)
+        || (
+          data.phone is string
+          && data.phone.size() <= 32
+        ))
+      && data.role in ['client', 'admin']
+      && data.isActive is bool
+      && data.createdAt is string
+      && data.createdAt.size() <= 64;
     }
 
     // =========================================================
-    // PROFILE VALIDATION
+    // PHOTO VALIDATION
     // =========================================================
 
     function isValidPhotoUrl(url) {
@@ -104,131 +97,121 @@ service cloud.firestore {
         && url.matches('^https://.*');
     }
 
+    // =========================================================
+    // PROFILE VALIDATION
+    // =========================================================
+
     function isValidProfile(data) {
       return data.keys().hasAll([
-          'id',
-          'userId',
-          'displayName',
-          'age',
-          'gender',
-          'location',
-          'profession',
-          'education',
-          'bio',
-          'relationshipGoal',
-          'isVerified',
-          'isVisible',
-          'createdAt',
-          'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'id',
-          'userId',
-          'displayName',
-          'age',
-          'gender',
-          'location',
-          'profession',
-          'education',
-          'bio',
-          'relationshipGoal',
-          'isVerified',
-          'isVisible',
-          'createdAt',
-          'updatedAt',
-          'photoUrl',
-          'photoUrls',
-          'interests',
-          'values',
-          'lifestyle',
-          'matchType',
-          'isAdminProfile'
-        ])
-        && isValidId(data.id)
-        && isValidId(data.userId)
+        'id',
+        'userId',
+        'displayName',
+        'age',
+        'gender',
+        'location',
+        'profession',
+        'education',
+        'bio',
+        'relationshipGoal',
+        'isVerified',
+        'isVisible',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id',
+        'userId',
+        'displayName',
+        'age',
+        'gender',
+        'location',
+        'profession',
+        'education',
+        'bio',
+        'relationshipGoal',
+        'isVerified',
+        'isVisible',
+        'createdAt',
+        'updatedAt',
+        'photoUrl',
+        'photoUrls',
+        'interests',
+        'values',
+        'lifestyle',
+        'matchType',
+        'isAdminProfile'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.userId)
 
-        && data.displayName is string
-        && data.displayName.size() >= 2
-        && data.displayName.size() <= 60
+      && data.displayName is string
+      && data.displayName.size() >= 2
+      && data.displayName.size() <= 60
 
-        && data.age is int
-        && data.age >= 18
-        && data.age <= 120
+      && data.age is int
+      && data.age >= 18
+      && data.age <= 120
 
-        && data.gender in [
-          'female',
-          'male',
-          'non-binary',
-          'other'
-        ]
+      && data.gender in [
+        'female',
+        'male',
+        'non-binary',
+        'other'
+      ]
 
-        && data.location is string
-        && data.location.size() <= 100
+      && data.location is string
+      && data.location.size() <= 100
 
-        && data.profession is string
-        && data.profession.size() <= 100
+      && data.profession is string
+      && data.profession.size() <= 100
 
-        && data.education is string
-        && data.education.size() <= 120
+      && data.education is string
+      && data.education.size() <= 120
 
-        && data.bio is string
-        && data.bio.size() <= 1000
+      && data.bio is string
+      && data.bio.size() <= 1000
 
-        && data.relationshipGoal is string
-        && data.relationshipGoal.size() <= 100
+      && data.relationshipGoal is string
+      && data.relationshipGoal.size() <= 100
 
-        && data.isVerified is bool
-        && data.isVisible is bool
+      && data.isVerified is bool
+      && data.isVisible is bool
 
-        && data.createdAt is string
-        && data.createdAt.size() <= 64
+      && data.createdAt is string
+      && data.createdAt.size() <= 64
 
-        && data.updatedAt is string
-        && data.updatedAt.size() <= 64
+      && data.updatedAt is string
+      && data.updatedAt.size() <= 64
 
-        && (
-          !('photoUrl' in data)
-          || isValidPhotoUrl(data.photoUrl)
-        )
+      && (!('photoUrl' in data)
+        || isValidPhotoUrl(data.photoUrl))
 
-        && (
-          !('photoUrls' in data)
-          || (
-            data.photoUrls is list
-            && data.photoUrls.size() <= 3
-          )
-        )
+      && (!('photoUrls' in data)
+        || (
+          data.photoUrls is list
+          && data.photoUrls.size() <= 3
+        ))
 
-        && (
-          !('interests' in data)
-          || (
-            data.interests is list
-            && data.interests.size() <= 12
-          )
-        )
+      && (!('interests' in data)
+        || (
+          data.interests is list
+          && data.interests.size() <= 12
+        ))
 
-        && (
-          !('values' in data)
-          || (
-            data.values is list
-            && data.values.size() <= 12
-          )
-        )
+      && (!('values' in data)
+        || (
+          data.values is list
+          && data.values.size() <= 12
+        ))
 
-        && (
-          !('lifestyle' in data)
-          || data.lifestyle is map
-        )
+      && (!('lifestyle' in data)
+        || data.lifestyle is map)
 
-        && (
-          !('matchType' in data)
-          || data.matchType in ['local', 'international']
-        )
+      && (!('matchType' in data)
+        || data.matchType in ['local', 'international'])
 
-        && (
-          !('isAdminProfile' in data)
-          || data.isAdminProfile is bool
-        );
+      && (!('isAdminProfile' in data)
+        || data.isAdminProfile is bool);
     }
 
     // =========================================================
@@ -237,45 +220,39 @@ service cloud.firestore {
 
     function isValidMatch(data) {
       return data.keys().hasAll([
-          'id',
-          'user1Id',
-          'user2Id',
-          'status',
-          'startedAt',
-          'expiresAt',
-          'extendedCount'
-        ])
-        && data.keys().hasOnly([
-          'id',
-          'user1Id',
-          'user2Id',
-          'status',
-          'startedAt',
-          'expiresAt',
-          'endedAt',
-          'extendedCount'
-        ])
-        && isValidId(data.id)
-        && isValidId(data.user1Id)
-        && isValidId(data.user2Id)
-        && data.status in [
-          'active',
-          'expired',
-          'ended'
-        ]
-        && data.startedAt is string
-        && data.startedAt.size() <= 64
-        && data.expiresAt is string
-        && data.expiresAt.size() <= 64
-        && (
-          !('endedAt' in data)
-          || (
-            data.endedAt is string
-            && data.endedAt.size() <= 64
-          )
-        )
-        && data.extendedCount is int
-        && data.extendedCount >= 0;
+        'id',
+        'user1Id',
+        'user2Id',
+        'status',
+        'startedAt',
+        'expiresAt',
+        'extendedCount'
+      ])
+      && data.keys().hasOnly([
+        'id',
+        'user1Id',
+        'user2Id',
+        'status',
+        'startedAt',
+        'expiresAt',
+        'endedAt',
+        'extendedCount'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.user1Id)
+      && isValidId(data.user2Id)
+      && data.status in ['active', 'expired', 'ended']
+      && data.startedAt is string
+      && data.startedAt.size() <= 64
+      && data.expiresAt is string
+      && data.expiresAt.size() <= 64
+      && (!('endedAt' in data)
+        || (
+          data.endedAt is string
+          && data.endedAt.size() <= 64
+        ))
+      && data.extendedCount is int
+      && data.extendedCount >= 0;
     }
 
     // =========================================================
@@ -373,7 +350,6 @@ service cloud.firestore {
             && incoming().userId == existing().userId
             && incoming().id == existing().id
             && incoming().isVerified == existing().isVerified
-            && incoming().createdAt == existing().createdAt
             && incoming().isVisible == existing().isVisible
             && incoming().get('matchType', 'local')
                 == existing().get('matchType', 'local')
@@ -426,54 +402,6 @@ service cloud.firestore {
           || resource.data.user2Id == request.auth.uid
         );
 
-      function pairRequestMatched() {
-        let a = incoming().user1Id;
-        let b = incoming().user2Id;
-        let idAb = 'r_' + a + '_' + b;
-        let idBa = 'r_' + b + '_' + a;
-
-        return (
-          (
-            exists(
-              /databases/$(database)/documents/matchRequests/$(idAb)
-            )
-            &&
-            get(
-              /databases/$(database)/documents/matchRequests/$(idAb)
-            ).data.status in ['pending', 'matched']
-            &&
-            (
-              get(
-                /databases/$(database)/documents/matchRequests/$(idAb)
-              ).data.senderId == incoming().user1Id
-              ||
-              get(
-                /databases/$(database)/documents/matchRequests/$(idAb)
-              ).data.senderId == incoming().user2Id
-            )
-          )
-          ||
-          (
-            exists(
-              /databases/$(database)/documents/matchRequests/$(idBa)
-            )
-            &&
-            get(
-              /databases/$(database)/documents/matchRequests/$(idBa)
-            ).data.status in ['pending', 'matched']
-            &&
-            (
-              get(
-                /databases/$(database)/documents/matchRequests/$(idBa)
-              ).data.senderId == incoming().user1Id
-              ||
-              get(
-                /databases/$(database)/documents/matchRequests/$(idBa)
-              ).data.senderId == incoming().user2Id
-            )
-          );
-      }
-
       allow create: if isAdmin()
         || (
           isSignedIn()
@@ -483,7 +411,6 @@ service cloud.firestore {
             request.auth.uid == incoming().user1Id
             || request.auth.uid == incoming().user2Id
           )
-          && pairRequestMatched()
         );
 
       allow update: if isSignedIn()
@@ -512,23 +439,17 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
 
-      // -------------------------------------------------------
-      // MATCH MESSAGES
-      // -------------------------------------------------------
+      // ---------------- MESSAGES ----------------
 
       match /messages/{messageId} {
 
         function parentMatch() {
-          return get(
-            /databases/$(database)/documents/matches/$(matchId)
-          ).data;
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
         }
 
         function isParticipant() {
           return isSignedIn()
-            && exists(
-              /databases/$(database)/documents/matches/$(matchId)
-            )
+            && exists(/databases/$(database)/documents/matches/$(matchId))
             && (
               isAdmin()
               || request.auth.uid == parentMatch().user1Id
@@ -538,37 +459,29 @@ service cloud.firestore {
 
         function isValidMessage(data) {
           return data.keys().hasAll([
-              'id',
-              'matchId',
-              'senderId',
-              'content',
-              'createdAt'
-            ])
-            && data.keys().hasOnly([
-              'id',
-              'matchId',
-              'senderId',
-              'content',
-              'createdAt',
-              'readAt'
-            ])
-            && isValidId(data.id)
-            && data.id == messageId
-            && data.matchId == matchId
-            && isValidId(data.matchId)
-            && isValidId(data.senderId)
-            && data.content is string
-            && data.content.size() > 0
-            && data.content.size() <= 2000
-            && data.createdAt is string
-            && data.createdAt.size() <= 64
-            && (
-              !('readAt' in data)
-              || (
-                data.readAt is string
-                && data.readAt.size() <= 64
-              )
-            );
+            'id',
+            'matchId',
+            'senderId',
+            'content',
+            'createdAt'
+          ])
+          && data.keys().hasOnly([
+            'id',
+            'matchId',
+            'senderId',
+            'content',
+            'createdAt',
+            'readAt'
+          ])
+          && isValidId(data.id)
+          && data.id == messageId
+          && data.matchId == matchId
+          && isValidId(data.senderId)
+          && data.content is string
+          && data.content.size() > 0
+          && data.content.size() <= 2000
+          && data.createdAt is string
+          && data.createdAt.size() <= 64;
         }
 
         allow read: if isParticipant();
@@ -581,7 +494,6 @@ service cloud.firestore {
         allow update: if isParticipant()
           && isValidMessage(incoming())
           && incoming().id == existing().id
-          && incoming().matchId == existing().matchId
           && incoming().senderId == existing().senderId
           && incoming().content == existing().content
           && incoming().createdAt == existing().createdAt
@@ -592,23 +504,17 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
-      // -------------------------------------------------------
-      // CONTACT STATE
-      // -------------------------------------------------------
+      // ---------------- CONTACT ----------------
 
       match /contact/{contactId} {
 
         function parentMatchC() {
-          return get(
-            /databases/$(database)/documents/matches/$(matchId)
-          ).data;
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
         }
 
         function isParticipantC() {
           return isSignedIn()
-            && exists(
-              /databases/$(database)/documents/matches/$(matchId)
-            )
+            && exists(/databases/$(database)/documents/matches/$(matchId))
             && (
               isAdmin()
               || request.auth.uid == parentMatchC().user1Id
@@ -616,117 +522,29 @@ service cloud.firestore {
             );
         }
 
-        function stateHasNoSecrets(data) {
-          return !('user1Contact' in data)
-            && !('user2Contact' in data);
-        }
-
-        function isValidContactState(data) {
-          return data.keys().hasAll([
-              'id',
-              'matchId',
-              'initiatorId',
-              'user1Id',
-              'user2Id',
-              'user1Consented',
-              'user2Consented',
-              'status'
-            ])
-            && data.keys().hasOnly([
-              'id',
-              'matchId',
-              'initiatorId',
-              'user1Id',
-              'user2Id',
-              'user1Consented',
-              'user2Consented',
-              'status',
-              'createdAt',
-              'updatedAt',
-              'consentedAt'
-            ])
-            && data.id == 'state'
-            && data.matchId == matchId
-            && data.user1Id == parentMatchC().user1Id
-            && data.user2Id == parentMatchC().user2Id
-            && data.status in [
-              'pending',
-              'completed',
-              'declined'
-            ]
-            && data.user1Consented is bool
-            && data.user2Consented is bool
-            && stateHasNoSecrets(data);
-        }
-
         allow read: if isParticipantC()
           && contactId == 'state';
 
         allow create: if isParticipantC()
-          && contactId == 'state'
-          && isValidContactState(incoming())
-          && incoming().status == 'pending'
-          && incoming().initiatorId == request.auth.uid
-          && incoming().user1Consented ==
-            (request.auth.uid == incoming().user1Id)
-          && incoming().user2Consented ==
-            (request.auth.uid == incoming().user2Id);
+          && contactId == 'state';
 
         allow update: if isParticipantC()
-          && contactId == 'state'
-          && isValidContactState(incoming())
-          && incoming().user1Id == existing().user1Id
-          && incoming().user2Id == existing().user2Id
-          && incoming().matchId == existing().matchId
-          && incoming().id == existing().id
-          && (
-            isAdmin()
-            ||
-            (
-              incoming().status == 'declined'
-              && incoming().user1Consented ==
-                existing().user1Consented
-              && incoming().user2Consented ==
-                existing().user2Consented
-            )
-            ||
-            (
-              request.auth.uid == existing().user1Id
-              && incoming().user2Consented ==
-                existing().user2Consented
-              && incoming().initiatorId ==
-                existing().initiatorId
-            )
-            ||
-            (
-              request.auth.uid == existing().user2Id
-              && incoming().user1Consented ==
-                existing().user1Consented
-              && incoming().initiatorId ==
-                existing().initiatorId
-            )
-          );
+          && contactId == 'state';
 
         allow delete: if isAdmin();
       }
 
-      // -------------------------------------------------------
-      // CONTACT SECRETS
-      // -------------------------------------------------------
+      // ---------------- CONTACT SECRETS ----------------
 
       match /contactSecrets/{secretUid} {
 
         function parentMatchS() {
-          return get(
-            /databases/$(database)/documents/matches/$(matchId)
-          ).data;
+          return get(/databases/$(database)/documents/matches/$(matchId)).data;
         }
 
         function isParticipantS() {
           return isSignedIn()
-            && exists(
-              /databases/$(database)/documents/matches/$(matchId)
-            )
+            && exists(/databases/$(database)/documents/matches/$(matchId))
             && (
               isAdmin()
               || request.auth.uid == parentMatchS().user1Id
@@ -734,27 +552,10 @@ service cloud.firestore {
             );
         }
 
-        function mutualConsentComplete() {
-          return exists(
-            /databases/$(database)/documents/matches/$(matchId)/contact/state
-          )
-          && get(
-            /databases/$(database)/documents/matches/$(matchId)/contact/state
-          ).data.user1Consented == true
-          && get(
-            /databases/$(database)/documents/matches/$(matchId)/contact/state
-          ).data.user2Consented == true
-          && get(
-            /databases/$(database)/documents/matches/$(matchId)/contact/state
-          ).data.status == 'completed';
-        }
-
         allow read: if isParticipantS()
-          && isValidId(secretUid)
           && (
             request.auth.uid == secretUid
             || isAdmin()
-            || mutualConsentComplete()
           );
 
         allow create, update: if isParticipantS()
@@ -764,9 +565,7 @@ service cloud.firestore {
             || secretUid == parentMatchS().user2Id
           )
           && incoming().email is string
-          && incoming().email.size() <= 254
-          && incoming().phone is string
-          && incoming().phone.size() <= 32;
+          && incoming().phone is string;
 
         allow delete: if isAdmin()
           || (
@@ -781,39 +580,6 @@ service cloud.firestore {
     // =========================================================
 
     match /matchRequests/{requestId} {
-
-      function isValidMatchRequest(data) {
-        return data.keys().hasAll([
-            'id',
-            'senderId',
-            'receiverId',
-            'status',
-            'createdAt',
-            'updatedAt'
-          ])
-          && data.keys().hasOnly([
-            'id',
-            'senderId',
-            'receiverId',
-            'status',
-            'createdAt',
-            'updatedAt'
-          ])
-          && isValidId(data.id)
-          && data.id == requestId
-          && isValidId(data.senderId)
-          && isValidId(data.receiverId)
-          && data.senderId != data.receiverId
-          && data.status in [
-            'pending',
-            'matched',
-            'declined'
-          ]
-          && data.createdAt is string
-          && data.createdAt.size() <= 64
-          && data.updatedAt is string
-          && data.updatedAt.size() <= 64;
-      }
 
       allow get: if isSignedIn()
         && (
@@ -830,29 +596,15 @@ service cloud.firestore {
         );
 
       allow create: if isSignedIn()
-        && isValidId(requestId)
-        && isValidMatchRequest(incoming())
         && incoming().senderId == request.auth.uid
         && incoming().status == 'pending';
 
-      allow update: if isSignedIn()
-        && isValidId(requestId)
-        && isValidMatchRequest(incoming())
-        && incoming().id == existing().id
-        && incoming().senderId == existing().senderId
-        && incoming().receiverId == existing().receiverId
-        && incoming().createdAt == existing().createdAt
-        && (
-          isAdmin()
-          ||
-          (
-            request.auth.uid == existing().receiverId
-            && existing().status == 'pending'
-            && incoming().status in [
-              'matched',
-              'declined'
-            ]
-          )
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == existing().receiverId
+          && existing().status == 'pending'
+          && incoming().status in ['matched', 'declined']
         );
 
       allow delete: if isAdmin();
@@ -874,12 +626,7 @@ service cloud.firestore {
 
       allow create, update: if isSignedIn()
         && request.auth.uid == prefUid
-        && incoming().profileId == prefUid
-        && incoming().ageMin is int
-        && incoming().ageMax is int
-        && incoming().preferredGender is list
-        && incoming().preferredLocations is list
-        && incoming().preferredRelationshipGoals is list;
+        && incoming().profileId == prefUid;
 
       allow delete: if isAdmin()
         || (
@@ -1050,8 +797,6 @@ service cloud.firestore {
       allow get: if isSignedIn()
         && request.auth.uid == adminId;
 
-      // Admin status is determined by the document's existence,
-      // but clients must not enumerate or modify this collection.
       allow list, create, update, delete: if false;
     }
 
@@ -1061,98 +806,36 @@ service cloud.firestore {
 
     match /supportConversations/{conversationId} {
 
-      function isConversationOwner() {
-        return isSignedIn()
-          && resource.data.userId == request.auth.uid;
-      }
-
-      function incomingConversationOwner() {
-        return isSignedIn()
-          && incoming().userId == request.auth.uid;
-      }
-
-      function isValidSupportConversation(data) {
-        return data.keys().hasAll([
-            'userId',
-            'status',
-            'createdAt',
-            'updatedAt',
-            'lastMessageAt'
-          ])
-          && data.keys().hasOnly([
-            'userId',
-            'userEmail',
-            'status',
-            'assignedAdminId',
-            'createdAt',
-            'updatedAt',
-            'lastMessageAt'
-          ])
-          && isValidId(data.userId)
-          && data.status in [
-            'waiting',
-            'active',
-            'closed'
-          ]
-          && data.createdAt is string
-          && data.createdAt.size() <= 64
-          && data.updatedAt is string
-          && data.updatedAt.size() <= 64
-          && data.lastMessageAt is string
-          && data.lastMessageAt.size() <= 64
-          && (
-            !('userEmail' in data)
-            || (
-              data.userEmail is string
-              && data.userEmail.size() <= 254
-            )
-          )
-          && (
-            !('assignedAdminId' in data)
-            || data.assignedAdminId == null
-            || isValidId(data.assignedAdminId)
-          );
-      }
-
-      // User can read only their own support conversations.
-      // Admin can read all.
       allow get: if isSignedIn()
         && (
           isAdmin()
-          || isConversationOwner()
+          || resource.data.userId == request.auth.uid
         );
 
-      // User queries must include userId == request.auth.uid.
-      // Admin can list all support conversations.
       allow list: if isSignedIn()
         && (
           isAdmin()
-          || request.query.where('userId', '==', request.auth.uid)
+          || resource.data.userId == request.auth.uid
         );
 
-      // A normal user can create only their own conversation.
-      // New conversations must start in waiting state.
       allow create: if isSignedIn()
-        && isValidId(conversationId)
-        && isValidSupportConversation(incoming())
-        && incomingConversationOwner()
+        && isValidId(incoming().userId)
+        && incoming().userId == request.auth.uid
         && incoming().status == 'waiting'
-        && incoming().get('assignedAdminId', null) == null;
+        && incoming().get('assignedAdminId', null) == null
+        && incoming().createdAt is string
+        && incoming().updatedAt is string
+        && incoming().lastMessageAt is string;
 
-      // Admin controls status/assignment.
-      //
-      // User may only update timestamps on their own conversation.
-      // This allows the frontend to maintain activity timestamps
-      // without allowing the user to assign an admin or change status.
       allow update: if isAdmin()
         || (
-          isConversationOwner()
-          && isValidSupportConversation(incoming())
-          && incoming().userId == existing().userId
-          && incoming().status == existing().status
+          isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && incoming().userId == resource.data.userId
+          && incoming().status == resource.data.status
           && incoming().get('assignedAdminId', null)
-              == existing().get('assignedAdminId', null)
-          && incoming().diff(existing()).affectedKeys().hasOnly([
+              == resource.data.get('assignedAdminId', null)
+          && incoming().diff(resource.data).affectedKeys().hasOnly([
             'updatedAt',
             'lastMessageAt'
           ])
@@ -1160,97 +843,58 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
 
-      // -------------------------------------------------------
+      // =======================================================
       // SUPPORT MESSAGES
-      // -------------------------------------------------------
+      // =======================================================
 
       match /messages/{messageId} {
 
-        function supportConversation() {
-          return get(
-            /databases/$(database)/documents/supportConversations/$(conversationId)
-          ).data;
+        function supportParent() {
+          return get(/databases/$(database)/documents/supportConversations/$(conversationId)).data;
         }
 
-        function canAccessSupportConversation() {
+        function canAccessSupport() {
           return isSignedIn()
-            && exists(
-              /databases/$(database)/documents/supportConversations/$(conversationId)
-            )
+            && exists(/databases/$(database)/documents/supportConversations/$(conversationId))
             && (
               isAdmin()
-              || supportConversation().userId == request.auth.uid
+              || supportParent().userId == request.auth.uid
             );
         }
 
-        function isValidSupportMessage(data) {
-          return data.keys().hasAll([
-              'senderId',
-              'senderType',
-              'content',
-              'createdAt'
-            ])
-            && data.keys().hasOnly([
-              'senderId',
-              'senderType',
-              'content',
-              'createdAt',
-              'readAt'
-            ])
-            && isValidId(data.senderId)
-            && data.senderType in [
-              'user',
-              'admin',
-              'ai'
-            ]
-            && data.content is string
-            && data.content.size() > 0
-            && data.content.size() <= 5000
-            && data.createdAt is string
-            && data.createdAt.size() <= 64
-            && (
-              !('readAt' in data)
-              || (
-                data.readAt is string
-                && data.readAt.size() <= 64
-              )
-            );
-        }
+        allow get: if canAccessSupport();
 
-        allow get: if canAccessSupportConversation();
+        allow list: if canAccessSupport();
 
-        allow list: if canAccessSupportConversation();
-
-        // User can only create user messages.
-        // Admin can create admin messages.
-        //
-        // AI messages should be created server-side.
-        // They are therefore NOT writable by normal clients.
-        allow create: if canAccessSupportConversation()
-          && isValidSupportMessage(incoming())
+        // Users can create ONLY user messages.
+        // Admins can create ONLY admin messages.
+        // AI messages must be created by trusted server-side code.
+        allow create: if canAccessSupport()
+          && incoming().senderId == request.auth.uid
+          && incoming().senderType is string
+          && incoming().content is string
+          && incoming().content.size() > 0
+          && incoming().content.size() <= 5000
+          && incoming().createdAt is string
           && (
             (
               !isAdmin()
-              && incoming().senderId == request.auth.uid
               && incoming().senderType == 'user'
             )
             ||
             (
               isAdmin()
-              && incoming().senderId == request.auth.uid
               && incoming().senderType == 'admin'
             )
           );
 
-        // Users/admins can update readAt only.
-        // Nobody can change the sender/content after creation.
-        allow update: if canAccessSupportConversation()
-          && isValidSupportMessage(incoming())
-          && incoming().senderId == existing().senderId
-          && incoming().senderType == existing().senderType
-          && incoming().content == existing().content
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly([
+        // Only read status may be changed after creation.
+        allow update: if canAccessSupport()
+          && incoming().senderId == resource.data.senderId
+          && incoming().senderType == resource.data.senderType
+          && incoming().content == resource.data.content
+          && incoming().createdAt == resource.data.createdAt
+          && incoming().diff(resource.data).affectedKeys().hasOnly([
             'readAt'
           ]);
 
