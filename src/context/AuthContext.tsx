@@ -135,11 +135,13 @@ function profileFromDoc(uid: string, data: Record<string, unknown> | undefined, 
   return {
     id: (data?.id as string) || uid,
     userId: (data?.userId as string) || uid,
-    displayName:
-      (typeof data?.displayName === 'string' && data.displayName.trim()) ||
-      (typeof extras?.displayName === 'string' && extras.displayName.trim()) ||
-      (typeof data?.name === 'string' && data.name.trim()) ||
-      'Member',
+    displayName: (() => {
+      const a = typeof data?.displayName === 'string' ? data.displayName.trim() : '';
+      const b = typeof extras?.displayName === 'string' ? extras.displayName.trim() : '';
+      const c = typeof data?.name === 'string' ? data.name.trim() : '';
+      const pick = [a, b, c].find((s) => s && s.toLowerCase() !== 'member');
+      return pick || a || b || c || '';
+    })(),
     age: typeof data?.age === 'number' ? data.age : extras?.age || 28,
     gender: (data?.gender as Profile['gender']) || extras?.gender || 'male',
     location: (data?.location as string) || extras?.location || 'Lagos, Nigeria',
@@ -186,7 +188,9 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
   return {
     id: profile.id,
     userId: profile.userId,
-    displayName: ((profile.displayName && profile.displayName.trim()) || 'Member').slice(0, 60),
+    displayName: (profile.displayName && profile.displayName.trim() && profile.displayName.trim().toLowerCase() !== 'member'
+      ? profile.displayName.trim()
+      : profile.displayName || 'Profile').slice(0, 60),
     age: typeof profile.age === 'number' ? Math.round(profile.age) : 28,
     gender: profile.gender || 'male',
     location: (profile.location || 'Lagos, Nigeria').slice(0, 100),
