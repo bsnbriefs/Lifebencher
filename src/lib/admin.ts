@@ -42,7 +42,7 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
   const id = profile.id || profile.userId;
   await updateDoc(doc(db, 'profiles', id), {
     isVerified,
-    isVisible: isVerified,
+    isVisible: isVerified && profile.isAdminProfile !== true,
     updatedAt: new Date().toISOString()
   });
 }
