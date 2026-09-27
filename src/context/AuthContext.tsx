@@ -294,6 +294,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const mappedProfile = profileFromDoc(uid, profileSnap.data() as Record<string, unknown> | undefined, extras);
       setCurrentProfile(mappedProfile);
+      onSnapshot(profileRef, (live) => {
+        if (!live.exists()) return;
+        setCurrentProfile(profileFromDoc(uid, live.data() as Record<string, unknown>, extras));
+      });
 
       const prefRef = doc(db, 'preferences', uid);
       let mappedPrefs: ProfilePreferences | null = null;
