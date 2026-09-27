@@ -504,6 +504,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userId: uid,
       isVerified: currentProfile?.isVerified ?? false,
       isVisible: false,
+      isAdminProfile: auth.currentUser.email === SUPER_ADMIN_EMAIL || user?.role === 'admin',
       updatedAt: nowIso()
     };
 
