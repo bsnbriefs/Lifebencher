@@ -5,13 +5,20 @@ export function aiConfig() {
     err.status = 503;
     throw err;
   }
-  const base = (process.env.AI_BASE_URL || 'https://api.x.ai/v1').replace(/\/$/, '');
-  const model = process.env.AI_MODEL || 'grok-3-mini';
+  const base = (process.env.AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai').replace(/\/$/, '');
+  const model = process.env.AI_MODEL || 'gemini-2.5-flash-lite';
   return { key, base, model };
 }
 
 function extractText(body) {
-  return body?.choices?.[0]?.message?.content || '';
+  const content = body?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((p) => (typeof p === 'string' ? p : p?.text || '')).join('\n');
+  }
+  const parts = body?.candidates?.[0]?.content?.parts;
+  if (Array.isArray(parts)) return parts.map((p) => p?.text || '').join('\n');
+  return '';
 }
 
 function parseJsonLoose(text) {
@@ -25,10 +32,14 @@ function parseJsonLoose(text) {
       try {
         return JSON.parse(text.slice(start, end + 1));
       } catch {
-        /* fall through */
+        /* ignore */
       }
     }
-    return { raw: String(text).slice(0, 2000), suggestedBio: String(text).slice(0, 1000), answer: String(text).slice(0, 800) };
+    return {
+      raw: String(text).slice(0, 2000),
+      suggestedBio: String(text).slice(0, 1000),
+      answer: String(text).slice(0, 800)
+    };
   }
 }
 
@@ -41,41 +52,34 @@ export async function chatJson(system, user, imageUrl) {
       ]
     : user;
 
+  const isGemini = base.includes('generativelanguage.googleapis.com');
+  const url = isGemini
+    ? `${base}/chat/completions?key=${encodeURIComponent(key)}`
+    : `${base}/chat/completions`;
+
   const payload = {
     model,
-    temperature: 0.2,
+    temperature: 0.3,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content }
     ]
   };
 
-  let res = await fetch(`${base}/chat/completions`, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`
     },
-    body: JSON.stringify({ ...payload, response_format: { type: 'json_object' } })
+    body: JSON.stringify(payload)
   });
-  let body = await res.json().catch(() => ({}));
-
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    console.error('AI provider error', res.status, body?.error?.type || body?.error?.code || 'unknown');
-    res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    body = await res.json().catch(() => ({}));
+    console.error('AI provider error', res.status, body?.error?.status || body?.error?.code || 'unknown');
   }
-
   const text = extractText(body);
   if (!res.ok || !text) {
-    console.error('AI empty response', res.status);
     const err = new Error('unavailable');
     err.status = 503;
     throw err;
