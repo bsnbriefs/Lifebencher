@@ -1,5 +1,5 @@
 import { getAdmin } from './admin.js';
-import { productById } from './catalog.js';
+import { matchTypeFromProductId, productById } from './catalog.js';
 
 export function entitlementPatch(productId, uid, existing = {}) {
   const product = productById(productId);
@@ -12,11 +12,10 @@ export function entitlementPatch(productId, uid, existing = {}) {
     const start = base.getTime() > Date.now() ? base : new Date();
     patch.plan = 'plus';
     patch.planExpiresAt = new Date(start.getTime() + 30 * 86400000).toISOString();
-  } else if (product?.id === 'matchmaking_local') {
-    patch.matchmakingPackage = 'local';
-    patch.matchmakingRemaining = 3;
-  } else if (product?.id === 'matchmaking_international') {
-    patch.matchmakingPackage = 'international';
+  } else if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international') {
+    const matchType = matchTypeFromProductId(product.id);
+    patch.matchmakingPackage = matchType;
+    patch.matchType = matchType;
     patch.matchmakingRemaining = 3;
   } else if (product?.id === 'boost_24h') {
     const until = existing.spotlightUntil ? new Date(existing.spotlightUntil) : new Date();
@@ -54,7 +53,12 @@ export async function grantVerifiedTransaction(txSnap) {
       if (complete) {
         t.set(
           pref,
-          { isVisible: true, isVerified: true, updatedAt: new Date().toISOString() },
+          {
+            isVisible: true,
+            isVerified: true,
+            matchType: matchTypeFromProductId(pid),
+            updatedAt: new Date().toISOString()
+          },
           { merge: true }
         );
       }
