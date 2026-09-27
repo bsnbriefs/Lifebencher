@@ -24,6 +24,7 @@ import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
 import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
+import { SupportInbox } from './SupportInbox';
 import { closeReviewItem, listenReviewQueue, ReviewItem } from '../../lib/reviewQueue';
 
 interface AdminDashboardProps {
@@ -47,7 +48,7 @@ interface VerificationCandidate {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) => {
   const { isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing' | 'review'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing' | 'review' | 'support'>('verifications');
   const [liveProfiles, setLiveProfiles] = useState<Profile[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
@@ -331,6 +332,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             }`}
           >
             Review ({reviewItems.filter((i) => i.status === 'open').length})
+          </button>
+          <button
+            onClick={() => setActiveTab('support')}
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'support' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
+            }`}
+          >
+            Support
           </button>
         </div>
 
@@ -633,6 +642,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         )}
 
         {activeTab === 'billing' && <MonetizationPanel onNotice={setNotification} />}
+        {activeTab === 'support' && <SupportInbox />}
         {activeTab === 'review' && (
           <div className="space-y-2">
             <p className="text-[11px] text-stone-500">AI flags only. No automatic bans. Decide after reading the evidence.</p>
