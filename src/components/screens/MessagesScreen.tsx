@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ImagePlus,
+  Mic,
   Send,
   Shield,
   ArrowLeft,
@@ -21,7 +22,7 @@ import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, sendMatchImage, sendMatchMessage } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, sendMatchAudio, sendMatchImage, sendMatchMessage } from '../../lib/chat';
 import {
   declineContactExchange,
   exchangeUiState,
@@ -173,7 +174,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
+  const [hideContacts, setHideContacts] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordMs, setRecordMs] = useState(0);
+  const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string; ms: number } | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const recTimer = useRef<number | null>(null);
   const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -272,6 +280,40 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!match) return;
     return listenContactExchange(match.id, match.user1Id, match.user2Id, setContactState);
   }, [activeConvId, matchRecords]);
+
+  useEffect(() => {
+    setHideContacts(false);
+  }, [activeConvId]);
+
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setSendError('Voice notes are not supported in this browser.');
+      return;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+    const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    chunksRef.current = [];
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunksRef.current.push(e.data);
+    };
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+      setPendingAudio({ blob, url: URL.createObjectURL(blob), ms: recordMs });
+      setRecording(false);
+      if (recTimer.current) window.clearInterval(recTimer.current);
+    };
+    mediaRef.current = rec;
+    rec.start();
+    setRecording(true);
+    setRecordMs(0);
+    recTimer.current = window.setInterval(() => setRecordMs((n) => n + 1000), 1000);
+  };
+
+  const stopRecording = () => {
+    mediaRef.current?.stop();
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
@@ -517,15 +559,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             </div>
 
             {/* Expiration Countdown Reminder Banner */}
-            <div className="py-1 px-3 bg-amber-50/90 border border-amber-200 rounded-xl text-center text-[11px] text-amber-900 flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <span className="font-semibold">
-                  {formatRemainingTime(activeConv.expiresAt)} in this connection window
-                </span>
-              </div>
-              <span className="text-[10px] text-stone-500">Extends on mutual agreement</span>
-            </div>
+            <p className="text-[10px] text-stone-500 mb-2">⏱ {formatRemainingTime(activeConv.expiresAt)}</p>
 
             {/* MUTUAL CONTACT EXCHANGE UNLOCKED CARD */}
             {liveUi === 'declined' && (
@@ -534,13 +568,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
+            {activeConv.exchangeState === 'unlocked' && hideContacts && (
+              <button type="button" onClick={() => setHideContacts(false)} className="text-[11px] font-semibold text-stone-500 mb-2">
+                View exchanged contacts
+              </button>
+            )}
+            {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && !hideContacts && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3.5 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
+                className="relative p-3.5 pr-8 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
               >
                 <div className="flex items-center justify-between text-amber-100 font-bold gap-2 min-w-0">
+                  <button type="button" className="absolute right-2 top-2 text-[#f3ece6] text-sm leading-none" onClick={() => setHideContacts(true)} aria-label="Close contacts">
+                    ×
+                  </button>
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
                     <span className="truncate">Mutual Contact Exchange Unlocked!</span>
@@ -652,6 +694,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                         <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
                       ) : m.kind === 'viewOnce' || m.viewOnce ? (
                         <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
+                      ) : m.kind === 'audio' && m.audioUrl ? (
+                        <audio controls src={m.audioUrl} className="w-full max-w-[220px] h-8" />
                       ) : (
                         m.content
                       )}
@@ -688,8 +732,38 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             {/* Touch Input Bar */}
             <label className="flex items-center gap-1.5 text-[10px] text-stone-500 px-1">
               <input type="checkbox" checked={viewOnce} onChange={(e) => setViewOnce(e.target.checked)} />
-              View once (one tap for the recipient; does not stop screenshots)
+              View once photo
             </label>
+            {recording && (
+              <div className="flex items-center gap-2 text-[11px] text-rose-800 px-1">
+                <span>Recording {Math.floor(recordMs / 1000)}s</span>
+                <button type="button" onClick={stopRecording} className="font-semibold">Stop</button>
+                <button type="button" onClick={() => { mediaRef.current?.stop(); setPendingAudio(null); setRecording(false); }} className="text-stone-500">Cancel</button>
+              </div>
+            )}
+            {pendingAudio && (
+              <div className="flex items-center gap-2 text-[11px] px-1">
+                <audio controls src={pendingAudio.url} className="h-8 flex-1 min-w-0" />
+                <button
+                  type="button"
+                  className="font-semibold text-rose-900"
+                  onClick={() => {
+                    if (!activeConvId) return;
+                    void sendMatchAudio(activeConvId, pendingAudio.blob, pendingAudio.ms)
+                      .then(() => {
+                        URL.revokeObjectURL(pendingAudio.url);
+                        setPendingAudio(null);
+                      })
+                      .catch((err) => setSendError(err instanceof Error ? err.message : 'Could not send voice note'));
+                  }}
+                >
+                  Send
+                </button>
+                <button type="button" className="text-stone-500" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }}>
+                  Cancel
+                </button>
+              </div>
+            )}
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
               <div className="flex items-end gap-2 bg-white rounded-2xl border border-stone-300 px-3 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
                 <input
@@ -708,6 +782,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 />
                 <button type="button" onClick={() => photoInputRef.current?.click()} className="p-1 text-stone-500" aria-label="Send photo">
                   <ImagePlus className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => void startRecording()} disabled={recording} className="p-1 text-stone-500" aria-label="Voice note">
+                  <Mic className="w-4 h-4" />
                 </button>
                 <textarea
                   rows={1}
