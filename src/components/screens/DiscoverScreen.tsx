@@ -121,9 +121,21 @@ export const DiscoverScreen: React.FC = () => {
       }
 
       if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
+
+      const myType =
+        entitlements.matchType === 'local' || entitlements.matchType === 'international'
+          ? entitlements.matchType
+          : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international'
+            ? entitlements.matchmakingPackage
+            : null;
+      if (myType) {
+        const theirType = p.matchType || null;
+        if (theirType && theirType !== myType) return false;
+        if (!theirType && myType === 'international') return false;
+      }
       return true;
     });
-  }, [profiles, filters, blockedIds]);
+  }, [profiles, filters, blockedIds, entitlements]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
