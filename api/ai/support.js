@@ -26,6 +26,9 @@ export default async function handler(req, res) {
     );
     return json(res, 200, { answer: String(out.answer || '').slice(0, 800) });
   } catch (err) {
-    return json(res, err.status || 500, { error: err.message || 'Support failed' });
+    const status = err.status || 500;
+    return json(res, status, {
+      error: status === 503 ? 'unavailable' : 'Could not answer right now. Try again shortly.'
+    });
   }
 }
