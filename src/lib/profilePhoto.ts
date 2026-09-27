@@ -1,4 +1,4 @@
-import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
+import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import { auth, storage } from './firebase';
 
 export function profilePhotoPath(uid: string, slot = 0) {
@@ -61,4 +61,10 @@ export function uploadProfilePhoto(
       }
     );
   });
+}
+
+export async function deleteProfilePhoto(slot = 0): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  await deleteObject(ref(storage, profilePhotoPath(uid, slot))).catch(() => undefined);
 }

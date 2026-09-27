@@ -8,8 +8,9 @@ import {
   setDoc,
   Timestamp
 } from 'firebase/firestore';
+import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { Message } from '../types';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, storage, handleFirestoreError, OperationType } from './firebase';
 
 function toIso(value: unknown): string {
   if (!value) return new Date().toISOString();
@@ -107,11 +108,9 @@ export async function sendMatchImage(matchId: string, file: File, viewOnce: bool
     throw new Error('Use a JPG, PNG or WebP.');
   }
   if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB');
-  const { getDownloadURL, ref, uploadBytes } = await import('firebase/storage');
-  const { storage } = await import('./firebase');
   const path = `chatPhotos/${matchId}/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, '')}`;
-  await uploadBytes(ref(storage, path), file, { contentType: type });
-  const imageUrl = viewOnce ? '' : await getDownloadURL(ref(storage, path));
+  await uploadBytes(storageRef(storage, path), file, { contentType: type });
+  const imageUrl = viewOnce ? '' : await getDownloadURL(storageRef(storage, path));
   const col = collection(db, 'matches', matchId, 'messages');
   const msgRef = doc(col);
   await setDoc(msgRef, {
