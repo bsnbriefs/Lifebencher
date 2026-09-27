@@ -72,6 +72,7 @@ html.dark .bg-white {
 
 html.dark .bg-stone-50,
 html.dark .bg-stone-100,
+html.dark .bg-stone-200,
 html.dark .bg-stone-200\/80 {
   background-color: #2f2726 !important;
 }
@@ -91,6 +92,12 @@ html.dark .bg-amber-100 {
 html.dark .bg-emerald-50,
 html.dark .bg-emerald-100 {
   background-color: #1c3a2e !important;
+}
+
+html.dark .text-emerald-900,
+html.dark .text-emerald-800,
+html.dark .text-emerald-700 {
+  color: #ecfdf5 !important;
 }
 
 html.dark .text-stone-900,
