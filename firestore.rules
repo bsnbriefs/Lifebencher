@@ -212,8 +212,11 @@ service cloud.firestore {
 
         function isValidMessage(data) {
           return data.keys().hasAll(['id', 'matchId', 'senderId', 'content', 'createdAt']) &&
-            data.keys().hasOnly(['id', 'matchId', 'senderId', 'content', 'createdAt', 'readAt', 'kind', 'imagePath', 'imageUrl', 'viewOnce', 'viewedAt']) &&
-            (!('kind' in data) || data.kind in ['text', 'image', 'viewOnce']) &&
+            data.keys().hasOnly(['id', 'matchId', 'senderId', 'content', 'createdAt', 'readAt', 'kind', 'imagePath', 'imageUrl', 'viewOnce', 'viewedAt', 'audioPath', 'audioUrl', 'durationMs']) &&
+            (!('kind' in data) || data.kind in ['text', 'image', 'viewOnce', 'audio']) &&
+            (!('audioPath' in data) || data.audioPath is string) &&
+            (!('audioUrl' in data) || data.audioUrl is string) &&
+            (!('durationMs' in data) || data.durationMs is int) &&
             (!('viewOnce' in data) || data.viewOnce is bool) &&
             (!('imagePath' in data) || data.imagePath is string) &&
             (!('imageUrl' in data) || data.imageUrl is string) &&
