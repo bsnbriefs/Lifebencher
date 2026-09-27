@@ -121,10 +121,10 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(profileId) &&
         isValidProfile(incoming()) && incoming().userId == request.auth.uid &&
         incoming().isVerified == false && incoming().isVisible == false;
-      allow update: if isSignedIn() && isValidId(profileId) &&
-        isValidProfile(incoming()) && (
+      allow update: if isSignedIn() && isValidId(profileId) && (
           isAdmin() ||
           (
+            isValidProfile(incoming()) &&
             incoming().userId == request.auth.uid &&
             incoming().userId == existing().userId &&
             incoming().id == existing().id &&
