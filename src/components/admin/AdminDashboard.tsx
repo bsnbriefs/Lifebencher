@@ -52,6 +52,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [notification, setNotification] = useState<string | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [poolFilter, setPoolFilter] = useState<'all' | 'local' | 'international'>('all');
 
   useEffect(() => {
     const a = listenAllProfiles(setLiveProfiles, setProfileError);
@@ -92,9 +93,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         profession: p.profession,
         location: p.location,
         isVerified: p.isVerified,
-        status: p.isVisible ? 'Active' : 'Hidden'
-      })),
-    [liveProfiles]
+        status: p.isVisible ? 'Active' : 'Hidden',
+        matchType: p.matchType || null
+      })).filter((c) => poolFilter === 'all' || c.matchType === poolFilter),
+    [liveProfiles, poolFilter]
   );
 
   // Manual Curation Matchmaker state
@@ -561,6 +563,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             <h3 className="font-serif font-bold text-base text-stone-900">
               Registered Clients Directory
             </h3>
+            <div className="flex gap-1.5">
+              {(['all', 'local', 'international'] as const).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPoolFilter(id)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border ${
+                    poolFilter === id ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-600 border-stone-200'
+                  }`}
+                >
+                  {id === 'all' ? 'All' : id === 'local' ? 'Local' : 'International'}
+                </button>
+              ))}
+            </div>
 
             <div className="space-y-2">
               {registeredClients.length === 0 && (
@@ -578,7 +594,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       <span>{c.displayName}, {c.age}</span>
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                     </div>
-                    <span className="text-stone-500 text-[11px]">{c.profession} · {c.location}</span>
+                    <span className="text-stone-500 text-[11px]">
+                      {c.profession} · {c.location}
+                      {c.matchType ? ` · ${c.matchType}` : ''}
+                    </span>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
