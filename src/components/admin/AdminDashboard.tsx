@@ -219,8 +219,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
       {!isAdmin && (
         <div className="max-w-md mx-auto px-4 pt-4">
-          <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl p-3">
-            Sign in as admin@barristerstreet.org (verified email) to approve members. This session is not an admin account.
+          <p className="text-xs text-stone-600 bg-white border border-stone-200 rounded-2xl p-3">
+            Admin tools are limited for this account.
           </p>
         </div>
       )}
