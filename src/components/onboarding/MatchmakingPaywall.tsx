@@ -90,8 +90,8 @@ export const MatchmakingPaywall: React.FC = () => {
 
   return (
     <div
-      className="h-[100dvh] max-h-[100dvh] overflow-y-auto bg-[#FAF8F5] text-stone-900 p-4 safe-area-top"
-      style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+      className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 p-4"
+      style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <header className="max-w-md w-full mx-auto flex items-center gap-2.5 pb-4">
         <AppLogo size={32} className="rounded-xl" />
