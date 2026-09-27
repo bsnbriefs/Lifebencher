@@ -3,7 +3,7 @@ import { Bell, X, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavigationTab } from '../../types';
 import { BottomNav } from './BottomNav';
-import { PWAInstallBanner } from '../common/PWAInstallBanner';
+import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { AppLogo } from '../common/AppLogo';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -24,7 +24,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   return (
     <div className="h-[100dvh] max-h-[100dvh] bg-[#FAF8F5] text-stone-900 flex flex-col font-sans selection:bg-rose-100 selection:text-rose-900 overflow-hidden">
       {/* PWA Install Notification Bar */}
-      <PWAInstallBanner />
+      <PWAInstallPrompt />
 
       {/* Top Mobile App Header */}
       <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-stone-200/70 safe-area-top">
