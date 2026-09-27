@@ -22,7 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { uploadProfilePhoto } from '../../lib/profilePhoto';
 import { MembershipPanel } from '../billing/MembershipPanel';
-import { SupportAssist } from '../common/SupportAssist';
+import { SupportCenter } from '../support/SupportCenter';
 
 interface ProfileScreenProps {
   onOpenAdmin?: () => void;
@@ -156,9 +156,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <h2 className="font-serif text-xl font-bold text-stone-900 truncate">
-                {currentProfile.displayName && currentProfile.displayName !== 'Member'
-                  ? currentProfile.displayName
-                  : 'Your name'}, {currentProfile.age}
+                {currentProfile.displayName}, {currentProfile.age}
               </h2>
             </div>
             <p className="text-xs text-stone-600 flex items-center gap-1 mt-0.5">
@@ -275,7 +273,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
       </div>
 
       <MembershipPanel />
-      <SupportAssist />
+      <SupportCenter />
 
       {isInstallable && !isInstalled && (
         <button
