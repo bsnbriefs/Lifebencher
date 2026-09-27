@@ -1264,15 +1264,18 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
                       <div className="flex flex-wrap gap-1">
                         {selectedValues.slice(0, 3).map((v) => (
-                          <span key={v} className="text-[11px] px-2 py-0.5 rounded-md bg-stone-200 text-stone-800">
+                          <span
+                            key={v}
+                            className="text-[11px] px-2 py-0.5 rounded-md bg-[#2a2422] text-[#f3ece6] border border-white/15"
+                          >
                             {v}
                           </span>
                         ))}
                       </div>
                     </div>
 
-                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <div className="p-3 bg-[#1c3a2e] rounded-xl border border-emerald-700/40 text-[#ecfdf5] text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
                       <span>Ready for discovery. Admin review ensures privacy and seriousness.</span>
                     </div>
                   </motion.div>
