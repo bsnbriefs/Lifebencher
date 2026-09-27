@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  ImagePlus,
   Send,
   Shield,
   ArrowLeft,
@@ -20,7 +21,7 @@ import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, sendMatchMessage } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, sendMatchImage, sendMatchMessage } from '../../lib/chat';
 import {
   declineContactExchange,
   exchangeUiState,
@@ -53,6 +54,38 @@ const ICEBREAKER_PROMPTS = [
   'What does emotional safety mean to you in a long-term partnership?'
 ];
 
+const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
+  const [url, setUrl] = useState<string | null>(null);
+  const [gone, setGone] = useState(Boolean(message.viewedAt) && !mine);
+  const open = async () => {
+    if (gone) return;
+    try {
+      const { auth } = await import('../../lib/firebase');
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/chat/view-once', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, messageId: message.id })
+      });
+      const body = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !body.url) {
+        setGone(true);
+        return;
+      }
+      setUrl(body.url);
+      if (!mine) setGone(true);
+    } catch {
+      setGone(true);
+    }
+  };
+  if (url) return <img src={url} alt="" className="max-w-full rounded-xl" />;
+  return (
+    <button type="button" onClick={() => void open()} className="text-left">
+      {gone && !mine ? '✓ Photo viewed' : '📷 View once photo'}
+    </button>
+  );
+};
+
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversationId }) => {
   const { user } = useAuth();
   const myId = user?.id || '';
@@ -65,6 +98,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [viewOnce, setViewOnce] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -533,13 +568,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
                     <div
-                      className={`max-w-[82%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                      className={`max-w-[82%] min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
                         isMine
                           ? 'bg-rose-900 text-white rounded-br-xs'
                           : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
                       }`}
                     >
-                      {m.content}
+                      {m.kind === 'image' && m.imageUrl ? (
+                        <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
+                      ) : m.kind === 'viewOnce' || m.viewOnce ? (
+                        <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
+                      ) : (
+                        m.content
+                      )}
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
@@ -571,8 +612,29 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             {/* Touch Input Bar */}
+            <label className="flex items-center gap-1.5 text-[10px] text-stone-500 px-1">
+              <input type="checkbox" checked={viewOnce} onChange={(e) => setViewOnce(e.target.checked)} />
+              View once (one tap for the recipient; does not stop screenshots)
+            </label>
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
               <div className="flex items-end gap-2 bg-white rounded-2xl border border-stone-300 px-3 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file || !activeConvId) return;
+                    void sendMatchImage(activeConvId, file, viewOnce).catch((err) =>
+                      setSendError(err instanceof Error ? err.message : 'Could not send photo')
+                    );
+                  }}
+                />
+                <button type="button" onClick={() => photoInputRef.current?.click()} className="p-1 text-stone-500" aria-label="Send photo">
+                  <ImagePlus className="w-4 h-4" />
+                </button>
                 <textarea
                   rows={1}
                   value={inputVal}

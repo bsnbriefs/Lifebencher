@@ -20,7 +20,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
-import { uploadProfilePhoto } from '../../lib/profilePhoto';
+import { deleteProfilePhoto, uploadProfilePhoto } from '../../lib/profilePhoto';
 import { MembershipPanel } from '../billing/MembershipPanel';
 import { SupportCenter } from '../support/SupportCenter';
 
@@ -39,6 +39,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoProgress, setPhotoProgress] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Form states for full edit
   const [displayName, setDisplayName] = useState(currentProfile?.displayName || '');
@@ -317,13 +320,44 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         <button
           type="button"
           onClick={() => {
-            if (!window.confirm('Delete your Lifebencher account and hide your profile? This cannot be undone.')) return;
-            void deleteAccount().catch((err) => window.alert(err instanceof Error ? err.message : 'Could not delete account'));
+            setDeleteError(null);
+            setDeletePassword('');
+            setShowDeleteConfirm(true);
           }}
           className="w-full mt-2 py-3 rounded-2xl text-stone-400 text-[11px]"
         >
           Delete my account
         </button>
+        {showDeleteConfirm && (
+          <div className="mt-2 p-3 rounded-2xl border border-stone-200 bg-white space-y-2">
+            <p className="text-[11px] text-stone-600">Enter your current password to delete this account. This cannot be undone.</p>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="Current password"
+              autoComplete="current-password"
+              className="w-full text-xs px-3 py-2 rounded-xl border border-stone-300"
+            />
+            {deleteError && <p className="text-[11px] text-rose-700">{deleteError}</p>}
+            <div className="flex gap-2">
+              <button type="button" className="flex-1 py-2 rounded-xl border text-xs" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-2 rounded-xl bg-rose-900 text-amber-100 text-xs font-semibold"
+                onClick={() => {
+                  void deleteAccount(deletePassword).catch((err) =>
+                    setDeleteError(err instanceof Error ? err.message : 'Could not delete account')
+                  );
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* EDIT FULL PROFILE MODAL / BOTTOM SHEET */}
@@ -393,6 +427,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
                         />
                       </label>
                       <p className="text-[10px] text-stone-500 mt-1">JPG, PNG or WebP. Max 5 MB.</p>
+                      <button
+                        type="button"
+                        className="text-[10px] font-semibold text-rose-800 mt-1"
+                        onClick={() => {
+                          void deleteProfilePhoto(0);
+                          updateProfile({ photos: (currentProfile.photos || []).slice(1), photoUrl: '' });
+                        }}
+                      >
+                        Remove photo
+                      </button>
                       {photoError && <p className="text-[10px] text-rose-700 mt-0.5">{photoError}</p>}
                     </div>
                   </div>
