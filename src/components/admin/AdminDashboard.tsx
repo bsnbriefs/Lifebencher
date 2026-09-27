@@ -54,6 +54,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [poolFilter, setPoolFilter] = useState<'all' | 'local' | 'international'>('all');
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const reviewProfile = liveProfiles.find((p) => p.id === reviewId) || null;
 
   useEffect(() => {
     const a = listenAllProfiles(setLiveProfiles, setProfileError);
@@ -392,6 +394,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     <span>Credentials: {cand.idDocument}</span>
                   </div>
                   <p className="text-stone-600 text-[11px] italic">"{cand.bio}"</p>
+                  <button type="button" className="text-[11px] font-semibold text-rose-900 pt-1" onClick={() => setReviewId(cand.id)}>
+                    Review full profile & photos
+                  </button>
                 </div>
 
                 {/* Status or Actions */}
@@ -425,6 +430,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {reviewProfile && (
+          <div className="fixed inset-0 z-50 bg-black/60 p-4 overflow-y-auto" onClick={() => setReviewId(null)}>
+            <div className="max-w-md mx-auto bg-white rounded-3xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-start">
+                <h3 className="font-serif font-bold">{reviewProfile.displayName}, {reviewProfile.age}</h3>
+                <button type="button" onClick={() => setReviewId(null)}>×</button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {(reviewProfile.photos.length ? reviewProfile.photos : [reviewProfile.photos[0]]).filter(Boolean).map((src) => (
+                  <img key={src} src={src} alt="" className="h-40 rounded-xl object-cover shrink-0" />
+                ))}
+              </div>
+              <p className="text-xs text-stone-600">{reviewProfile.location} · {reviewProfile.profession}</p>
+              <p className="text-xs">{reviewProfile.bio}</p>
+              <p className="text-[11px] text-stone-500">{reviewProfile.relationshipGoal}</p>
+              <p className="text-[11px] text-stone-500">{(reviewProfile.values || []).join(' · ')}</p>
+              <p className="text-[11px] text-stone-500">{(reviewProfile.interests || []).join(' · ')}</p>
+              <div className="flex gap-2">
+                <button type="button" className="flex-1 py-2 rounded-xl border text-xs" onClick={() => { handleReject(reviewProfile.id); setReviewId(null); }}>Decline</button>
+                <button type="button" className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold" onClick={() => { handleApprove(reviewProfile.id); setReviewId(null); }}>Approve</button>
+              </div>
+            </div>
           </div>
         )}
 
