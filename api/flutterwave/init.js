@@ -1,5 +1,5 @@
 import { json, readBody, requireUser, getAdmin } from '../_lib/admin.js';
-import { productById } from '../_lib/catalog.js';
+import { matchTypeFromProductId, productById } from '../_lib/catalog.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
@@ -10,6 +10,7 @@ export default async function handler(req, res) {
     if (!product) return json(res, 400, { error: 'Unknown product' });
 
     const db = getAdmin().firestore();
+    const matchType = matchTypeFromProductId(product.id);
     const reference = `LB-${Date.now()}-${user.uid.slice(0, 6)}`;
     const origin = String(body.origin || process.env.PUBLIC_APP_URL || 'https://lifebencher.xyz').replace(/\/$/, '');
 
@@ -23,6 +24,7 @@ export default async function handler(req, res) {
       reference,
       source: 'flutterwave',
       createdAt: new Date().toISOString(),
+      ...(matchType ? { matchType } : {}),
       ...(body.matchId ? { matchId: String(body.matchId) } : {})
     });
 
@@ -44,7 +46,8 @@ export default async function handler(req, res) {
         },
         meta: {
           userId: user.uid,
-          productId: product.id
+          productId: product.id,
+          ...(matchType ? { matchType } : {})
         },
         customizations: {
           title: 'Lifebencher Match',
