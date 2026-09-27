@@ -58,7 +58,12 @@ export function listenMatchMessages(
           senderId: String(data.senderId || ''),
           content: String(data.content || ''),
           createdAt: toIso(data.createdAt),
-          readAt: data.readAt ? toIso(data.readAt) : undefined
+          readAt: data.readAt ? toIso(data.readAt) : undefined,
+          kind: (data.kind as Message['kind']) || 'text',
+          imagePath: data.imagePath ? String(data.imagePath) : undefined,
+          imageUrl: data.imageUrl ? String(data.imageUrl) : undefined,
+          viewOnce: Boolean(data.viewOnce),
+          viewedAt: data.viewedAt ? toIso(data.viewedAt) : undefined
         };
       });
       onChange(messages);
@@ -92,6 +97,34 @@ export function listenLatestMessage(
     },
     () => onChange(null)
   );
+}
+
+export async function sendMatchImage(matchId: string, file: File, viewOnce: boolean): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  const type = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) {
+    throw new Error('Use a JPG, PNG or WebP.');
+  }
+  if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB');
+  const { getDownloadURL, ref, uploadBytes } = await import('firebase/storage');
+  const { storage } = await import('./firebase');
+  const path = `chatPhotos/${matchId}/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, '')}`;
+  await uploadBytes(ref(storage, path), file, { contentType: type });
+  const imageUrl = viewOnce ? '' : await getDownloadURL(ref(storage, path));
+  const col = collection(db, 'matches', matchId, 'messages');
+  const msgRef = doc(col);
+  await setDoc(msgRef, {
+    id: msgRef.id,
+    matchId,
+    senderId: uid,
+    content: viewOnce ? 'View once photo' : 'Photo',
+    createdAt: new Date().toISOString(),
+    kind: viewOnce ? 'viewOnce' : 'image',
+    imagePath: path,
+    ...(imageUrl ? { imageUrl } : {}),
+    viewOnce
+  });
 }
 
 export async function sendMatchMessage(matchId: string, content: string): Promise<void> {
