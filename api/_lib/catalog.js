@@ -11,3 +11,9 @@ export const CATALOG = {
 export function productById(id) {
   return CATALOG[id] || null;
 }
+
+export function matchTypeFromProductId(productId) {
+  if (productId === 'matchmaking_local') return 'local';
+  if (productId === 'matchmaking_international') return 'international';
+  return null;
+}
