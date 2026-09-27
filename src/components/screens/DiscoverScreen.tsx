@@ -128,11 +128,8 @@ export const DiscoverScreen: React.FC = () => {
           : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international'
             ? entitlements.matchmakingPackage
             : null;
-      if (myType) {
-        const theirType = p.matchType || null;
-        if (theirType && theirType !== myType) return false;
-        if (!theirType && myType === 'international') return false;
-      }
+      const theirType = p.matchType === 'local' || p.matchType === 'international' ? p.matchType : null;
+      if (myType && theirType && theirType !== myType) return false;
       return true;
     });
   }, [profiles, filters, blockedIds, entitlements]);
