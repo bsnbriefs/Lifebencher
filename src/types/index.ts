@@ -34,6 +34,7 @@ export interface Profile {
   };
   isVerified: boolean;
   isVisible: boolean;
+  isAdminProfile?: boolean;
   matchType?: 'local' | 'international' | null;
   compatibilityScore?: number;
   compatibilityReason?: string;
