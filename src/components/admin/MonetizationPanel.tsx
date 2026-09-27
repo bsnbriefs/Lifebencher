@@ -112,6 +112,9 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
               <p className="text-[10px] text-stone-500">{tx.reference}</p>
               <p className="text-[10px] text-stone-400">{tx.userId.slice(0, 10)}…</p>
               {tx.source && <p className="text-[10px] text-stone-400">{tx.source}</p>}
+              <p className="text-[10px] uppercase font-semibold text-stone-600">
+                {tx.matchType || (tx.productId === 'matchmaking_local' ? 'local' : tx.productId === 'matchmaking_international' ? 'international' : '')}
+              </p>
             </div>
             <div className="text-right">
               <p className="font-bold text-rose-900">{formatNgn(tx.amountNgn)}</p>
