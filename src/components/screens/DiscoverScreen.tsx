@@ -325,13 +325,13 @@ export const DiscoverScreen: React.FC = () => {
                     {p.values.slice(0, 2).map((val) => (
                       <span
                         key={val}
-                        className="px-2.5 py-0.5 rounded-lg bg-stone-100 text-stone-700 text-[11px] font-medium"
+                        className="px-2.5 py-0.5 rounded-lg bg-[#2a2422] text-[#f3ece6] border border-white/15 text-[11px] font-medium"
                       >
                         {val}
                       </span>
                     ))}
                     {p.lifestyle?.faith && (
-                      <span className="px-2.5 py-0.5 rounded-lg bg-stone-100 text-stone-700 text-[11px] font-medium">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-[#2a2422] text-[#f3ece6] border border-white/15 text-[11px] font-medium">
                         {p.lifestyle.faith}
                       </span>
                     )}
