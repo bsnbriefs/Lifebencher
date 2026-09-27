@@ -10,6 +10,7 @@ import {
   GraduationCap,
   Shield,
   Eye,
+  EyeOff,
   Camera,
   User,
   Lock,
@@ -61,8 +62,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     loginWithGoogle,
     sendEmailLink,
     resetPassword,
-    sendPhoneCode,
-    confirmPhoneCode,
     completeOnboarding,
     isAuthenticated
   } = useAuth();
@@ -79,10 +78,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginPhone, setLoginPhone] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
-  const [loginTab, setLoginTab] = useState<'email' | 'phone'>('email');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   // Step indicator: 1 to 6 — restore if Auth hydration remounts this screen
@@ -434,31 +431,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-stone-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginTab('email');
-                  setErrorMessage(null);
-                  setInfoMessage(null);
-                }}
-                className={`py-2 rounded-xl text-[11px] font-semibold ${loginTab === 'email' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginTab('phone');
-                  setErrorMessage(null);
-                  setInfoMessage(null);
-                }}
-                className={`py-2 rounded-xl text-[11px] font-semibold ${loginTab === 'phone' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
-              >
-                Phone
-              </button>
-            </div>
-
             {errorMessage && (
               <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
                 {errorMessage}
@@ -470,7 +442,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               </div>
             )}
 
-            {loginTab === 'email' ? (
             <form onSubmit={handleLoginSubmit} className="space-y-3.5">
               <div>
                 <label className="text-xs font-semibold text-stone-700 block mb-1">
@@ -495,12 +466,21 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300 focus-within:border-rose-900 focus-within:bg-white transition">
                   <Lock className="w-4 h-4 text-stone-400" />
                   <input
-                    type="password"
+                    type={showLoginPassword ? 'text' : 'password'}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="••••••••"
+                    autoComplete="current-password"
                     className="w-full text-xs text-stone-900 bg-transparent outline-hidden"
                   />
+                  <button
+                    type="button"
+                    aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowLoginPassword((v) => !v)}
+                    className="shrink-0 text-stone-500 p-0.5"
+                  >
+                    {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -532,59 +512,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                 {isSubmitting ? 'Signing in...' : 'Sign In to Lifebencher Match'}
               </button>
             </form>
-            ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-stone-500">Use country code (+234…). Enter your phone number to continue.</p>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300">
-                <Phone className="w-4 h-4 text-stone-400" />
-                <input
-                  type="tel"
-                  value={loginPhone}
-                  onChange={(e) => setLoginPhone(e.target.value)}
-                  placeholder="+44 7700 900123"
-                  className="w-full text-xs bg-transparent outline-hidden"
-                />
-              </div>
-              {phoneCodeSent && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value)}
-                  placeholder="6-digit SMS code"
-                  className="w-full text-xs px-3 py-2.5 rounded-2xl bg-stone-50 border border-stone-300 outline-hidden"
-                />
-              )}
-              <button
-                type="button"
-                disabled={isSubmitting || !loginPhone.trim()}
-                onClick={async () => {
-                  setIsSubmitting(true);
-                  setErrorMessage(null);
-                  setInfoMessage(null);
-                  try {
-                    if (!phoneCodeSent) {
-                      await sendPhoneCode(loginPhone);
-                      setPhoneCodeSent(true);
-                      setInfoMessage('SMS sent. Enter the 6-digit code.');
-                    } else {
-                      await confirmPhoneCode(phoneCode);
-                      sessionStorage.setItem('lifebencher_onboarding_step', '2');
-                      setAuthMode('register');
-                      setCurrentStep(2);
-                    }
-                  } catch (err) {
-                    setErrorMessage(formatAuthError(err, 'phone'));
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-900 to-rose-800 text-amber-100 font-semibold text-xs"
-              >
-                {phoneCodeSent ? 'Verify SMS code' : 'Send SMS code'}
-              </button>
-            </div>
-            )}
 
             <div className="relative py-1">
               <div className="absolute inset-0 flex items-center">
@@ -618,32 +545,30 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               Continue with Google
             </button>
 
-            {loginTab === 'email' && (
-              <button
-                type="button"
-                disabled={isSubmitting || !loginEmail.trim()}
-                onClick={async () => {
-                  if (!loginEmail.trim()) {
-                    setErrorMessage('Enter your email first.');
-                    return;
-                  }
-                  setIsSubmitting(true);
-                  setErrorMessage(null);
-                  setInfoMessage(null);
-                  try {
-                    await sendEmailLink(loginEmail);
-                    setInfoMessage('Sign-in link sent. Check your inbox.');
-                  } catch (err) {
-                    setErrorMessage(formatAuthError(err, 'link'));
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
-                className="w-full text-[11px] font-semibold text-stone-500"
-              >
-                Email me a sign-in link instead
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={isSubmitting || !loginEmail.trim()}
+              onClick={async () => {
+                if (!loginEmail.trim()) {
+                  setErrorMessage('Enter your email first.');
+                  return;
+                }
+                setIsSubmitting(true);
+                setErrorMessage(null);
+                setInfoMessage(null);
+                try {
+                  await sendEmailLink(loginEmail);
+                  setInfoMessage('Sign-in link sent. Check your inbox.');
+                } catch (err) {
+                  setErrorMessage(formatAuthError(err, 'link'));
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="w-full text-[11px] font-semibold text-stone-500"
+            >
+              Email me a sign-in link instead
+            </button>
 
           </motion.div>
         ) : (
@@ -746,59 +671,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       <p className="text-[10px] text-stone-400 mt-1">
                         Never shown publicly. Only shared with mutual consent.
                       </p>
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          type="button"
-                          disabled={isSubmitting || !phone.trim()}
-                          onClick={async () => {
-                            setIsSubmitting(true);
-                            setErrorMessage(null);
-                            try {
-                              await sendPhoneCode(phone);
-                              setPhoneCodeSent(true);
-                              setErrorMessage('SMS code sent. Enter it below, then continue.');
-                            } catch (err) {
-                              setErrorMessage(formatAuthError(err));
-                            } finally {
-                              setIsSubmitting(false);
-                            }
-                          }}
-                          className="flex-1 py-2 rounded-xl border border-stone-300 text-[11px] font-semibold"
-                        >
-                          Sign up with this number
-                        </button>
-                      </div>
-                      {phoneCodeSent && (
-                        <div className="flex gap-2 mt-2">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={phoneCode}
-                            onChange={(e) => setPhoneCode(e.target.value)}
-                            placeholder="SMS code"
-                            className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-300"
-                          />
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={async () => {
-                              setIsSubmitting(true);
-                              setErrorMessage(null);
-                              try {
-                                await confirmPhoneCode(phoneCode);
-                                setCurrentStep(2);
-                              } catch (err) {
-                                setErrorMessage(formatAuthError(err));
-                              } finally {
-                                setIsSubmitting(false);
-                              }
-                            }}
-                            className="px-3 py-2 rounded-xl bg-rose-900 text-amber-100 text-[11px] font-semibold"
-                          >
-                            Verify
-                          </button>
-                        </div>
-                      )}
                     </div>
 
                     <div>
@@ -808,12 +680,21 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-stone-50 border border-stone-300 focus-within:border-rose-900">
                         <Lock className="w-4 h-4 text-stone-400" />
                         <input
-                          type="password"
+                          type={showRegisterPassword ? 'text' : 'password'}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="At least 6 characters"
+                          autoComplete="new-password"
                           className="w-full text-xs text-stone-900 bg-transparent outline-hidden"
                         />
+                        <button
+                          type="button"
+                          aria-label={showRegisterPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowRegisterPassword((v) => !v)}
+                          className="shrink-0 text-stone-500 p-0.5"
+                        >
+                          {showRegisterPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
                   </motion.div>
