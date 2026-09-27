@@ -50,7 +50,9 @@ export async function grantVerifiedTransaction(txSnap) {
       const psnap = await t.get(pref);
       const p = psnap.data() || {};
       const complete = Boolean(p.displayName) && (Boolean(p.bio) || Boolean(p.profession) || Boolean(p.photoUrl));
-      if (complete) {
+      if (p.isAdminProfile === true) {
+        /* never publish admin profiles */
+      } else if (complete) {
         t.set(
           pref,
           {
