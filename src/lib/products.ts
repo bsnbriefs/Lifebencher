@@ -100,6 +100,14 @@ export const PRODUCTS: Product[] = [
   }
 ];
 
+export type MatchType = 'local' | 'international';
+
+export function matchTypeFromProductId(productId: string): MatchType | null {
+  if (productId === 'matchmaking_local') return 'local';
+  if (productId === 'matchmaking_international') return 'international';
+  return null;
+}
+
 export function productById(id: string): Product | undefined {
   return PRODUCTS.find((p) => p.id === id);
 }
