@@ -33,18 +33,18 @@ function mapMatch(id: string, data: Record<string, unknown>, otherProfile?: Prof
   };
 }
 
+export function pickProfileName(d: Record<string, unknown>, fallback = ''): string {
+  const raw = [d.displayName, d.name, d.fullName, d.firstName].map((v) => String(v ?? '').trim());
+  return raw.find((s) => s && s.toLowerCase() !== 'member') || fallback;
+}
+
 export function mapProfileDoc(profileId: string, d: Record<string, unknown>, photo?: string): Profile {
   const stored = typeof d.photoUrl === 'string' ? d.photoUrl : '';
   const resolved = stored || photo || '';
   return {
     id: String(d.id || profileId),
     userId: String(d.userId || profileId),
-    displayName: (
-      String(d.displayName ?? '').trim() ||
-      String(d.name ?? '').trim() ||
-      String(d.fullName ?? '').trim() ||
-      'Member'
-    ),
+    displayName: pickProfileName(d, ''),
     age: typeof d.age === 'number' ? d.age : 28,
     gender: (d.gender as Profile['gender']) || 'other',
     location: String(d.location || ''),
