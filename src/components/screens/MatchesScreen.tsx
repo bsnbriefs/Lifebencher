@@ -21,6 +21,10 @@ import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
 import { acceptInterest, declineInterest, listenIncomingInterests } from '../../lib/interests';
 import { startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
+import { calculateCompatibility } from '../../lib/compatibility';
+import { whyMatchedLines } from '../../lib/whyMatched';
+import { whyMatchedLines } from '../../lib/whyMatched';
+import { CONVERSATION_STARTERS } from '../../data/guides';
 
 interface MatchesScreenProps {
   onOpenChat: (matchId: string) => void;
@@ -135,7 +139,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
       .then((matchId) => {
         sounds.playMatchCelebration();
         setCelebrationMatch({
-          displayName: req.senderProfile?.displayName || 'Member',
+          displayName: req.senderProfile?.displayName || '',
           photo: req.senderProfile?.photos[0] || '',
           matchId
         });
@@ -277,6 +281,16 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                     <p className="text-[11px] text-rose-800 font-medium mt-0.5">
                       Interested in exploring a connection
                     </p>
+                    {currentProfile && req.senderProfile && (
+                      <p className="text-[11px] text-stone-500 mt-0.5">
+                        {whyMatchedLines(calculateCompatibility(currentProfile, req.senderProfile)).slice(0, 2).join(' · ')}
+                      </p>
+                    )}
+                    {currentProfile && req.senderProfile && (
+                      <p className="text-[11px] text-stone-500 mt-0.5">
+                        {whyMatchedLines(calculateCompatibility(currentProfile, req.senderProfile)).slice(0, 2).join(' · ')}
+                      </p>
+                    )}
                   </div>
                 </div>
 
