@@ -14,6 +14,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
 import { CompatibilityResult } from '../../lib/compatibility';
+import { whyMatchedLines } from '../../lib/whyMatched';
+import { CONVERSATION_STARTERS } from '../../data/guides';
 
 interface ProfileDetailModalProps {
   profile: Profile | null;
@@ -163,11 +165,16 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                     ))}
                   </ul>
                 ) : null}
-                <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px] text-stone-400">
-                  <span>Goal aligned</span>
-                  <span>{compatibility.breakdown.valuesSharedCount} shared values</span>
-                  <span>Lifestyle balanced</span>
-                  <span>Location matched</span>
+                <ul className="pt-2 border-t border-white/10 text-[11px] text-stone-300 space-y-1">
+                  {whyMatchedLines(compatibility).map((line) => (
+                    <li key={line}>• {line}</li>
+                  ))}
+                </ul>
+                <div className="text-[11px] text-stone-400 space-y-1">
+                  <p className="font-semibold text-stone-300">You could ask</p>
+                  {CONVERSATION_STARTERS.Marriage.slice(0, 2).map((q) => (
+                    <p key={q}>“{q}”</p>
+                  ))}
                 </div>
               </div>
             )}
