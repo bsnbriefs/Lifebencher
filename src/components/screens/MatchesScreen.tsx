@@ -23,7 +23,6 @@ import { acceptInterest, declineInterest, listenIncomingInterests } from '../../
 import { startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
 import { calculateCompatibility } from '../../lib/compatibility';
 import { whyMatchedLines } from '../../lib/whyMatched';
-import { whyMatchedLines } from '../../lib/whyMatched';
 import { CONVERSATION_STARTERS } from '../../data/guides';
 
 interface MatchesScreenProps {
