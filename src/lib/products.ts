@@ -59,6 +59,16 @@ export const PRODUCTS: Product[] = [
     bullets: ['Up to 3 introductions', 'Existing matching workflow']
   },
   {
+    id: 'matchmaking_both',
+    kind: 'matchmaking',
+    name: 'Nigeria + International',
+    priceNgn: 60000,
+    priceLabel: '₦60,000',
+    cadence: 'one_time',
+    summary: 'Access both local and international introductions. Up to 3 matches.',
+    bullets: ['Local and international pools', 'Up to 3 introductions']
+  },
+  {
     id: 'extra_match',
     kind: 'extra_match',
     name: 'Extra introduction',
@@ -100,11 +110,12 @@ export const PRODUCTS: Product[] = [
   }
 ];
 
-export type MatchType = 'local' | 'international';
+export type MatchType = 'local' | 'international' | 'both';
 
 export function matchTypeFromProductId(productId: string): MatchType | null {
   if (productId === 'matchmaking_local') return 'local';
   if (productId === 'matchmaking_international') return 'international';
+  if (productId === 'matchmaking_both') return 'both';
   return null;
 }
 
