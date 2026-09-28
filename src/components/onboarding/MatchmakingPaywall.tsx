@@ -141,6 +141,21 @@ export const MatchmakingPaywall: React.FC = () => {
           <p className="text-[11px] text-stone-500">International introductions. Up to 3 matches. One-time.</p>
         </button>
 
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => void pay('matchmaking_both')}
+          className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
+              Nigeria + Abroad
+            </span>
+            <span className="font-bold text-rose-900">₦60,000</span>
+          </div>
+          <p className="text-[11px] text-stone-500">Both pools. Up to 3 matches. One-time.</p>
+        </button>
+
         <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-3">
           <p className="text-xs font-semibold text-stone-800">Already a paying client?</p>
           <p className="text-[11px] text-stone-500">
@@ -183,6 +198,14 @@ export const MatchmakingPaywall: React.FC = () => {
             className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
           >
             Submit proof — Abroad ₦50,000
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void alreadyPaid('matchmaking_both')}
+            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
+          >
+            Submit proof — Both ₦60,000
           </button>
         </div>
 
