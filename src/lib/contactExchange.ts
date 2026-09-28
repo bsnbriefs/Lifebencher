@@ -133,11 +133,23 @@ export async function requestOrApproveContact(opts: {
   const { matchId, user1Id, user2Id, myContact } = opts;
   const isUser1 = uid === user1Id;
   const now = new Date().toISOString();
+  let phone = (myContact.phone || '').trim();
+  let email = (myContact.email || '').trim();
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    const u = userSnap.data() as Record<string, unknown> | undefined;
+    if (!phone) phone = String(u?.phone || u?.phoneNumber || '');
+    if (!email) email = String(u?.email || '');
+  } catch {
+    /* keep provided contact */
+  }
+  if (!phone) phone = String(auth.currentUser?.phoneNumber || '');
+  if (!email) email = String(auth.currentUser?.email || '');
 
   try {
     await setDoc(contactSecretRef(matchId, uid), {
-      phone: (myContact.phone || '').slice(0, 32),
-      email: (myContact.email || '').slice(0, 254),
+      phone: phone.slice(0, 32),
+      email: email.slice(0, 254),
       ...(myContact.whatsapp ? { whatsapp: myContact.whatsapp.slice(0, 32) } : {})
     });
   } catch (error) {
