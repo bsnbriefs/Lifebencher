@@ -44,10 +44,6 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (isAdmin) setIsAdminMode(true);
-  }, [isAdmin]);
-
-  useEffect(() => {
     if (!user?.id) {
       setEntitlements(EMPTY_ENTITLEMENTS(''));
       setEntReady(true);
