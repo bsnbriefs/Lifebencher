@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 
+declare global {
+  interface Window {
+    __lbDeferredPrompt?: Event;
+  }
+}
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -38,8 +44,13 @@ export function usePWAInstall() {
     const ua = window.navigator.userAgent.toLowerCase();
     setIsIOS(/iphone|ipad|ipod/.test(ua) && /safari/.test(ua) && !/crios|fxios|edgios/.test(ua));
 
+    if (window.__lbDeferredPrompt) {
+      setDeferredPrompt(window.__lbDeferredPrompt as BeforeInstallPromptEvent);
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      window.__lbDeferredPrompt = e;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
@@ -56,7 +67,7 @@ export function usePWAInstall() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    const timer = window.setTimeout(() => setReady(true), 8000);
+    const timer = window.setTimeout(() => setReady(true), 1200);
 
     return () => {
       window.clearTimeout(timer);
