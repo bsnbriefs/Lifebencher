@@ -1,12 +1,14 @@
 import {
   collection,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
   setDoc,
-  Timestamp
+  Timestamp,
+  updateDoc
 } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { Message } from '../types';
@@ -129,15 +131,52 @@ export async function sendMatchImage(matchId: string, file: File, viewOnce: bool
   });
 }
 
+export async function resolveChatMediaUrl(matchId: string, path: string): Promise<string> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  try {
+    return await getDownloadURL(storageRef(storage, path));
+  } catch {
+    const token = await auth.currentUser?.getIdToken();
+    const res = await fetch('/api/chat/media', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId, path })
+    });
+    const body = (await res.json()) as { url?: string; error?: string };
+    if (!res.ok || !body.url) throw new Error(body.error || 'Unable to play this voice message. Tap to retry.');
+    return body.url;
+  }
+}
+
+export async function markMatchMessagesRead(matchId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  const q = query(collection(db, 'matches', matchId, 'messages'), orderBy('createdAt', 'desc'), limit(40));
+  const snap = await getDocs(q);
+  await Promise.all(
+    snap.docs.map((d) => {
+      const data = d.data();
+      if (data.senderId === uid || data.readAt) return Promise.resolve();
+      return updateDoc(d.ref, { readAt: new Date().toISOString() }).catch(() => undefined);
+    })
+  );
+}
+
+export function pickRecorderMime(): string {
+  const types = ['audio/mp4', 'audio/aac', 'audio/webm;codecs=opus', 'audio/webm'];
+  if (typeof MediaRecorder === 'undefined') return '';
+  return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
+}
+
 export async function sendMatchAudio(matchId: string, blob: Blob, durationMs: number): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   if (blob.size > 8 * 1024 * 1024) throw new Error('Voice note is too large.');
-  const type = blob.type || 'audio/webm';
-  const ext = type.includes('mp4') ? 'm4a' : type.includes('mpeg') ? 'mp3' : 'webm';
+  const type = blob.type || 'audio/mp4';
+  const ext = type.includes('mp4') || type.includes('aac') ? 'm4a' : type.includes('mpeg') ? 'mp3' : 'webm';
   const path = `chatAudio/${matchId}/${uid}/${Date.now()}.${ext}`;
-  await uploadBytes(storageRef(storage, path), blob, { contentType: type });
-  const audioUrl = await getDownloadURL(storageRef(storage, path));
+  await uploadBytes(storageRef(storage, path), blob, { contentType: type.split(';')[0] });
   const col = collection(db, 'matches', matchId, 'messages');
   const msgRef = doc(col);
   await setDoc(msgRef, {
@@ -148,7 +187,6 @@ export async function sendMatchAudio(matchId: string, blob: Blob, durationMs: nu
     createdAt: new Date().toISOString(),
     kind: 'audio',
     audioPath: path,
-    audioUrl,
     durationMs: Math.max(1, Math.round(durationMs))
   });
 }
