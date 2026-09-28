@@ -59,7 +59,7 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     isVerified: Boolean(d.isVerified),
     isVisible: d.isVisible === true,
     isAdminProfile: d.isAdminProfile === true,
-    matchType: d.matchType === 'local' || d.matchType === 'international' ? d.matchType : null,
+    matchType: d.matchType === 'local' || d.matchType === 'international' || d.matchType === 'both' ? d.matchType : null,
     createdAt: String(d.createdAt || ''),
     updatedAt: String(d.updatedAt || '')
   };
@@ -83,7 +83,7 @@ export function listenVisibleProfiles(
   currentUid: string,
   onChange: (profiles: Profile[]) => void
 ): () => void {
-  const q = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(24));
+  const q = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(80));
   return onSnapshot(
     q,
     (snap) => {
