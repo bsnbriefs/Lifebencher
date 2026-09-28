@@ -4,6 +4,17 @@ import App from './App.tsx';
 import './index.css';
 import { applyTheme, readStoredTheme } from './lib/theme';
 
+declare global {
+  interface Window {
+    __lbDeferredPrompt?: Event;
+  }
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.__lbDeferredPrompt = e;
+});
+
 applyTheme(readStoredTheme());
 
 createRoot(document.getElementById('root')!).render(
