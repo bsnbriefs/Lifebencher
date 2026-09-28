@@ -100,7 +100,7 @@ function nowIso() {
 function emailLocalPart(email: string | null | undefined): string {
   const raw = (email || 'member').split('@')[0] || 'member';
   const cleaned = raw.replace(/[^a-zA-Z0-9 _-]/g, ' ').trim();
-  return cleaned.length >= 2 ? cleaned : 'Member';
+  return cleaned.length >= 2 ? cleaned : '';
 }
 
 function mapUserDoc(uid: string, email: string, data: Partial<User> | undefined, phone?: string): User {
