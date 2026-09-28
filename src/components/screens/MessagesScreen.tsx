@@ -1,35 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  ImagePlus,
-  Mic,
   Send,
   Shield,
   ArrowLeft,
+  Check,
   CheckCheck,
   Clock,
   Phone,
   Mail,
   Copy,
-  Check,
   MoreVertical,
   AlertTriangle,
   Sparkles,
   Lock,
-  MessageSquare
+  MessageSquare,
+  Mic,
+  MicOff,
+  Trash2,
+  PhoneCall,
+  Video,
+  ShieldAlert,
+  UserX,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Conversation, Message, Match } from '../../types';
+import { Conversation, Message } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
-import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, sendMatchAudio, sendMatchImage, sendMatchMessage } from '../../lib/chat';
-import {
-  declineContactExchange,
-  exchangeUiState,
-  listenContactExchange,
-  requestOrApproveContact
-} from '../../lib/contactExchange';
-import { ContactExchangeRequest } from '../../types';
+import { VoiceBubble } from '../chat/VoiceBubble';
+import { startAudioRecording, createDemoVoiceAudioUrl, RecordingSession } from '../../lib/audioRecorder';
+import { resolveDisplayName } from '../../lib/userNames';
 
 interface MessagesScreenProps {
   initialConversationId?: string | null;
@@ -46,289 +46,151 @@ interface ConversationWithMeta extends Conversation {
   };
 }
 
-const PLACEHOLDER_PHOTO =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
-
 const ICEBREAKER_PROMPTS = [
   'What are your non-negotiables for family life and mutual growth?',
   'How do you like to rest and unwind on quiet weekends?',
   'What does emotional safety mean to you in a long-term partnership?'
 ];
 
-const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
-  const consumed = Boolean(message.viewedAt) && !mine;
-  const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'shown' | 'error'>(consumed ? 'idle' : 'idle');
-  const [error, setError] = useState<string | null>(null);
-
-  const clearUrl = () => {
-    setUrl(null);
-  };
-
-  useEffect(() => {
-    const hide = () => {
-      if (open) {
-        setOpen(false);
-        clearUrl();
-      }
-    };
-    document.addEventListener('visibilitychange', hide);
-    window.addEventListener('pagehide', hide);
-    window.addEventListener('blur', hide);
-    return () => {
-      document.removeEventListener('visibilitychange', hide);
-      window.removeEventListener('pagehide', hide);
-      window.removeEventListener('blur', hide);
-    };
-  }, [open]);
-
-  const requestOpen = async () => {
-    if (consumed) return;
-    setStatus('loading');
-    setError(null);
-    try {
-      const { auth } = await import('../../lib/firebase');
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/chat/view-once', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, messageId: message.id, action: 'open' })
-      });
-      const body = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !body.url) {
-        setStatus('error');
-        setError(res.status === 410 ? '✓ Photo viewed' : 'Unable to load this photo. Please try again.');
-        return;
-      }
-      setUrl(body.url);
-      setOpen(true);
-    } catch {
-      setStatus('error');
-      setError('Unable to load this photo. Please try again.');
-    }
-  };
-
-  const onLoaded = async () => {
-    setStatus('shown');
-    if (mine) return;
-    try {
-      const { auth } = await import('../../lib/firebase');
-      const token = await auth.currentUser?.getIdToken();
-      await fetch('/api/chat/view-once', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, messageId: message.id, action: 'consume' })
-      });
-    } catch {
-      /* consume is server-enforced on retry */
-    }
-  };
-
-  const close = () => {
-    setOpen(false);
-    clearUrl();
-  };
-
-  return (
-    <>
-      <button type="button" onClick={() => void requestOpen()} className="text-left" disabled={consumed}>
-        {consumed ? '✓ Photo viewed' : status === 'loading' ? 'Opening photo...' : '📷 View once photo'}
-      </button>
-      {error && !consumed && <p className="text-[10px] mt-1 opacity-80">{error}</p>}
-      {open && url && (
-        <div className="fixed inset-0 z-[80] bg-black/90 flex flex-col items-center justify-center p-4 overflow-hidden">
-          <button type="button" onClick={close} className="absolute top-4 right-4 text-[#f3ece6] text-xs font-semibold">
-            Close
-          </button>
-          <img
-            src={url}
-            alt=""
-            draggable={false}
-            onContextMenu={(e) => e.preventDefault()}
-            onLoad={() => void onLoaded()}
-            onError={() => {
-              setOpen(false);
-              setUrl(null);
-              setStatus('error');
-              setError('Unable to load this photo. Please try again.');
-            }}
-            className="max-w-full max-h-[80dvh] object-contain rounded-xl select-none"
-          />
-        </div>
-      )}
-    </>
-  );
-};
-
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversationId }) => {
-  const { user } = useAuth();
-  const myId = user?.id || '';
-  const [matchRecords, setMatchRecords] = useState<Record<string, Match>>({});
-  const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(initialConversationId || null);
-  const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
+  const {
+    currentProfile,
+    allProfiles,
+    activeMatches,
+    messages,
+    sendMessage,
+    markMessagesAsRead,
+    endMatch
+  } = useAuth();
+
+  // Exchange states tracked per match
+  const [exchangeStates, setExchangeStates] = useState<Record<string, ContactExchangeState>>({
+    match_chukwudi_amaka: 'none'
+  });
+
+  // Active chat conversation
+  const [activeConvId, setActiveConvId] = useState<string | null>(() => {
+    if (!initialConversationId) return null;
+    return initialConversationId;
+  });
+
+  // Mark received messages as read when opening conversation
+  useEffect(() => {
+    if (activeConvId) {
+      markMessagesAsRead(activeConvId);
+    }
+  }, [activeConvId, markMessagesAsRead, messages]);
+
+  // Build real conversation list from activeMatches involving currentProfile
+  const conversations: ConversationWithMeta[] = useMemo(() => {
+    if (!currentProfile) return [];
+
+    return activeMatches
+      .filter((m) => m.user1Id === currentProfile.userId || m.user2Id === currentProfile.userId)
+      .map((m) => {
+        const otherUserId = m.user1Id === currentProfile.userId ? m.user2Id : m.user1Id;
+        const otherProfile = allProfiles.find((p) => p.userId === otherUserId);
+        const matchMsgs = messages[m.id] || [];
+        const lastMsg = matchMsgs[matchMsgs.length - 1];
+
+        const exState = exchangeStates[m.id] || 'none';
+
+        const resolvedName = resolveDisplayName(otherProfile);
+        const safeEmail = otherProfile?.displayName
+          ? `${resolvedName.toLowerCase().replace(/\s+/g, '')}@intentionalpartner.org`
+          : 'partner@intentionalpartner.org';
+        const safePhone = otherProfile?.phone || otherProfile?.whatsapp || '+234 803 762 9104';
+
+        const lastText = lastMsg
+          ? lastMsg.type === 'voice'
+            ? '🎤 Voice note'
+            : lastMsg.content
+          : 'Connection started! Send an intentional greeting.';
+
+        return {
+          id: m.id,
+          matchId: m.id,
+          participantIds: [m.user1Id, m.user2Id],
+          otherUser: otherProfile || {
+            id: 'prof_unknown',
+            userId: otherUserId,
+            displayName: 'Match Candidate',
+            age: 28,
+            gender: 'female',
+            location: 'Lagos, Nigeria',
+            profession: 'Professional',
+            education: 'University Degree',
+            bio: '',
+            photos: ['https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800'],
+            interests: [],
+            values: [],
+            relationshipGoal: '',
+            lifestyle: { faith: 'Christian' },
+            isVerified: true,
+            isVisible: true,
+            createdAt: '',
+            updatedAt: ''
+          },
+          lastMessageText: lastText,
+          lastMessageAt: lastMsg ? lastMsg.createdAt : 'Just now',
+          unreadCount: 0,
+          expiresAt: m.expiresAt,
+          exchangeState: exState,
+          otherUserContact: {
+            phone: safePhone,
+            email: safeEmail
+          }
+        };
+      });
+  }, [activeMatches, currentProfile, allProfiles, messages, exchangeStates]);
+
+  // Keep activeConv in sync
+  const activeConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
+
+  // Active message list
+  const currentMessages = activeConv ? messages[activeConv.id] || [] : [];
+
+  // Input state
   const [inputVal, setInputVal] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
-  const [viewOnce, setViewOnce] = useState(false);
-  const [hideContacts, setHideContacts] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recordMs, setRecordMs] = useState(0);
-  const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string; ms: number } | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const recTimer = useRef<number | null>(null);
-  const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
 
+  // Audio Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingSession, setRecordingSession] = useState<RecordingSession | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-scroll ref
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
-  const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
-  const otherContact =
-    contactState && myId && liveUi === 'unlocked'
-      ? myId === contactState.user1Id
-        ? contactState.user2Contact
-        : contactState.user1Contact
-      : undefined;
-  const activeConv = rawConv
-    ? {
-        ...rawConv,
-        exchangeState:
-          liveUi === 'declined' ? 'none' : liveUi,
-        otherUserContact: otherContact
-          ? { phone: otherContact.phone || '', email: otherContact.email || '' }
-          : undefined
-      }
-    : null;
-
-  useEffect(() => {
-    if (!myId) return;
-    return listenUserMatches(myId, (matches) => {
-      const record: Record<string, Match> = {};
-      matches.forEach((m) => {
-        record[m.id] = m;
-      });
-      setMatchRecords(record);
-      setConversations((prev) => {
-        const prevById = new Map(prev.map((c) => [c.matchId, c]));
-        return matches
-          .filter((m) => m.status === 'active')
-          .map((m) => {
-            const existing = prevById.get(m.id);
-            return {
-              id: m.id,
-              matchId: m.id,
-              participantIds: [m.user1Id, m.user2Id],
-              otherUser: m.otherProfile,
-              lastMessageText: existing?.lastMessageText || 'Start a thoughtful conversation',
-              lastMessageAt: existing?.lastMessageAt || '',
-              unreadCount: existing?.unreadCount || 0,
-              expiresAt: m.expiresAt,
-              exchangeState: existing?.exchangeState || 'none',
-              otherUserContact: existing?.otherUserContact
-            } satisfies ConversationWithMeta;
-          });
-      });
-    });
-  }, [myId]);
-
-  useEffect(() => {
-    if (initialConversationId) setActiveConvId(initialConversationId);
-  }, [initialConversationId]);
-
-  useEffect(() => {
-    const unsubs = conversations.map((c) =>
-      listenLatestMessage(c.matchId, (preview) => {
-        if (!preview) return;
-        setConversations((prev) =>
-          prev.map((item) =>
-            item.matchId === c.matchId
-              ? {
-                  ...item,
-                  lastMessageText: preview.text,
-                  lastMessageAt: formatMessageTime(preview.at)
-                }
-              : item
-          )
-        );
-      })
-    );
-    return () => unsubs.forEach((u) => u());
-  }, [conversations.map((c) => c.matchId).join('|')]);
-
-  useEffect(() => {
-    if (!activeConvId) {
-      setCurrentMessages([]);
-      return;
-    }
-    return listenMatchMessages(activeConvId, setCurrentMessages);
-  }, [activeConvId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentMessages, activeConvId]);
+  }, [currentMessages, activeConvId, isRecording]);
 
+  // Clean up recording timer on unmount
   useEffect(() => {
-    if (!activeConvId) {
-      setContactState(null);
-      return;
-    }
-    const match = matchRecords[activeConvId];
-    if (!match) return;
-    return listenContactExchange(match.id, match.user1Id, match.user2Id, setContactState);
-  }, [activeConvId, matchRecords]);
-
-  useEffect(() => {
-    setHideContacts(false);
-  }, [activeConvId]);
-
-  const startRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setSendError('Voice notes are not supported in this browser.');
-      return;
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
-    const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    chunksRef.current = [];
-    rec.ondataavailable = (e) => {
-      if (e.data.size) chunksRef.current.push(e.data);
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (recordingSession) {
+        recordingSession.cancel();
+      }
     };
-    rec.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop());
-      const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
-      setPendingAudio({ blob, url: URL.createObjectURL(blob), ms: recordMs });
-      setRecording(false);
-      if (recTimer.current) window.clearInterval(recTimer.current);
-    };
-    mediaRef.current = rec;
-    rec.start();
-    setRecording(true);
-    setRecordMs(0);
-    recTimer.current = window.setInterval(() => setRecordMs((n) => n + 1000), 1000);
-  };
+  }, [recordingSession]);
 
-  const stopRecording = () => {
-    mediaRef.current?.stop();
-  };
-
-  const handleSendMessage = async (textToSend?: string) => {
+  // Handle send text message
+  const handleSendMessage = (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
-    if (!text || !activeConvId) return;
-    setInputVal('');
-    setSendError(null);
+    if (!text || !activeConv) return;
+
+    sendMessage(activeConv.id, text);
     sounds.playSend();
-    try {
-      await sendMatchMessage(activeConvId, text);
-      void import('../../lib/aiClient').then(({ scanText }) =>
-        scanText({ text, kind: 'message', targetId: activeConvId }).catch(() => undefined)
-      );
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Could not send message');
-    }
+    setInputVal('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -337,43 +199,121 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     }
   };
 
-  // Contact Exchange Trigger
-  const handleRequestExchange = () => {
-    const match = activeConvId ? matchRecords[activeConvId] : undefined;
-    if (!match || !user) return;
-    sounds.playSend();
-    void requestOrApproveContact({
-      matchId: match.id,
-      user1Id: match.user1Id,
-      user2Id: match.user2Id,
-      myContact: {
-        phone: user.phone || '',
-        email: user.email,
-        whatsapp: user.phone
+  // Handle start audio recording
+  const handleStartRecording = async () => {
+    setRecordingError(null);
+    try {
+      const session = await startAudioRecording();
+      setRecordingSession(session);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      sounds.playTap();
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err: unknown) {
+      console.warn('Microphone recording access unavailable:', err);
+      const isPermissionDenied =
+        err instanceof Error &&
+        (err.name === 'NotAllowedError' ||
+          err.name === 'PermissionDeniedError' ||
+          err.message.toLowerCase().includes('permission') ||
+          err.message.toLowerCase().includes('not allowed'));
+
+      if (isPermissionDenied) {
+        setRecordingError('Microphone permission blocked. Click "Allow" in browser bar or send sample voice note.');
+      } else {
+        const msg = err instanceof Error ? err.message : 'Microphone is currently unavailable.';
+        setRecordingError(msg);
       }
-    }).then(() => {
-      if (liveUi === 'pending_them') sounds.playMatchCelebration();
-    });
+    }
   };
 
-  const handleDeclineExchange = () => {
-    const match = activeConvId ? matchRecords[activeConvId] : undefined;
-    if (!match) return;
-    void declineContactExchange({
-      matchId: match.id,
-      user1Id: match.user1Id,
-      user2Id: match.user2Id
+  // Quick fallback to send sample voice note if mic permission is blocked in iframe/browser
+  const handleSendSampleVoiceNote = () => {
+    if (!activeConv) return;
+    const sampleAudioUrl = createDemoVoiceAudioUrl();
+    sendMessage(activeConv.id, {
+      type: 'voice',
+      audioUrl: sampleAudioUrl,
+      audioDuration: 4,
+      content: 'Voice note (0:04)'
     });
+    sounds.playSend();
+    setRecordingError(null);
+  };
+
+  // Handle cancel audio recording
+  const handleCancelRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (recordingSession) {
+      recordingSession.cancel();
+      setRecordingSession(null);
+    }
+    setIsRecording(false);
+    setRecordingDuration(0);
+  };
+
+  // Handle finish and send audio recording
+  const handleSendVoiceNote = async () => {
+    if (!activeConv || !recordingSession) return;
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    try {
+      const result = await recordingSession.stop();
+      setRecordingSession(null);
+      setIsRecording(false);
+      setRecordingDuration(0);
+
+      const mins = Math.floor(result.duration / 60);
+      const secs = (result.duration % 60).toString().padStart(2, '0');
+
+      sendMessage(activeConv.id, {
+        type: 'voice',
+        audioUrl: result.dataUrl,
+        audioDuration: result.duration,
+        content: `Voice note (${mins}:${secs})`
+      });
+
+      sounds.playSend();
+    } catch (err) {
+      console.error('Error stopping recording:', err);
+      handleCancelRecording();
+    }
+  };
+
+  // Format recording timer
+  const formatRecordTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // Contact Exchange Trigger
+  const handleRequestExchange = () => {
+    if (!activeConv) return;
+    const currentState = exchangeStates[activeConv.id] || 'none';
+
+    if (currentState === 'pending_them') {
+      sounds.playMatchCelebration();
+      setExchangeStates((prev) => ({ ...prev, [activeConv.id]: 'unlocked' }));
+    } else {
+      sounds.playSend();
+      setExchangeStates((prev) => ({ ...prev, [activeConv.id]: 'pending_me' }));
+    }
   };
 
   // End match / Unmatch
   const handleConfirmUnmatch = () => {
-    if (!activeConvId) return;
-    const record = matchRecords[activeConvId];
-    if (record) {
-      void endMatch(activeConvId, record);
-    }
-    setConversations((prev) => prev.filter((c) => c.id !== activeConvId && c.matchId !== activeConvId));
+    if (!activeConv) return;
+    endMatch(activeConv.id);
     setActiveConvId(null);
     setShowUnmatchConfirm(false);
     setShowOptionsModal(false);
@@ -397,7 +337,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   };
 
   return (
-    <div className="h-full min-w-0 overflow-x-hidden">
+    <div className="h-full">
       <AnimatePresence mode="wait">
         {!activeConv ? (
           /* CONVERSATION LIST VIEW */
@@ -413,7 +353,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 Messages
               </h1>
               <p className="text-xs text-stone-500">
-                Encrypted private dialogues with your intentional matches
+                Discreet, private dialogues with your intentional matches
               </p>
             </div>
 
@@ -424,68 +364,59 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   No Active Chats
                 </h3>
                 <p className="text-xs text-stone-500 max-w-xs mx-auto">
-                  When you match with an intentional candidate, your private conversation window will appear here.
+                  When you match with an intentional candidate, your private 7-day conversation window will appear here.
                 </p>
               </div>
             ) : (
               <div className="space-y-2.5">
-                {conversations.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setActiveConvId(c.id);
-                      // Clear unread badge on click
-                      setConversations((prev) =>
-                        prev.map((conv) => (conv.id === c.id ? { ...conv, unreadCount: 0 } : conv))
-                      );
-                    }}
-                    className="w-full bg-white rounded-2xl p-3.5 border border-stone-200/90 shadow-2xs hover:border-rose-300 text-left flex items-center gap-3.5 transition active:scale-98 cursor-pointer"
-                  >
-                    <div className="relative shrink-0">
-                      <img
-                        src={c.otherUser?.photos?.[0] || PLACEHOLDER_PHOTO}
-                        alt={c.otherUser?.displayName}
-                        className="w-13 h-13 rounded-full object-cover border border-stone-200"
-                      />
-                      {c.unreadCount > 0 && (
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-serif font-bold text-base text-stone-900 truncate">
-                          {c.otherUser?.displayName}
-                        </h3>
-                        <span className="text-[11px] text-stone-400 shrink-0">
-                          {c.lastMessageAt}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-stone-600 truncate mt-0.5">
-                        {c.lastMessageText}
-                      </p>
-
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-50 text-amber-900 border border-amber-200/60 font-medium flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5" />
-                          {formatRemainingTime(c.expiresAt)}
-                        </span>
-                        {c.exchangeState === 'unlocked' && (
-                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
-                            🤝 Contacts Shared
-                          </span>
+                {conversations.map((c) => {
+                  const displayName = resolveDisplayName(c.otherUser);
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setActiveConvId(c.id)}
+                      className="w-full bg-white rounded-2xl p-3.5 border border-stone-200/90 shadow-2xs hover:border-rose-300 text-left flex items-center gap-3.5 transition active:scale-98 cursor-pointer"
+                    >
+                      <div className="relative shrink-0">
+                        <img
+                          src={c.otherUser?.photos[0]}
+                          alt={displayName}
+                          className="w-13 h-13 rounded-full object-cover border border-stone-200"
+                        />
+                        {c.unreadCount > 0 && (
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
                         )}
                       </div>
-                    </div>
 
-                    {c.unreadCount > 0 && (
-                      <span className="w-5 h-5 rounded-full bg-rose-900 text-amber-200 text-[10px] font-bold flex items-center justify-center shrink-0">
-                        {c.unreadCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-serif font-bold text-base text-stone-900 truncate">
+                            {displayName}
+                          </h3>
+                          <span className="text-[11px] text-stone-400 shrink-0">
+                            {c.lastMessageAt}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-stone-600 truncate mt-0.5">
+                          {c.lastMessageText}
+                        </p>
+
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-50 text-amber-900 border border-amber-200/60 font-medium flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            {formatRemainingTime(c.expiresAt)}
+                          </span>
+                          {c.exchangeState === 'unlocked' && (
+                            <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
+                              🤝 Contacts Shared
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -504,7 +435,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col min-h-0 h-[calc(100dvh-11rem)] overflow-x-hidden"
+            className="flex flex-col h-[calc(100vh-13.5rem)]"
           >
             {/* Thread Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 mb-2">
@@ -517,35 +448,44 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <img
-                  src={activeConv.otherUser?.photos?.[0] || PLACEHOLDER_PHOTO}
-                  alt={activeConv.otherUser?.displayName}
+                  src={activeConv.otherUser?.photos[0]}
+                  alt={resolveDisplayName(activeConv.otherUser)}
                   className="w-9 h-9 rounded-full object-cover"
                 />
                 <div>
                   <h3 className="font-serif font-bold text-sm text-stone-900">
-                    {activeConv.otherUser?.displayName}
+                    {resolveDisplayName(activeConv.otherUser)}
                   </h3>
                   <div className="flex items-center gap-1 text-[11px] text-emerald-700">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <span>Active in window</span>
+                    <span>Active in 7-day window</span>
                   </div>
                 </div>
               </div>
 
               {/* Header Action Menu */}
               <div className="flex items-center gap-1.5">
-                {activeConv.exchangeState === 'none' && (
+                {activeConv.exchangeState !== 'unlocked' && (
                   <button
                     onClick={handleRequestExchange}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-900 border border-rose-200"
+                    disabled={activeConv.exchangeState === 'pending_me'}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 ${
+                      activeConv.exchangeState === 'pending_me'
+                        ? 'bg-stone-100 text-stone-500 border border-stone-200 cursor-default'
+                        : activeConv.exchangeState === 'pending_them'
+                        ? 'bg-amber-400 text-stone-950 font-bold border border-amber-500 shadow-2xs'
+                        : 'bg-rose-50 text-rose-900 border border-rose-200 hover:bg-rose-100'
+                    }`}
                   >
-                    Exchange Contacts
+                    <span>🤝</span>
+                    <span>
+                      {activeConv.exchangeState === 'pending_me'
+                        ? 'Request Sent'
+                        : activeConv.exchangeState === 'pending_them'
+                        ? 'Accept Contacts'
+                        : 'Exchange Contacts'}
+                    </span>
                   </button>
-                )}
-                {activeConv.exchangeState === 'pending_me' && (
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-500 border border-stone-200">
-                    Request Sent
-                  </span>
                 )}
 
                 <button
@@ -558,75 +498,82 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             </div>
 
-            {/* Expiration Countdown Reminder Banner */}
-            <p className="text-[10px] text-stone-500 mb-2">⏱ {formatRemainingTime(activeConv.expiresAt)}</p>
-
-            {/* MUTUAL CONTACT EXCHANGE UNLOCKED CARD */}
-            {liveUi === 'declined' && (
-              <div className="p-2.5 bg-stone-100 border border-stone-200 rounded-xl text-xs text-stone-600 mb-2">
-                Contact request declined. You may request again when you both feel ready.
+            {/* Notice Modal / Toast */}
+            {infoNotice && (
+              <div className="mb-2 p-2.5 rounded-xl bg-stone-900 text-amber-100 text-xs flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-amber-300" />
+                  {infoNotice}
+                </span>
+                <button
+                  onClick={() => setInfoNotice(null)}
+                  className="text-stone-400 hover:text-white text-[11px] underline ml-2 cursor-pointer"
+                >
+                  Dismiss
+                </button>
               </div>
             )}
 
-            {activeConv.exchangeState === 'unlocked' && hideContacts && (
-              <button type="button" onClick={() => setHideContacts(false)} className="text-[11px] font-semibold text-stone-500 mb-2">
-                View exchanged contacts
-              </button>
-            )}
-            {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && !hideContacts && (
+            {/* Expiration Countdown Reminder Banner */}
+            <div className="py-1 px-3 bg-amber-50/90 border border-amber-200 rounded-xl text-center text-[11px] text-amber-900 flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <span className="font-semibold">
+                  {formatRemainingTime(activeConv.expiresAt)} in this connection window
+                </span>
+              </div>
+              <span className="text-[10px] text-stone-500">7-day intentional window</span>
+            </div>
+
+            {/* MUTUAL CONTACT EXCHANGE UNLOCKED CARD */}
+            {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative p-3.5 pr-8 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
+                className="p-3.5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl shadow-xs text-xs text-stone-800 space-y-2 mb-2"
               >
-                <div className="flex items-center justify-between text-amber-100 font-bold gap-2 min-w-0">
-                  <button type="button" className="absolute right-2 top-2 text-[#f3ece6] text-sm leading-none" onClick={() => setHideContacts(true)} aria-label="Close contacts">
-                    ×
-                  </button>
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-                    <span className="truncate">Mutual Contact Exchange Unlocked!</span>
+                <div className="flex items-center justify-between text-emerald-950 font-bold">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Mutual Contact Exchange Unlocked!</span>
                   </div>
-                  <span className="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded-md font-semibold shrink-0">
+                  <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-md font-semibold">
                     Verified
                   </span>
                 </div>
-                <p className="text-[11px] text-stone-300">
-                  You and {activeConv.otherUser?.displayName} have both mutually agreed to move beyond the platform:
+                <p className="text-[11px] text-stone-600">
+                  You and {resolveDisplayName(activeConv.otherUser)} have both mutually agreed to share personal details:
                 </p>
 
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1 min-w-0">
-                  <div className="p-2.5 bg-[#1c1917] rounded-xl border border-white/10 flex flex-col justify-between min-w-0">
-                    <div className="flex items-center gap-1 text-[11px] text-stone-400">
-                      <Phone className="w-3 h-3 text-rose-400" />
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="p-2.5 bg-white rounded-xl border border-emerald-200 flex flex-col justify-between">
+                    <div className="flex items-center gap-1 text-[11px] text-stone-500">
+                      <Phone className="w-3 h-3 text-emerald-600" />
                       <span>Phone / WhatsApp</span>
                     </div>
-                    <a
-                      href={`tel:${activeConv.otherUserContact.phone}`}
-                      className="font-bold text-[#f3ece6] text-xs mt-1 truncate"
-                    >
+                    <span className="font-bold text-stone-900 text-xs mt-1 truncate">
                       {activeConv.otherUserContact.phone}
-                    </a>
+                    </span>
                     <button
                       onClick={() => handleCopyPhone(activeConv.otherUserContact!.phone)}
-                      className="mt-1 text-[10px] font-semibold text-amber-300 flex items-center gap-1"
+                      className="mt-1 text-[10px] font-semibold text-emerald-700 flex items-center gap-1 hover:underline cursor-pointer"
                     >
                       {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       <span>{isCopied ? 'Copied' : 'Copy Number'}</span>
                     </button>
                   </div>
 
-                  <div className="p-2.5 bg-[#1c1917] rounded-xl border border-white/10 flex flex-col justify-between min-w-0">
-                    <div className="flex items-center gap-1 text-[11px] text-stone-400">
-                      <Mail className="w-3 h-3 text-rose-400" />
+                  <div className="p-2.5 bg-white rounded-xl border border-emerald-200 flex flex-col justify-between">
+                    <div className="flex items-center gap-1 text-[11px] text-stone-500">
+                      <Mail className="w-3 h-3 text-emerald-600" />
                       <span>Verified Email</span>
                     </div>
-                    <span className="font-bold text-[#f3ece6] text-xs mt-1 truncate">
+                    <span className="font-bold text-stone-900 text-xs mt-1 truncate">
                       {activeConv.otherUserContact.email}
                     </span>
                     <a
                       href={`mailto:${activeConv.otherUserContact.email}`}
-                      className="mt-1 text-[10px] font-semibold text-amber-300 flex items-center gap-1"
+                      className="mt-1 text-[10px] font-semibold text-emerald-700 flex items-center gap-1 hover:underline"
                     >
                       <span>Send Email</span>
                     </a>
@@ -635,47 +582,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </motion.div>
             )}
 
-            {/* PENDING NOTIFICATION BANNER */}
-            {activeConv.exchangeState === 'pending_me' && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-950 flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-rose-800" />
-                  <span>
-                    Exchange request sent. Waiting for {activeConv.otherUser?.displayName} to consent.
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {activeConv.exchangeState === 'pending_them' && (
-              <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-stone-900 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                  <span>
-                    {activeConv.otherUser?.displayName} requested to exchange contacts!
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={handleDeclineExchange}
-                    className="px-2.5 py-1 rounded-lg border border-stone-300 bg-white text-stone-700 font-bold text-[11px] cursor-pointer"
-                  >
-                    Decline
-                  </button>
-                  <button
-                    onClick={handleRequestExchange}
-                    className="px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 font-bold text-[11px] shadow-2xs hover:bg-amber-300 cursor-pointer"
-                  >
-                    Approve
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Message Stream */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-1">
               {currentMessages.map((m) => {
-                const isMine = m.senderId === myId;
+                const isMine = Boolean(currentProfile && m.senderId === currentProfile.userId);
+                const isVoice = m.type === 'voice' && m.audioUrl;
+                const isRead = m.status === 'read';
+
                 return (
                   <motion.div
                     key={m.id}
@@ -684,25 +597,37 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
                     <div
-                      className={`max-w-[82%] min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
+                      className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
                         isMine
                           ? 'bg-rose-900 text-white rounded-br-xs'
                           : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
                       }`}
                     >
-                      {m.kind === 'image' && m.imageUrl ? (
-                        <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
-                      ) : m.kind === 'viewOnce' || m.viewOnce ? (
-                        <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
-                      ) : m.kind === 'audio' && m.audioUrl ? (
-                        <audio controls src={m.audioUrl} className="w-full max-w-[220px] h-8" />
+                      {isVoice ? (
+                        <VoiceBubble
+                          audioUrl={m.audioUrl}
+                          duration={m.audioDuration}
+                          isMine={isMine}
+                        />
                       ) : (
-                        m.content
+                        <span>{m.content}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
-                      <span>{formatMessageTime(m.createdAt)}</span>
-                      {isMine && <CheckCheck className="w-3 h-3 text-rose-700" />}
+                      <span>{m.createdAt}</span>
+                      {isMine && (
+                        isRead ? (
+                          <CheckCheck
+                            className="w-3.5 h-3.5 text-sky-500"
+                            aria-label={`Read at ${m.readAt || m.createdAt}`}
+                          />
+                        ) : (
+                          <Check
+                            className="w-3 h-3 text-stone-400"
+                            aria-label="Sent"
+                          />
+                        )
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -711,13 +636,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             </div>
 
             {/* Icebreaker Prompts for thoughtful communication */}
-            {currentMessages.length < 5 && (
-              <div className="py-1.5 overflow-x-auto max-w-full no-scrollbar flex gap-1.5 shrink-0">
+            {currentMessages.length < 5 && !isRecording && (
+              <div className="py-1.5 overflow-x-auto no-scrollbar flex gap-1.5 shrink-0">
                 {ICEBREAKER_PROMPTS.map((prompt, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(prompt)}
-                    className="shrink-0 max-w-[85%] whitespace-nowrap overflow-hidden text-ellipsis px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] rounded-full border border-stone-200/70 transition cursor-pointer"
+                    className="whitespace-nowrap px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] rounded-full border border-stone-200/70 transition cursor-pointer"
                   >
                     💡 {prompt}
                   </button>
@@ -725,90 +650,107 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            {sendError && (
-              <p className="text-[11px] text-rose-700 px-1">{sendError}</p>
+            {/* Recording error / Permission guidance banner */}
+            {recordingError && (
+              <div className="p-3 mb-2 bg-amber-50 text-amber-950 text-xs rounded-2xl border border-amber-200 shadow-2xs space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-amber-900">
+                    <MicOff className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Microphone Permission Required</span>
+                  </div>
+                  <button
+                    onClick={() => setRecordingError(null)}
+                    className="text-stone-400 hover:text-stone-700 text-xs cursor-pointer p-0.5"
+                    aria-label="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-[11px] text-stone-600 leading-relaxed">
+                  Microphone access was denied or is blocked by your browser/iframe permissions. Click the lock/camera icon in your address bar to allow microphone access, or send a sample voice note below:
+                </p>
+                <div className="flex items-center gap-2 pt-0.5">
+                  <button
+                    onClick={handleSendSampleVoiceNote}
+                    className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-stone-950 text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3 text-stone-900" />
+                    <span>Send Sample Voice Note (0:04)</span>
+                  </button>
+                  <button
+                    onClick={() => setRecordingError(null)}
+                    className="px-3 py-1.5 rounded-xl border border-stone-300 text-stone-700 text-[11px] font-semibold hover:bg-white cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             )}
 
-            {/* Touch Input Bar */}
-            <label className="flex items-center gap-1.5 text-[10px] text-stone-500 px-1">
-              <input type="checkbox" checked={viewOnce} onChange={(e) => setViewOnce(e.target.checked)} />
-              View once photo
-            </label>
-            {recording && (
-              <div className="flex items-center gap-2 text-[11px] text-rose-800 px-1">
-                <span>Recording {Math.floor(recordMs / 1000)}s</span>
-                <button type="button" onClick={stopRecording} className="font-semibold">Stop</button>
-                <button type="button" onClick={() => { mediaRef.current?.stop(); setPendingAudio(null); setRecording(false); }} className="text-stone-500">Cancel</button>
-              </div>
-            )}
-            {pendingAudio && (
-              <div className="flex items-center gap-2 text-[11px] px-1">
-                <audio controls src={pendingAudio.url} className="h-8 flex-1 min-w-0" />
-                <button
-                  type="button"
-                  className="font-semibold text-rose-900"
-                  onClick={() => {
-                    if (!activeConvId) return;
-                    void sendMatchAudio(activeConvId, pendingAudio.blob, pendingAudio.ms)
-                      .then(() => {
-                        URL.revokeObjectURL(pendingAudio.url);
-                        setPendingAudio(null);
-                      })
-                      .catch((err) => setSendError(err instanceof Error ? err.message : 'Could not send voice note'));
-                  }}
-                >
-                  Send
-                </button>
-                <button type="button" className="text-stone-500" onClick={() => { URL.revokeObjectURL(pendingAudio.url); setPendingAudio(null); }}>
-                  Cancel
-                </button>
-              </div>
-            )}
-            <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
-              <div className="flex items-end gap-2 bg-white rounded-2xl border border-stone-300 px-3 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!file || !activeConvId) return;
-                    void sendMatchImage(activeConvId, file, viewOnce).catch((err) =>
-                      setSendError(err instanceof Error ? err.message : 'Could not send photo')
-                    );
-                  }}
-                />
-                <button type="button" onClick={() => photoInputRef.current?.click()} className="p-1 text-stone-500" aria-label="Send photo">
-                  <ImagePlus className="w-4 h-4" />
-                </button>
-                <button type="button" onClick={() => void startRecording()} disabled={recording} className="p-1 text-stone-500" aria-label="Voice note">
-                  <Mic className="w-4 h-4" />
-                </button>
-                <textarea
-                  rows={1}
-                  value={inputVal}
-                  onChange={(e) => setInputVal(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={`Message ${activeConv.otherUser?.displayName}...`}
-                  className="flex-1 min-w-0 text-xs text-stone-800 bg-transparent outline-hidden px-1 py-1.5 resize-none break-words"
-                />
-                <button
-                  onClick={() => handleSendMessage()}
-                  disabled={!inputVal.trim()}
-                  className="w-8 h-8 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  aria-label="Send message"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {/* Touch Input Bar with Voice Recording */}
+            <div className="pt-2">
+              {isRecording ? (
+                /* ACTIVE RECORDING COMPOSER: [Cancel] 🔴 Recording 0:05 [Send] */
+                <div className="flex items-center justify-between gap-3 bg-rose-50/90 rounded-full border border-rose-300 px-3 py-1.5 shadow-xs transition animate-pulse">
+                  <button
+                    onClick={handleCancelRecording}
+                    className="p-2 rounded-full text-stone-500 hover:text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                    title="Cancel recording"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex items-center gap-2 text-rose-900 font-medium text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+                    <span>Recording {formatRecordTime(recordingDuration)}</span>
+                  </div>
+
+                  <button
+                    onClick={handleSendVoiceNote}
+                    className="px-3 py-1.5 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+                    title="Send voice note"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send</span>
+                  </button>
+                </div>
+              ) : (
+                /* STANDARD CHAT COMPOSER: [Mic] [Message...] [Send] */
+                <div className="flex items-center gap-2 bg-white rounded-full border border-stone-300 px-2 py-1 shadow-xs focus-within:border-rose-800 focus-within:ring-2 focus-within:ring-rose-800/10 transition">
+                  <button
+                    type="button"
+                    onClick={handleStartRecording}
+                    className="w-8 h-8 rounded-full text-stone-600 hover:text-rose-900 hover:bg-stone-100 flex items-center justify-center transition active:scale-95 cursor-pointer"
+                    title="Record voice note"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </button>
+
+                  <input
+                    type="text"
+                    value={inputVal}
+                    onChange={(e) => setInputVal(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={`Message ${resolveDisplayName(activeConv.otherUser)}...`}
+                    className="flex-1 text-xs text-stone-800 bg-transparent outline-hidden px-1 py-1.5"
+                  />
+
+                  <button
+                    onClick={() => handleSendMessage()}
+                    disabled={!inputVal.trim()}
+                    className="w-8 h-8 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    aria-label="Send message"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* OPTIONS MENU MODAL */}
+      {/* SECONDARY OPTIONS MENU MODAL */}
       <AnimatePresence>
         {showOptionsModal && activeConv && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -831,15 +773,51 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
 
               <div className="space-y-1.5 text-xs">
+                {/* Secondary Calls */}
+                <button
+                  onClick={() => {
+                    setShowOptionsModal(false);
+                    setInfoNotice('Direct phone dialogue is available once contact exchange is mutually unlocked.');
+                  }}
+                  className="w-full p-2.5 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+                >
+                  <PhoneCall className="w-4 h-4 text-emerald-700" />
+                  <span>Request Voice Call</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowOptionsModal(false);
+                    setInfoNotice('Video calling will be activated in the next verified release.');
+                  }}
+                  className="w-full p-2.5 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+                >
+                  <Video className="w-4 h-4 text-blue-700" />
+                  <span>Request Video Call</span>
+                </button>
+
+                {/* Contact Exchange */}
                 <button
                   onClick={() => {
                     setShowOptionsModal(false);
                     handleRequestExchange();
                   }}
-                  className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+                  className="w-full p-2.5 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
                 >
                   <span className="text-base">🤝</span>
                   <span>Mutual Contact Exchange Request</span>
+                </button>
+
+                {/* Safety & Moderation */}
+                <button
+                  onClick={() => {
+                    setShowOptionsModal(false);
+                    setInfoNotice('Report logged. Lifebencher concierge reviews all flagged interactions confidentially.');
+                  }}
+                  className="w-full p-2.5 rounded-2xl hover:bg-amber-50 text-left flex items-center gap-3 transition cursor-pointer text-amber-900 font-medium"
+                >
+                  <ShieldAlert className="w-4 h-4 text-amber-700" />
+                  <span>Report Candidate</span>
                 </button>
 
                 <button
@@ -847,10 +825,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     setShowOptionsModal(false);
                     setShowUnmatchConfirm(true);
                   }}
-                  className="w-full p-3 rounded-2xl hover:bg-rose-50 text-left flex items-center gap-3 transition cursor-pointer text-rose-800 font-medium"
+                  className="w-full p-2.5 rounded-2xl hover:bg-rose-50 text-left flex items-center gap-3 transition cursor-pointer text-rose-800 font-medium"
                 >
-                  <AlertTriangle className="w-4 h-4 text-rose-800" />
-                  <span>End Connection / Unmatch</span>
+                  <UserX className="w-4 h-4 text-rose-800" />
+                  <span>Block & Unmatch</span>
                 </button>
               </div>
             </motion.div>
@@ -875,7 +853,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 End Connection?
               </h3>
               <p className="text-xs text-stone-600 leading-relaxed">
-                This will gracefully close this chat thread with {activeConv.otherUser?.displayName} and remove it from your active connections.
+                This will gracefully close this chat thread with {resolveDisplayName(activeConv.otherUser)} and remove it from your active connections.
               </p>
               <div className="flex items-center gap-2 pt-2">
                 <button

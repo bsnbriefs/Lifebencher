@@ -1,16 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Heart,
   SlidersHorizontal,
   ShieldCheck,
   MapPin,
   Briefcase,
-  GraduationCap,
   Sparkles,
   CheckCircle2,
   X,
   Search,
-  ChevronRight
+  ChevronRight,
+  UserCheck,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
@@ -19,85 +20,80 @@ import { calculateCompatibility, CompatibilityResult } from '../../lib/compatibi
 import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
-import { listenVisibleProfiles } from '../../lib/matches';
-import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
-import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
-import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
-
-const FALLBACK_PHOTO =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
+import { resolveDisplayName } from '../../lib/userNames';
 
 const DEFAULT_FILTERS: DiscoverFilters = {
   searchTerm: '',
-  minAge: 18,
-  maxAge: 99,
+  minAge: 21,
+  maxAge: 45,
   location: 'All Locations',
   faith: 'All Faiths'
 };
 
-export const DiscoverScreen: React.FC = () => {
-  const { user, currentProfile, preferences } = useAuth();
+interface DiscoverScreenProps {
+  onOpenChat?: (matchId: string) => void;
+  onOpenProfileSwitcher?: () => void;
+}
 
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({ onOpenChat, onOpenProfileSwitcher }) => {
+  const {
+    allProfiles,
+    currentProfile,
+    preferences,
+    sentInterests,
+    sendInterest,
+    activeMatches
+  } = useAuth();
+
   const [filters, setFilters] = useState<DiscoverFilters>(DEFAULT_FILTERS);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   // Selected profile for full detail modal
   const [detailProfile, setDetailProfile] = useState<Profile | null>(null);
 
-  // Sent interests state
-  const [sentInterests, setSentInterests] = useState<Record<string, boolean>>({});
+  // Request in flight
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
-  const [blockedIds, setBlockedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (!user?.id) {
-      setProfiles([]);
-      setIsLoadingProfiles(false);
-      return;
-    }
-    setIsLoadingProfiles(true);
-    const unsubProfiles = listenVisibleProfiles(user.id, (list) => {
-      setProfiles(list);
-      setIsLoadingProfiles(false);
+  // Match celebration state
+  const [celebrationMatch, setCelebrationMatch] = useState<{
+    displayName: string;
+    photo: string;
+    matchId: string;
+  } | null>(null);
+
+  // Candidate pool: Exclude own profile and exclude active matches
+  const candidateProfiles = useMemo(() => {
+    if (!currentProfile) return allProfiles;
+
+    const matchedUserIds = new Set<string>();
+    activeMatches.forEach((m) => {
+      if (m.user1Id === currentProfile.userId) matchedUserIds.add(m.user2Id);
+      if (m.user2Id === currentProfile.userId) matchedUserIds.add(m.user1Id);
     });
-    const unsubEnt = listenEntitlements(user.id, setEntitlements);
-    const unsubBlocks = listenBlockedIds(user.id, setBlockedIds);
-    const unsubOutgoing = listenOutgoingInterestIds(user.id, (ids) => {
-      const map: Record<string, boolean> = {};
-      ids.forEach((id) => {
-        map[id] = true;
-      });
-      setSentInterests(map);
-    });
-    return () => {
-      unsubProfiles();
-      unsubOutgoing();
-      unsubEnt();
-      unsubBlocks();
-    };
-  }, [user?.id]);
+
+    return allProfiles.filter(
+      (p) => p.id !== currentProfile.id && p.userId !== currentProfile.userId && !matchedUserIds.has(p.userId)
+    );
+  }, [allProfiles, currentProfile, activeMatches]);
 
   // Calculate compatibility for each candidate against active logged-in profile
   const compatibilityMap = useMemo(() => {
     const map: Record<string, CompatibilityResult> = {};
     if (!currentProfile) return map;
-    profiles.forEach((p) => {
+    candidateProfiles.forEach((p) => {
       map[p.id] = calculateCompatibility(currentProfile, p, preferences);
     });
     return map;
-  }, [currentProfile, preferences, profiles]);
+  }, [currentProfile, preferences, candidateProfiles]);
 
   // Filtered profiles
   const filteredProfiles = useMemo(() => {
-    return profiles.filter((p) => {
+    return candidateProfiles.filter((p) => {
       // Keyword search in name or profession
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
-        const matchesName = p.displayName.toLowerCase().includes(query);
+        const matchesName = resolveDisplayName(p).toLowerCase().includes(query);
         const matchesProf = p.profession.toLowerCase().includes(query);
         if (!matchesName && !matchesProf) return false;
       }
@@ -114,25 +110,16 @@ export const DiscoverScreen: React.FC = () => {
         }
       }
 
+      // Faith filter
       if (filters.faith !== 'All Faiths') {
         if (p.lifestyle?.faith?.toLowerCase() !== filters.faith.toLowerCase()) {
           return false;
         }
       }
 
-      if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
-
-      const myType =
-        entitlements.matchType === 'local' || entitlements.matchType === 'international'
-          ? entitlements.matchType
-          : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international'
-            ? entitlements.matchmakingPackage
-            : null;
-      const theirType = p.matchType === 'local' || p.matchType === 'international' ? p.matchType : null;
-      if (myType && theirType && theirType !== myType) return false;
       return true;
     });
-  }, [profiles, filters, blockedIds, entitlements]);
+  }, [candidateProfiles, filters]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
@@ -144,38 +131,30 @@ export const DiscoverScreen: React.FC = () => {
     return count;
   }, [filters]);
 
-  const handleBlock = (profileId: string) => {
-    void blockUser(profileId)
-      .then(() => setToastMessage('Member blocked and hidden from Discover.'))
-      .catch((err) => setToastMessage(err instanceof Error ? err.message : 'Could not block.'));
-  };
-
-  const handleReport = (profileId: string) => {
-    void reportUser(profileId, 'Inappropriate or unsafe')
-      .then(() => setToastMessage('Report sent to Lifebencher admin.'))
-      .catch((err) => setToastMessage(err instanceof Error ? err.message : 'Could not send report.'));
-  };
-
-  const handleExploreMatch = (profileId: string) => {
-    const target = profiles.find((p) => p.id === profileId);
-    if (!target) return;
-    setRequestLoading(profileId);
+  const handleExploreMatch = (candidate: Profile) => {
+    if (!currentProfile) return;
+    setRequestLoading(candidate.id);
     sounds.playSend();
-    sendInterest(target.userId)
-      .then((result) => {
-        setSentInterests((prev) => ({ ...prev, [profileId]: true, [target.userId]: true }));
+
+    setTimeout(() => {
+      setRequestLoading(null);
+      const result = sendInterest(candidate.id);
+
+      if (result.isMatch && result.matchId) {
+        sounds.playMatchCelebration();
+        setCelebrationMatch({
+          displayName: resolveDisplayName(candidate),
+          photo: candidate.photos[0],
+          matchId: result.matchId
+        });
+      } else {
+        const candidateName = resolveDisplayName(candidate);
         setToastMessage(
-          result === 'matched'
-            ? `It's mutual with ${target.displayName}. A 7-day connection is now open.`
-            : `Interest sent to ${target.displayName}. They'll review it in Matches.`
+          `Interest sent to ${candidateName}! You can switch profile to ${candidateName} to accept and test the mutual match.`
         );
-        setTimeout(() => setToastMessage(null), 3500);
-      })
-      .catch((err) => {
-        setToastMessage(err instanceof Error ? err.message : 'Could not open connection.');
-        setTimeout(() => setToastMessage(null), 3500);
-      })
-      .finally(() => setRequestLoading(null));
+        setTimeout(() => setToastMessage(null), 4500);
+      }
+    }, 450);
   };
 
   return (
@@ -192,23 +171,25 @@ export const DiscoverScreen: React.FC = () => {
         </div>
 
         {/* Filter button with active count badge */}
-        <button
-          onClick={() => setIsFilterSheetOpen(true)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
-            activeFilterCount > 0
-              ? 'bg-rose-900 text-amber-100 border-rose-950 shadow-xs'
-              : 'bg-white text-stone-700 border-stone-200 hover:border-stone-300'
-          }`}
-          aria-label="Filter profiles"
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>Filter</span>
-          {activeFilterCount > 0 && (
-            <span className="w-4 h-4 rounded-full bg-amber-400 text-stone-950 text-[10px] font-bold flex items-center justify-center">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsFilterSheetOpen(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
+              activeFilterCount > 0
+                ? 'bg-rose-900 text-amber-100 border-rose-950 shadow-xs'
+                : 'bg-white text-stone-700 border-stone-200 hover:border-stone-300'
+            }`}
+            aria-label="Filter profiles"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-amber-400 text-stone-950 text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Toast Notification Banner */}
@@ -218,13 +199,13 @@ export const DiscoverScreen: React.FC = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="p-3 bg-rose-900 text-amber-100 rounded-2xl text-xs flex items-center justify-between shadow-md"
+            className="p-3 bg-stone-900 text-amber-100 rounded-2xl text-xs flex items-center justify-between shadow-md border border-amber-400/40"
           >
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-300" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>{toastMessage}</span>
             </div>
-            <button onClick={() => setToastMessage(null)} className="text-amber-200 text-xs">
+            <button onClick={() => setToastMessage(null)} className="text-stone-400 hover:text-white text-xs ml-2 cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </motion.div>
@@ -232,36 +213,38 @@ export const DiscoverScreen: React.FC = () => {
       </AnimatePresence>
 
       {/* Profiles Feed */}
-      {isLoadingProfiles ? (
-        <div className="text-center py-16 bg-white rounded-3xl border border-stone-200 p-6">
-          <p className="text-sm text-stone-500">Loading visible profiles…</p>
-        </div>
-      ) : filteredProfiles.length === 0 ? (
+      {filteredProfiles.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-3xl border border-stone-200 p-6 space-y-3">
-          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto text-stone-400">
-            <Search className="w-5 h-5" />
+          <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center mx-auto text-rose-800">
+            <UserCheck className="w-5 h-5" />
           </div>
           <h3 className="font-serif font-bold text-base text-stone-800">
-            {profiles.length === 0 ? 'No other visible profiles yet' : 'No profiles match these filters'}
+            All Current Candidates Reviewed!
           </h3>
           <p className="text-xs text-stone-500 max-w-xs mx-auto">
-            {profiles.length === 0
-              ? 'When other members complete onboarding and stay visible, they will appear here.'
-              : 'Try adjusting your age or location filters to see more verified members.'}
+            You've explored the available cohort or filtered all profiles. Create a new real profile or adjust your filters!
           </p>
-          {profiles.length > 0 && (
-          <button
-            onClick={() => setFilters(DEFAULT_FILTERS)}
-            className="text-xs font-semibold text-rose-900 underline cursor-pointer"
-          >
-            Reset All Filters
-          </button>
-          )}
+          <div className="flex justify-center gap-2 pt-1">
+            <button
+              onClick={() => setFilters(DEFAULT_FILTERS)}
+              className="px-3.5 py-2 rounded-xl border border-stone-300 text-xs font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer"
+            >
+              Reset Filters
+            </button>
+            {onOpenProfileSwitcher && (
+              <button
+                onClick={onOpenProfileSwitcher}
+                className="px-3.5 py-2 rounded-xl bg-rose-900 text-amber-100 text-xs font-bold shadow-xs hover:bg-rose-950 cursor-pointer"
+              >
+                + Add Real Profile
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
           {filteredProfiles.map((p) => {
-            const hasSent = !!sentInterests[p.id] || !!sentInterests[p.userId];
+            const hasSent = currentProfile && !!sentInterests[`${currentProfile.userId}_${p.userId}`];
             const isLoading = requestLoading === p.id;
             const compatibility = compatibilityMap[p.id];
 
@@ -278,12 +261,17 @@ export const DiscoverScreen: React.FC = () => {
                   className="relative aspect-4/5 w-full bg-stone-200 cursor-pointer group"
                   onClick={() => setDetailProfile(p)}
                 >
-                  <DiscoverCardPhoto photos={p.photos} name={p.displayName} />
+                  <img
+                    src={p.photos[0]}
+                    alt={resolveDisplayName(p)}
+                    className="w-full h-full object-cover group-hover:scale-101 transition duration-300"
+                    loading="lazy"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/20 to-transparent" />
 
                   {/* Compatibility score badge at top right */}
                   {compatibility && (
-                    <div className="absolute top-3.5 right-3.5 bg-stone-900/85 backdrop-blur-md text-amber-300 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm border border-amber-300/30">
+                    <div className="absolute top-3.5 right-3.5 bg-black/50 backdrop-blur-md text-amber-200/95 px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs border border-white/15">
                       <Sparkles className="w-3 h-3 text-amber-300" />
                       <span>{compatibility.score}% Match</span>
                     </div>
@@ -293,7 +281,7 @@ export const DiscoverScreen: React.FC = () => {
                   <div className="absolute bottom-3.5 left-4 right-4 text-white">
                     <div className="flex items-center gap-1.5">
                       <h3 className="font-serif text-2xl font-bold tracking-tight">
-                        {p.displayName}, {p.age}
+                        {resolveDisplayName(p)}, {p.age}
                       </h3>
                       {p.isVerified && (
                         <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">
@@ -301,19 +289,16 @@ export const DiscoverScreen: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-stone-200 flex items-center gap-1 mt-0.5">
-                      <Briefcase className="w-3 h-3 text-amber-300" />
+                    <p className="text-xs text-stone-200/90 flex items-center gap-1 mt-0.5">
                       <span>{p.profession}</span>
-                    </p>
-                    <p className="text-xs text-stone-300 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-amber-300" />
+                      <span aria-hidden="true" className="text-stone-400">·</span>
                       <span>{p.location}</span>
                     </p>
                   </div>
                 </div>
 
                 {/* Card Body Details */}
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-2.5">
                   {/* Bio snippet */}
                   <p className="text-xs text-stone-700 leading-relaxed line-clamp-2">
                     {p.bio}
@@ -321,28 +306,27 @@ export const DiscoverScreen: React.FC = () => {
 
                   {/* Compatibility highlight */}
                   {compatibility && (
-                    <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 flex items-start gap-2 text-xs text-stone-700">
+                    <div className="py-1.5 px-2.5 rounded-xl bg-amber-50/60 border border-amber-200/40 flex items-start gap-1.5 text-xs text-stone-800">
                       <Sparkles className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                      <p className="text-[11px] leading-snug">
+                      <p className="text-[11px] leading-snug text-stone-700">
                         {compatibility.summary}
                       </p>
                     </div>
                   )}
 
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 pt-0.5">
-                    {p.values.slice(0, 2).map((val) => (
-                      <span
-                        key={val}
-                        className="px-2.5 py-0.5 rounded-lg bg-[#2a2422] text-[#f3ece6] border border-white/15 text-[11px] font-medium"
-                      >
-                        {val}
-                      </span>
+                  {/* Unboxed Metadata / Values */}
+                  <div className="flex items-center gap-2 text-[11px] text-stone-500 font-medium flex-wrap pt-0.5">
+                    {p.values.slice(0, 2).map((val, idx) => (
+                      <React.Fragment key={val}>
+                        {idx > 0 && <span aria-hidden="true" className="text-stone-300">·</span>}
+                        <span>{val}</span>
+                      </React.Fragment>
                     ))}
                     {p.lifestyle?.faith && (
-                      <span className="px-2.5 py-0.5 rounded-lg bg-[#2a2422] text-[#f3ece6] border border-white/15 text-[11px] font-medium">
-                        {p.lifestyle.faith}
-                      </span>
+                      <>
+                        <span aria-hidden="true" className="text-stone-300">·</span>
+                        <span className="text-stone-600">{p.lifestyle.faith}</span>
+                      </>
                     )}
                   </div>
 
@@ -357,16 +341,16 @@ export const DiscoverScreen: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => handleExploreMatch(p.id)}
+                      onClick={() => handleExploreMatch(p)}
                       disabled={hasSent || isLoading}
                       className={`flex-1 py-2.5 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer ${
                         hasSent
-                          ? 'bg-emerald-600 text-white cursor-default'
-                          : 'bg-gradient-to-r from-rose-900 via-rose-800 to-amber-700 text-white hover:opacity-95'
+                          ? 'bg-emerald-700 text-white cursor-default'
+                          : 'bg-rose-900 hover:bg-rose-950 text-amber-100'
                       }`}
                     >
                       {isLoading ? (
-                        <span>Sending...</span>
+                        <span>Delivering...</span>
                       ) : hasSent ? (
                         <>
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
@@ -378,14 +362,6 @@ export const DiscoverScreen: React.FC = () => {
                           <span>Explore Match</span>
                         </>
                       )}
-                    </button>
-                  </div>
-                  <div className="flex gap-3 pt-1">
-                    <button type="button" className="text-[10px] text-stone-400" onClick={() => handleReport(p.userId || p.id)}>
-                      Report
-                    </button>
-                    <button type="button" className="text-[10px] text-stone-400" onClick={() => handleBlock(p.userId || p.id)}>
-                      Block
                     </button>
                   </div>
                 </div>
@@ -409,39 +385,80 @@ export const DiscoverScreen: React.FC = () => {
         <ProfileDetailModal
           profile={detailProfile}
           compatibility={compatibilityMap[detailProfile.id]}
-          hasSentInterest={!!sentInterests[detailProfile.id]}
+          hasSentInterest={
+            currentProfile ? !!sentInterests[`${currentProfile.userId}_${detailProfile.userId}`] : false
+          }
           isLoading={requestLoading === detailProfile.id}
           onClose={() => setDetailProfile(null)}
-          onExploreMatch={(pid) => handleExploreMatch(pid)}
+          onExploreMatch={() => handleExploreMatch(detailProfile)}
         />
       )}
+
+      {/* MUTUAL MATCH CELEBRATION MODAL */}
+      <AnimatePresence>
+        {celebrationMatch && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 25 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-sm bg-gradient-to-b from-stone-950 via-rose-950 to-stone-950 text-white rounded-3xl p-6 text-center shadow-2xl border border-amber-400/40 relative overflow-hidden"
+            >
+              {/* Overlapping profile avatars */}
+              <div className="flex items-center justify-center -space-x-4 my-3">
+                <img
+                  src={
+                    currentProfile?.photos[0] ||
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800'
+                  }
+                  alt="You"
+                  className="w-20 h-20 rounded-full object-cover border-4 border-rose-900 shadow-lg ring-2 ring-amber-300/60"
+                />
+                <img
+                  src={celebrationMatch.photo}
+                  alt={celebrationMatch.displayName}
+                  className="w-20 h-20 rounded-full object-cover border-4 border-stone-900 shadow-lg ring-2 ring-amber-300/60"
+                />
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-[11px] font-bold tracking-widest uppercase mb-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Mutual Alignment</span>
+              </div>
+
+              <h3 className="font-serif text-3xl font-bold text-amber-100">
+                It's a Match!
+              </h3>
+
+              <p className="text-xs text-stone-200 mt-2 max-w-xs mx-auto leading-relaxed">
+                You and {celebrationMatch.displayName} have mutually connected! You now have an intentional 7-day window to converse and align on life vision.
+              </p>
+
+              <div className="mt-6 space-y-2.5">
+                <button
+                  onClick={() => {
+                    const mId = celebrationMatch.matchId;
+                    setCelebrationMatch(null);
+                    if (onOpenChat) onOpenChat(mId);
+                  }}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold text-xs shadow-lg hover:from-amber-300 hover:to-amber-400 active:scale-98 transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4 fill-stone-950" />
+                  <span>Start Private Conversation</span>
+                </button>
+
+                <button
+                  onClick={() => setCelebrationMatch(null)}
+                  className="w-full py-2.5 text-stone-400 hover:text-white text-xs transition cursor-pointer"
+                >
+                  Keep Exploring
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-
-function DiscoverCardPhoto({ photos, name }: { photos: string[]; name: string }) {
-  const list = photos.length ? photos : [FALLBACK_PHOTO];
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (list.length < 2) return;
-    const id = window.setInterval(() => setIdx((i) => (i + 1) % list.length), 4000);
-    return () => window.clearInterval(id);
-  }, [list.length]);
-  return (
-    <>
-      <img
-        src={list[idx] || FALLBACK_PHOTO}
-        alt={name}
-        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
-        loading="lazy"
-      />
-      {list.length > 1 && (
-        <div className="absolute top-3 left-3 z-20 flex gap-1">
-          {list.map((_, i) => (
-            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
