@@ -24,7 +24,7 @@ import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -59,51 +59,144 @@ const ICEBREAKER_PROMPTS = [
 ];
 
 const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [url, setUrl] = useState<string | null>((message as Message & { audioUrl?: string }).audioUrl || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(Math.max(0, Number(message.durationMs || 0) / 1000));
   const audioPath = (message as Message & { audioPath?: string }).audioPath || '';
 
-  const loadAudio = async () => {
-    if (url || !audioPath || loading) return;
+  const ensureUrl = async (): Promise<string> => {
+    if (url) return url;
+    if (!audioPath) throw new Error('Voice note is unavailable.');
     setLoading(true);
     setError(null);
     try {
       const resolved = await resolveChatMediaUrl(matchId, audioPath);
       setUrl(resolved);
+      return resolved;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to play this voice message.');
+      const messageText = err instanceof Error ? err.message : 'Unable to load this voice note.';
+      setError(messageText);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
+  const togglePlayback = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    setError(null);
+    try {
+      if (!audio.src) {
+        const resolved = await ensureUrl();
+        audio.src = resolved;
+        audio.load();
+      }
+      if (audio.paused) {
+        await audio.play();
+        setPlaying(true);
+      } else {
+        audio.pause();
+        setPlaying(false);
+      }
+    } catch (err) {
+      setPlaying(false);
+      const code = audio.error?.code;
+      setError(
+        code === 4
+          ? 'This voice format is not supported on this device. Please ask them to resend it.'
+          : err instanceof Error
+            ? err.message
+            : 'Unable to play this voice note. Tap retry.'
+      );
+    }
+  };
+
+  const retry = async () => {
+    const audio = audioRef.current;
+    setUrl(null);
+    setProgress(0);
+    setError(null);
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    try {
+      const resolved = await ensureUrl();
+      if (audio) {
+        audio.src = resolved;
+        audio.load();
+        await audio.play();
+        setPlaying(true);
+      }
+    } catch {
+      setPlaying(false);
+    }
+  };
+
   return (
-    <div className="min-w-[190px] max-w-[240px]">
-      {!url ? (
+    <div className="w-[220px] max-w-full">
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        src={url || undefined}
+        onLoadedMetadata={(e) => {
+          const value = e.currentTarget.duration;
+          if (Number.isFinite(value) && value > 0) setDuration(value);
+        }}
+        onTimeUpdate={(e) => {
+          const current = e.currentTarget.currentTime;
+          const total = e.currentTarget.duration || duration || 1;
+          setProgress(Math.min(100, (current / total) * 100));
+        }}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setProgress(0);
+          if (audioRef.current) audioRef.current.currentTime = 0;
+        }}
+        onError={() => {
+          setPlaying(false);
+          if (!loading) setError('Unable to play this voice note. Tap retry.');
+        }}
+        className="hidden"
+      />
+
+      <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 ${mine ? 'bg-white/10' : 'bg-stone-100'}`}>
         <button
           type="button"
-          onClick={() => void loadAudio()}
+          onClick={() => void togglePlayback()}
           disabled={loading || !audioPath}
-          className={`w-full rounded-xl px-3 py-2 text-left font-medium transition ${
-            mine ? 'bg-white/10 text-white' : 'bg-stone-100 text-stone-800'
-          } ${loading ? 'opacity-60' : ''}`}
+          className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold ${mine ? 'bg-white text-rose-900' : 'bg-rose-900 text-white'} disabled:opacity-50`}
+          aria-label={playing ? 'Pause voice note' : 'Play voice note'}
         >
-          {loading ? 'Loading voice note…' : '▶ Play voice note'}
+          {loading ? '…' : playing ? '❚❚' : '▶'}
         </button>
-      ) : (
-        <audio
-          controls
-          preload="metadata"
-          src={url}
-          onError={() => {
-            setUrl(null);
-            setError('Unable to play this voice message. Please try again.');
-          }}
-          className="w-full h-9"
-        />
+
+        <div className="flex-1 min-w-0">
+          <div className={`h-1.5 rounded-full overflow-hidden ${mine ? 'bg-white/20' : 'bg-stone-300'}`}>
+            <div
+              className={`h-full rounded-full ${mine ? 'bg-white' : 'bg-rose-900'}`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className={`mt-1 text-[10px] ${mine ? 'text-white/70' : 'text-stone-500'}`}>
+            {duration > 0 ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}` : 'Voice note'}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <button type="button" onClick={() => void retry()} className={`mt-1 text-[10px] underline ${mine ? 'text-white/80' : 'text-rose-700'}`}>
+          {error} · Retry
+        </button>
       )}
-      {error && <p className="text-[10px] mt-1 opacity-80">{error}</p>}
     </div>
   );
 };
@@ -234,6 +327,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
+  const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
+  const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
+  const [unsending, setUnsending] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
@@ -331,6 +427,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!match) return;
     return listenContactExchange(match.id, match.user1Id, match.user2Id, setContactState);
   }, [activeConvId, matchRecords]);
+
+  const handleUnsendMessage = async () => {
+    if (!activeConvId || !unsendMessageId || unsending) return;
+    setUnsending(true);
+    setSendError(null);
+    try {
+      await unsendMatchMessage(activeConvId, unsendMessageId);
+      setUnsendMessageId(null);
+      setMessageMenuId(null);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to unsend this message.');
+    } finally {
+      setUnsending(false);
+    }
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
@@ -760,6 +871,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-1">
               {currentMessages.map((m) => {
                 const isMine = m.senderId === myId;
+                const canUnsend = isMine && Date.now() - new Date(m.createdAt).getTime() <= 15 * 60 * 1000;
                 return (
                   <motion.div
                     key={m.id}
@@ -767,22 +879,52 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
-                    <div
-                      className={`max-w-[82%] min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
-                        isMine
-                          ? 'bg-rose-900 text-white rounded-br-xs'
-                          : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
-                      }`}
-                    >
-                      {m.kind === 'image' && m.imageUrl ? (
-                        <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
-                      ) : m.kind === 'audio' ? (
-                        <VoiceMessageBubble message={m} matchId={activeConvId || ''} mine={isMine} />
-                      ) : m.kind === 'viewOnce' || m.viewOnce ? (
-                        <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
-                      ) : (
-                        m.content
+                    <div className="flex items-center gap-1 max-w-[92%]">
+                      {isMine && (
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setMessageMenuId((current) => current === m.id ? null : m.id)}
+                            className="w-7 h-7 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center"
+                            aria-label="Message options"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+                          {messageMenuId === m.id && (
+                            <div className="absolute right-0 bottom-8 z-30 w-36 rounded-xl border border-stone-200 bg-white shadow-lg p-1">
+                              <button
+                                type="button"
+                                disabled={!canUnsend}
+                                onClick={() => {
+                                  setMessageMenuId(null);
+                                  setUnsendMessageId(m.id);
+                                }}
+                                className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:text-stone-300 disabled:hover:bg-white"
+                              >
+                                Unsend message
+                              </button>
+                              {!canUnsend && <p className="px-3 pb-1 text-[9px] text-stone-400">Available for 15 minutes</p>}
+                            </div>
+                          )}
+                        </div>
                       )}
+                      <div
+                        className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
+                          isMine
+                            ? 'bg-rose-900 text-white rounded-br-xs'
+                            : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
+                        }`}
+                      >
+                        {m.kind === 'image' && m.imageUrl ? (
+                          <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
+                        ) : m.kind === 'audio' ? (
+                          <VoiceMessageBubble message={m} matchId={activeConvId || ''} mine={isMine} />
+                        ) : m.kind === 'viewOnce' || m.viewOnce ? (
+                          <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
+                        ) : (
+                          m.content
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
@@ -840,10 +982,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <button
                     type="button"
                     onClick={handleCancelRecording}
-                    className="w-8 h-8 rounded-full text-stone-600 hover:text-rose-900 hover:bg-rose-100 flex items-center justify-center"
-                    aria-label="Cancel recording"
+                    className="h-8 px-2 rounded-full text-stone-600 hover:text-rose-900 hover:bg-rose-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold"
+                    aria-label="Discard recording"
+                    title="Discard recording"
                   >
                     <Trash2 className="w-4 h-4" />
+                    <span>Discard</span>
                   </button>
                   <div className="flex items-center gap-2 text-rose-900 text-xs font-semibold">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
@@ -864,7 +1008,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     type="button"
                     onClick={() => void handleStartRecording()}
                     className="w-8 h-8 rounded-full text-stone-600 hover:text-rose-900 hover:bg-stone-100 flex items-center justify-center shrink-0"
-                    aria-label="Record voice note"
+                    aria-label="Record voice message"
                   >
                     <Mic className="w-4 h-4" />
                   </button>
@@ -906,6 +1050,29 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               )}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* UNSEND CONFIRMATION */}
+      <AnimatePresence>
+        {unsendMessageId && (
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
+            >
+              <h3 className="font-serif font-bold text-base">Unsend this message?</h3>
+              <p className="text-xs text-stone-600 leading-relaxed">This removes the message for both you and the recipient. Voice notes and photos attached to it will also be removed.</p>
+              <div className="flex gap-2 pt-1">
+                <button type="button" disabled={unsending} onClick={() => setUnsendMessageId(null)} className="flex-1 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold">Cancel</button>
+                <button type="button" disabled={unsending} onClick={() => void handleUnsendMessage()} className="flex-1 py-2.5 rounded-xl bg-rose-900 text-white text-xs font-semibold disabled:opacity-50">
+                  {unsending ? 'Removing…' : 'Unsend'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
