@@ -1,5 +1,5 @@
-import { json, readBody, requireUser, getAdmin } from '../_lib/admin.js';
-import { chatJson } from '../_lib/ai.js';
+import { json, readBody, requireUser, getAdmin } from '../../server/_lib/admin.js';
+import { chatJson } from '../../server/_lib/ai.js';
 
 const FAQ = `Lifebencher Match FAQ (answer ONLY from this):
 - Nigeria matchmaking ₦30,000 one-time, up to 3 introductions, local Discover pool.
