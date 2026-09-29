@@ -30,7 +30,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -741,6 +741,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [unsending, setUnsending] = useState(false);
   const [showContactExchange, setShowContactExchange] = useState(true);
   const [resolvedOtherContact, setResolvedOtherContact] = useState<{ phone: string; email: string } | undefined>(undefined);
+  const [otherOnline, setOtherOnline] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingStateRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -824,6 +828,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setInputVal('');
       setHasLoadedDraft(false);
       setShowJumpToLatest(false);
+      setOtherOnline(false);
+      setOtherTyping(false);
       return;
     }
     const draftKey = `lifebencher:chat-draft:${activeConvId}`;
@@ -836,6 +842,39 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     void markMatchMessagesRead(activeConvId);
     return listenMatchMessages(activeConvId, setCurrentMessages);
   }, [activeConvId]);
+
+  // Keep presence and typing scoped to the open match only.
+  useEffect(() => {
+    if (!activeConvId || !myId) return;
+    const match = matchRecords[activeConvId];
+    if (!match) return;
+    const otherId = match.user1Id === myId ? match.user2Id : match.user1Id;
+
+    void setChatPresence(activeConvId, myId, true);
+    void setChatTyping(activeConvId, myId, false);
+    typingStateRef.current = false;
+    setOtherOnline(false);
+    setOtherTyping(false);
+
+    const stopPresence = listenChatPresence(activeConvId, otherId, setOtherOnline);
+    const stopTyping = listenChatTyping(activeConvId, otherId, setOtherTyping);
+
+    const goOffline = () => {
+      void setChatPresence(activeConvId, myId, false);
+      void setChatTyping(activeConvId, myId, false);
+      typingStateRef.current = false;
+    };
+
+    window.addEventListener('pagehide', goOffline);
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+      goOffline();
+      window.removeEventListener('pagehide', goOffline);
+      stopPresence();
+      stopTyping();
+    };
+  }, [activeConvId, myId, matchRecords]);
 
   // Re-run the read receipt after the realtime message listener has loaded.
   // This avoids the initial open/read race and lets the sender receive the
@@ -988,6 +1027,30 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     } catch {
       setSendError('Could not update starred message.');
     }
+  };
+
+  const handleInputChange = (value: string) => {
+    setInputVal(value);
+    if (!activeConvId || !myId) return;
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+
+    if (!value.trim()) {
+      if (typingStateRef.current) {
+        typingStateRef.current = false;
+        void setChatTyping(activeConvId, myId, false);
+      }
+      return;
+    }
+
+    if (!typingStateRef.current) {
+      typingStateRef.current = true;
+      void setChatTyping(activeConvId, myId, true);
+    }
+
+    typingTimerRef.current = setTimeout(() => {
+      typingStateRef.current = false;
+      void setChatTyping(activeConvId, myId, false);
+    }, 1400);
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -1319,8 +1382,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     {activeConv.otherUser?.displayName}
                   </h3>
                   <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                    <span className="text-emerald-700">Active</span>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
+                    <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
+                      {otherTyping ? 'typing…' : otherOnline ? 'Active now' : 'Offline'}
+                    </span>
                     <span>•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                   </div>
@@ -1751,7 +1816,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <textarea
                     rows={1}
                     value={inputVal}
-                    onChange={(e) => setInputVal(e.target.value)}
+                    onChange={(e) => handleInputChange(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={`Message ${activeConv.otherUser?.displayName}...`}
                     className="flex-1 min-w-0 text-xs text-stone-800 bg-transparent outline-hidden px-1 py-1.5 resize-none break-words"
