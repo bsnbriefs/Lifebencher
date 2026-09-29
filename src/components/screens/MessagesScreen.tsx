@@ -382,6 +382,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
+  const [showContactExchange, setShowContactExchange] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
@@ -471,6 +472,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   }, [currentMessages, activeConvId]);
 
   useEffect(() => {
+    setShowContactExchange(true);
     if (!activeConvId) {
       setContactState(null);
       return;
@@ -813,7 +815,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
 
               {/* Header Action Menu */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {activeConv.exchangeState === 'none' && (
                   <button
                     onClick={handleRequestExchange}
@@ -839,11 +841,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <button
                   type="button"
                   onClick={() => setActiveConvId(null)}
-                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer shrink-0"
+                  className="w-8 h-8 rounded-full border border-stone-300 bg-white hover:bg-stone-100 text-stone-700 flex items-center justify-center transition cursor-pointer shrink-0 shadow-sm"
                   aria-label="Close conversation"
                   title="Close conversation"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
@@ -866,13 +868,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
+            {showContactExchange && activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3.5 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
+                className="relative p-3.5 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
               >
-                <div className="flex items-center justify-between text-amber-100 font-bold gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setShowContactExchange(false)}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                  aria-label="Close contact exchange"
+                  title="Close contact exchange"
+                >
+                  <X className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+                <div className="flex items-center justify-between text-amber-100 font-bold gap-2 min-w-0 pr-11">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
                     <span className="truncate">Mutual Contact Exchange Unlocked!</span>
