@@ -24,7 +24,8 @@ import {
   Heart,
   Star,
   Reply,
-  Smile
+  Smile,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
@@ -720,6 +721,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -736,6 +738,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
   const [reactionMenuId, setReactionMenuId] = useState<string | null>(null);
   const [starredMessageIds, setStarredMessageIds] = useState<Set<string>>(new Set());
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [messageSearch, setMessageSearch] = useState('');
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
@@ -995,6 +1000,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setUnsending(false);
     }
   };
+
+  const visibleMessages = currentMessages.filter((message) => {
+    if (showStarredOnly && !starredMessageIds.has(message.id)) return false;
+    const query = messageSearch.trim().toLowerCase();
+    if (!query) return true;
+    const text = `${message.content || ''} ${message.replyToPreview || ''}`.toLowerCase();
+    return text.includes(query);
+  });
 
   const scrollToMessage = (messageId: string) => {
     const node = messageRefs.current[messageId];
@@ -1409,6 +1422,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 )}
 
                 <button
+                  type="button"
+                  onClick={() => { setShowMessageSearch((v) => !v); setShowStarredOnly(false); }}
+                  className={`p-1.5 rounded-full transition cursor-pointer ${showMessageSearch ? 'bg-stone-200 text-rose-900' : 'hover:bg-stone-200 text-stone-600'}`}
+                  aria-label="Search messages"
+                  title="Search messages"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowStarredOnly((v) => !v); setShowMessageSearch(false); }}
+                  className={`p-1.5 rounded-full transition cursor-pointer ${showStarredOnly ? 'bg-amber-50 text-amber-600' : 'hover:bg-stone-200 text-stone-600'}`}
+                  aria-label="Show starred messages"
+                  title="Show starred messages"
+                >
+                  <Star className={`w-4 h-4 ${showStarredOnly ? 'fill-amber-400' : ''}`} />
+                </button>
+                <button
                   onClick={() => setShowOptionsModal(true)}
                   className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer"
                   aria-label="Options"
@@ -1542,9 +1573,33 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </button>
             )}
 
+            {showMessageSearch && (
+              <div className="mb-2 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
+                <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                <input
+                  value={messageSearch}
+                  onChange={(e) => setMessageSearch(e.target.value)}
+                  placeholder="Search messages"
+                  className="flex-1 min-w-0 bg-transparent outline-none text-xs text-stone-800 placeholder:text-stone-400"
+                  autoFocus
+                />
+                {messageSearch && (
+                  <button type="button" onClick={() => setMessageSearch('')} className="text-stone-400 hover:text-stone-700" aria-label="Clear search">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+            {showStarredOnly && (
+              <div className="mb-2 flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-900">
+                <span className="font-semibold">Starred messages</span>
+                <button type="button" onClick={() => setShowStarredOnly(false)} className="font-semibold">Show all</button>
+              </div>
+            )}
+
             {/* Message Stream */}
             <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
-              {currentMessages.map((m, index) => {
+              {visibleMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
                 const previous = currentMessages[index - 1];
                 const currentDay = new Date(m.createdAt);
@@ -1650,6 +1705,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   </React.Fragment>
                 );
               })}
+              {visibleMessages.length === 0 && (
+                <div className="py-12 text-center text-xs text-stone-400">
+                  {showStarredOnly ? 'No starred messages yet.' : 'No messages found.'}
+                </div>
+              )}
               <div ref={messagesEndRef} />
               {showJumpToLatest && (
                 <button
@@ -1697,11 +1757,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               </div>
             )}
-
-            <label className="flex items-center gap-1.5 text-[10px] text-stone-500 px-1">
-              <input type="checkbox" checked={viewOnce} onChange={(e) => setViewOnce(e.target.checked)} />
-              View once (one tap for the recipient; does not stop screenshots)
-            </label>
 
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
               {replyTarget && !isRecording && !recordingPreview && (
@@ -1808,9 +1863,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       void sendMatchImage(activeConvId, file, viewOnce).catch((err) =>
                         setSendError(err instanceof Error ? err.message : 'Could not send photo')
                       );
+                      setViewOnce(false);
                     }}
                   />
-                  <button type="button" onClick={() => photoInputRef.current?.click()} className="w-8 h-8 rounded-full p-1.5 text-stone-500 shrink-0" aria-label="Send photo">
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaOptions(true)}
+                    className="w-8 h-8 rounded-full p-1.5 text-stone-500 shrink-0 hover:bg-stone-100"
+                    aria-label="Send photo"
+                  >
                     <ImagePlus className="w-4 h-4" />
                   </button>
                   <textarea
@@ -1834,6 +1895,71 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               )}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MEDIA SHARING OPTIONS */}
+      <AnimatePresence>
+        {showMediaOptions && (
+          <div
+            className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+            onClick={() => setShowMediaOptions(false)}
+          >
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif font-bold text-base">Share a photo</h3>
+                  <p className="text-[11px] text-stone-500 mt-0.5">Choose how the photo should be shared.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMediaOptions(false)}
+                  className="w-8 h-8 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center"
+                  aria-label="Close media options"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setViewOnce(false);
+                  setShowMediaOptions(false);
+                  photoInputRef.current?.click();
+                }}
+                className="w-full p-3 rounded-2xl border border-stone-200 hover:bg-stone-50 text-left flex items-center gap-3"
+              >
+                <span className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center">📷</span>
+                <span>
+                  <span className="block text-sm font-semibold">Send normally</span>
+                  <span className="block text-[11px] text-stone-500">The photo remains in the conversation.</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setViewOnce(true);
+                  setShowMediaOptions(false);
+                  photoInputRef.current?.click();
+                }}
+                className="w-full p-3 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-left flex items-center gap-3"
+              >
+                <span className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">👁️</span>
+                <span>
+                  <span className="block text-sm font-semibold text-stone-900">View once</span>
+                  <span className="block text-[11px] text-stone-600">The recipient can open it once.</span>
+                </span>
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
