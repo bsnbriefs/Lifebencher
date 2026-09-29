@@ -519,7 +519,9 @@ service cloud.firestore {
               'audioUrl',
               'durationMs',
               'replyToId',
-              'replyToPreview'
+              'replyToPreview',
+              'reactions',
+              'starredBy'
             ])
             && isValidId(data.id)
             && data.id == messageId
@@ -584,6 +586,14 @@ service cloud.firestore {
                 data.replyToPreview is string
                 && data.replyToPreview.size() <= 500
               )
+            )
+            && (
+              !data.keys().hasAny(['reactions'])
+              || data.reactions is map
+            )
+            && (
+              !data.keys().hasAny(['starredBy'])
+              || data.starredBy is list
             );
         }
 
@@ -595,7 +605,6 @@ service cloud.firestore {
           && parentMatch().status == 'active';
 
         allow update: if isParticipant()
-          && (isAdmin() || request.auth.uid != existing().senderId)
           && isValidMessage(incoming())
           && incoming().id == existing().id
           && incoming().matchId == existing().matchId
@@ -604,7 +613,9 @@ service cloud.firestore {
           && incoming().createdAt == existing().createdAt
           && incoming().diff(existing()).affectedKeys().hasOnly([
             'readAt',
-            'viewedAt'
+            'viewedAt',
+            'reactions',
+            'starredBy'
           ]);
 
         allow delete: if isAdmin();
