@@ -249,6 +249,98 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
   );
 };
 
+const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ message, matchId }) => {
+  const imagePath = (message as Message & { imagePath?: string }).imagePath || '';
+  const [url, setUrl] = useState<string | null>((message as Message & { imageUrl?: string }).imageUrl || null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fullScreen, setFullScreen] = useState(false);
+
+  const loadImage = async () => {
+    if (url || loading) return;
+    if (!imagePath) {
+      setError('Photo is unavailable.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const resolved = await resolveChatMediaUrl(matchId, imagePath);
+      setUrl(resolved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load this photo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!url && imagePath) void loadImage();
+  }, [imagePath]);
+
+  if (!url) {
+    return (
+      <button
+        type="button"
+        onClick={() => void loadImage()}
+        disabled={loading}
+        className="w-[220px] max-w-full min-h-[120px] rounded-xl bg-black/10 flex items-center justify-center text-[11px] font-semibold disabled:opacity-60"
+      >
+        {loading ? 'Loading photo…' : error || 'Tap to load photo'}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setFullScreen(true)}
+        className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
+        aria-label="View photo full screen"
+      >
+        <img
+          src={url}
+          alt="Sent photo"
+          className="block max-w-[78vw] sm:max-w-[420px] max-h-[55dvh] w-auto h-auto object-contain rounded-xl"
+          onError={() => {
+            setUrl(null);
+            setError('Unable to load this photo. Tap to retry.');
+          }}
+        />
+      </button>
+
+      {fullScreen && (
+        <div
+          className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3"
+          onClick={() => setFullScreen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo viewer"
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullScreen(false);
+            }}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center"
+            aria-label="Close photo"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={url}
+            alt="Sent photo"
+            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  );
+};
+
 const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
   const consumed = Boolean(message.viewedAt) && !mine;
   const [open, setOpen] = useState(false);
@@ -383,7 +475,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
   const [showContactExchange, setShowContactExchange] = useState(true);
-  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
@@ -808,9 +899,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <h3 className="font-serif font-bold text-sm text-stone-900">
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <div className="flex items-center gap-1 text-[11px] text-emerald-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <span>Active in window</span>
+                  <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="text-emerald-700">Active</span>
+                    <span>•</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
                   </div>
                 </div>
               </div>
@@ -840,17 +933,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </button>
 
               </div>
-            </div>
-
-            {/* Expiration Countdown Reminder Banner */}
-            <div className="py-1 px-3 bg-amber-50/90 border border-amber-200 rounded-xl text-center text-[11px] text-amber-900 flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <span className="font-semibold">
-                  {formatRemainingTime(activeConv.expiresAt)} in this connection window
-                </span>
-              </div>
-              <span className="text-[10px] text-stone-500">Extends on mutual agreement</span>
             </div>
 
             {/* MUTUAL CONTACT EXCHANGE UNLOCKED CARD */}
@@ -997,22 +1079,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                               : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
                           }`}
                         >
-                        {m.kind === 'image' && m.imageUrl ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFullImageUrl(m.imageUrl || null);
-                            }}
-                            className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
-                            aria-label="View photo full screen"
-                          >
-                            <img
-                              src={m.imageUrl}
-                              alt="Sent photo"
-                              className="block w-auto max-w-[78vw] sm:max-w-[420px] max-h-[55dvh] object-contain rounded-xl"
-                            />
-                          </button>
+                        {m.kind === 'image' ? (
+                          <ImageMessageBubble message={m} matchId={activeConvId || ''} />
                         ) : m.kind === 'audio' ? (
                           <VoiceMessageBubble message={m} matchId={activeConvId || ''} mine={isMine} />
                         ) : m.kind === 'viewOnce' || m.viewOnce ? (
@@ -1236,35 +1304,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
-
-      {/* FULL-SCREEN SENT PHOTO VIEWER */}
-      <AnimatePresence>
-        {fullImageUrl && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-3"
-            onClick={() => setFullImageUrl(null)}
-          >
-            <button
-              type="button"
-              onClick={() => setFullImageUrl(null)}
-              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/15 border border-white/30 text-white flex items-center justify-center"
-              aria-label="Close full-screen photo"
-              title="Close"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <img
-              src={fullImageUrl}
-              alt="Sent photo full screen"
-              className="max-w-full max-h-[92dvh] w-auto h-auto object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </motion.div>
         )}
       </AnimatePresence>
 
