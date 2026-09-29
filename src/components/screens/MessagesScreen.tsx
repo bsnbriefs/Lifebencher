@@ -453,43 +453,73 @@ const SwipeToReply: React.FC<{
   onReply: () => void;
   mine: boolean;
 }> = ({ children, onReply, mine }) => {
-  const startRef = useRef<{ x: number; y: number } | null>(null);
   const [offset, setOffset] = useState(0);
   const [swiping, setSwiping] = useState(false);
+
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const offsetRef = useRef(0);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     startRef.current = { x: e.clientX, y: e.clientY };
-    setSwiping(true);
+    offsetRef.current = 0;
+    setOffset(0);
+    setSwiping(false);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture is optional.
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const start = startRef.current;
     if (!start) return;
+
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
 
-    // Only treat a predominantly horizontal gesture as a reply gesture.
-    if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+    // Let normal vertical scrolling win. Only a clearly horizontal gesture
+    // becomes a reply gesture.
+    if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
 
     const direction = mine ? -1 : 1;
     const signed = dx * direction;
-    if (signed > 0) {
-      setOffset(Math.min(64, signed));
+    if (signed <= 0) {
+      offsetRef.current = 0;
+      setOffset(0);
+      return;
     }
+
+    const next = Math.min(72, signed);
+    offsetRef.current = next;
+    setOffset(next);
+    if (next > 12) setSwiping(true);
   };
 
-  const finishSwipe = () => {
+  const finishSwipe = (e?: React.PointerEvent<HTMLDivElement>) => {
     const start = startRef.current;
     if (!start) return;
-    const dx = (offset > 0 ? offset : 0);
-    if (dx >= 52) {
+
+    const finalOffset = offsetRef.current;
+    if (finalOffset >= 52) {
       onReply();
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         try { navigator.vibrate(12); } catch { /* optional */ }
+    }
+
+    if (e) {
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // Pointer capture is optional.
       }
     }
+
     startRef.current = null;
+    offsetRef.current = 0;
     setOffset(0);
     setSwiping(false);
   };
@@ -499,8 +529,8 @@ const SwipeToReply: React.FC<{
       className="relative min-w-0 touch-pan-y"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerUp={finishSwipe}
-      onPointerCancel={finishSwipe}
+      onPointerUp={(e) => finishSwipe(e)}
+      onPointerCancel={(e) => finishSwipe(e)}
       onPointerLeave={(e) => {
         if (e.pointerType === 'mouse') finishSwipe();
       }}
