@@ -520,6 +520,7 @@ service cloud.firestore {
               'durationMs',
               'replyToId',
               'replyToPreview',
+              'editedAt',
               'reactions',
               'starredBy'
             ])
@@ -609,16 +610,30 @@ service cloud.firestore {
           && incoming().id == existing().id
           && incoming().matchId == existing().matchId
           && incoming().senderId == existing().senderId
-          && incoming().content == existing().content
           && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly([
-            'readAt',
-'viewedAt',
-'reactions',
-'starredBy',
-'content',
-'editedAt'
-          ]);
+          && (
+            (
+              request.auth.uid == existing().senderId
+              && incoming().get('kind', 'text') == 'text'
+              && incoming().content is string
+              && incoming().content != existing().content
+              && incoming().editedAt is string
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'content',
+                'editedAt'
+              ])
+            )
+            ||
+            (
+              incoming().content == existing().content
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'readAt',
+                'viewedAt',
+                'reactions',
+                'starredBy'
+              ])
+            )
+          );
 
         allow delete: if isAdmin();
       }
