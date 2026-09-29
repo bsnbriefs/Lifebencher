@@ -1491,7 +1491,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   month: 'short',
                   day: 'numeric'
                 });
-                const canUnsend = isMine && Date.now() - new Date(m.createdAt).getTime() <= 15 * 60 * 1000;
+                const canUnsend = isMine;
                 return (
                   <React.Fragment key={`message-group-${m.id}`}>
                   {showDateSeparator && (
@@ -1558,8 +1558,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                               <Star className={`w-3.5 h-3.5 ${starredMessageIds.has(m.id) ? 'fill-amber-400 text-amber-500' : ''}`} /> {starredMessageIds.has(m.id) ? 'Unstar' : 'Star'}
                             </button>
                             {isMine && (
-                              <button type="button" disabled={!canUnsend} onClick={(e) => { e.stopPropagation(); if (canUnsend) { setMessageMenuId(null); setUnsendMessageId(m.id); } }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
-                                <Trash2 className="w-3.5 h-3.5" /> {canUnsend ? 'Delete' : 'Delete unavailable'}
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
                               </button>
                             )}
                           </div>
@@ -1579,7 +1579,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
-                      {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Seen" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
+                      {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Read" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
                     </div>
                   </motion.div>
                   </React.Fragment>
