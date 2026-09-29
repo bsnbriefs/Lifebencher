@@ -880,41 +880,25 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
                     <div className="flex items-center gap-1 max-w-[92%]">
-                      {isMine && (
-                        <div className="relative shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setMessageMenuId((current) => current === m.id ? null : m.id)}
-                            className="w-7 h-7 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center"
-                            aria-label="Message options"
-                          >
-                            <MoreVertical className="w-3.5 h-3.5" />
-                          </button>
-                          {messageMenuId === m.id && (
-                            <div className="absolute right-0 bottom-8 z-30 w-36 rounded-xl border border-stone-200 bg-white shadow-lg p-1">
-                              <button
-                                type="button"
-                                disabled={!canUnsend}
-                                onClick={() => {
-                                  setMessageMenuId(null);
-                                  setUnsendMessageId(m.id);
-                                }}
-                                className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:text-stone-300 disabled:hover:bg-white"
-                              >
-                                Unsend message
-                              </button>
-                              {!canUnsend && <p className="px-3 pb-1 text-[9px] text-stone-400">Available for 15 minutes</p>}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div
-                        className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
-                          isMine
-                            ? 'bg-rose-900 text-white rounded-br-xs'
-                            : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
-                        }`}
-                      >
+                      <div className="relative max-w-full min-w-0">
+                        <div
+                          role={isMine ? 'button' : undefined}
+                          tabIndex={isMine ? 0 : undefined}
+                          onClick={() => {
+                            if (isMine) setMessageMenuId((current) => current === m.id ? null : m.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (isMine && (e.key === 'Enter' || e.key === ' ')) {
+                              e.preventDefault();
+                              setMessageMenuId((current) => current === m.id ? null : m.id);
+                            }
+                          }}
+                          className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
+                            isMine
+                              ? 'bg-rose-900 text-white rounded-br-xs cursor-pointer'
+                              : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
+                          }`}
+                        >
                         {m.kind === 'image' && m.imageUrl ? (
                           <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
                         ) : m.kind === 'audio' ? (
@@ -923,6 +907,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
                         ) : (
                           m.content
+                        )}
+                        </div>
+
+                        {isMine && messageMenuId === m.id && (
+                          <div className="mt-1 flex justify-end">
+                            <button
+                              type="button"
+                              disabled={!canUnsend}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (canUnsend) {
+                                  setMessageMenuId(null);
+                                  setUnsendMessageId(m.id);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 whitespace-nowrap active:scale-[0.98] disabled:text-stone-400 disabled:border-stone-200"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              {canUnsend ? 'Delete message' : 'Delete unavailable'}
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
