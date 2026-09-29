@@ -447,6 +447,82 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
   );
 };
 
+
+const SwipeToReply: React.FC<{
+  children: React.ReactNode;
+  onReply: () => void;
+  mine: boolean;
+}> = ({ children, onReply, mine }) => {
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    startRef.current = { x: e.clientX, y: e.clientY };
+    setSwiping(true);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = startRef.current;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+
+    // Only treat a predominantly horizontal gesture as a reply gesture.
+    if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+
+    const direction = mine ? -1 : 1;
+    const signed = dx * direction;
+    if (signed > 0) {
+      setOffset(Math.min(64, signed));
+    }
+  };
+
+  const finishSwipe = () => {
+    const start = startRef.current;
+    if (!start) return;
+    const dx = (offset > 0 ? offset : 0);
+    if (dx >= 52) {
+      onReply();
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate(12); } catch { /* optional */ }
+      }
+    }
+    startRef.current = null;
+    setOffset(0);
+    setSwiping(false);
+  };
+
+  return (
+    <div
+      className="relative min-w-0 touch-pan-y"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishSwipe}
+      onPointerCancel={finishSwipe}
+      onPointerLeave={(e) => {
+        if (e.pointerType === 'mouse') finishSwipe();
+      }}
+    >
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-100 text-rose-900 flex items-center justify-center transition-opacity ${
+          offset > 8 ? 'opacity-100' : 'opacity-0'
+        } ${mine ? 'right-full mr-2' : 'left-full ml-2'}`}
+        aria-hidden="true"
+      >
+        ↩
+      </div>
+      <div
+        style={{ transform: `translateX(${mine ? -offset : offset}px)` }}
+        className={swiping ? 'transition-none' : 'transition-transform duration-150'}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversationId }) => {
   const { user } = useAuth();
   const myId = user?.id || '';
@@ -458,7 +534,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
@@ -948,7 +1023,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     <span className="text-emerald-700">Active</span>
                     <span>•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                   </div>
                 </div>
               </div>
@@ -1133,34 +1208,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
                     <div className="flex items-center gap-1 max-w-[92%]">
+                      <SwipeToReply
+                        mine={isMine}
+                        onReply={() => {
+                          setReplyTarget(m);
+                          setMessageMenuId(null);
+                        }}
+                      >
                       <div className="relative max-w-full min-w-0">
                         <div
-                          role={isMine ? 'button' : undefined}
-                          tabIndex={isMine ? 0 : undefined}
                           onClick={() => {
                             if (isMine) setMessageMenuId((current) => current === m.id ? null : m.id);
-                          }}
-                          onPointerDown={() => {
-                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                            longPressTimerRef.current = setTimeout(() => setReplyTarget(m), 550);
-                          }}
-                          onPointerUp={() => {
-                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                            longPressTimerRef.current = null;
-                          }}
-                          onPointerLeave={() => {
-                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                            longPressTimerRef.current = null;
-                          }}
-                          onPointerCancel={() => {
-                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                            longPressTimerRef.current = null;
-                          }}
-                          onKeyDown={(e) => {
-                            if (isMine && (e.key === 'Enter' || e.key === ' ')) {
-                              e.preventDefault();
-                              setMessageMenuId((current) => current === m.id ? null : m.id);
-                            }
                           }}
                           className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
                             isMine
@@ -1211,6 +1269,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           </div>
                         )}
                       </div>
+                      </SwipeToReply>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
