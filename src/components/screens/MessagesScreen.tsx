@@ -60,7 +60,6 @@ const ICEBREAKER_PROMPTS = [
 
 const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [url, setUrl] = useState<string | null>((message as Message & { audioUrl?: string }).audioUrl || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -68,44 +67,68 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
   const [duration, setDuration] = useState(Math.max(0, Number(message.durationMs || 0) / 1000));
   const audioPath = (message as Message & { audioPath?: string }).audioPath || '';
 
-  const ensureUrl = async (): Promise<string> => {
-    if (url) return url;
+  const loadAudio = async (): Promise<HTMLAudioElement> => {
+    const audio = audioRef.current;
+    if (!audio) throw new Error('Audio player is unavailable.');
     if (!audioPath) throw new Error('Voice note is unavailable.');
-    setLoading(true);
-    setError(null);
-    try {
-      const resolved = await resolveChatMediaUrl(matchId, audioPath);
-      setUrl(resolved);
-      return resolved;
-    } catch (err) {
-      const messageText = err instanceof Error ? err.message : 'Unable to load this voice note.';
-      setError(messageText);
-      throw err;
-    } finally {
-      setLoading(false);
+
+    // Do not put the signed URL in the JSX `src` prop. That can trigger a second
+    // browser load while play() is starting, which causes the interrupted-load error.
+    if (!audio.src) {
+      setLoading(true);
+      setError(null);
+      try {
+        const resolved = await resolveChatMediaUrl(matchId, audioPath);
+        audio.src = resolved;
+
+        // Wait until the browser has accepted the new source before calling play().
+        await new Promise<void>((resolve, reject) => {
+          const onReady = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = () => {
+            cleanup();
+            reject(new Error('Unable to load this voice note.'));
+          };
+          const cleanup = () => {
+            audio.removeEventListener('canplay', onReady);
+            audio.removeEventListener('loadedmetadata', onReady);
+            audio.removeEventListener('error', onError);
+          };
+
+          audio.addEventListener('canplay', onReady, { once: true });
+          audio.addEventListener('loadedmetadata', onReady, { once: true });
+          audio.addEventListener('error', onError, { once: true });
+          audio.load();
+
+          // Some browsers already have enough data immediately after load().
+          if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            cleanup();
+            resolve();
+          }
+        });
+      } finally {
+        setLoading(false);
+      }
     }
+
+    return audio;
   };
 
   const togglePlayback = async () => {
-    const audio = audioRef.current;
-    if (!audio) return;
     setError(null);
     try {
-      if (!audio.src) {
-        const resolved = await ensureUrl();
-        audio.src = resolved;
-        audio.load();
-      }
+      const audio = await loadAudio();
       if (audio.paused) {
         await audio.play();
-        setPlaying(true);
       } else {
         audio.pause();
-        setPlaying(false);
       }
     } catch (err) {
+      const audio = audioRef.current;
       setPlaying(false);
-      const code = audio.error?.code;
+      const code = audio?.error?.code;
       setError(
         code === 4
           ? 'This voice format is not supported on this device. Please ask them to resend it.'
@@ -118,24 +141,18 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
 
   const retry = async () => {
     const audio = audioRef.current;
-    setUrl(null);
+    if (!audio) return;
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
     setProgress(0);
     setError(null);
-    if (audio) {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-    }
     try {
-      const resolved = await ensureUrl();
-      if (audio) {
-        audio.src = resolved;
-        audio.load();
-        await audio.play();
-        setPlaying(true);
-      }
-    } catch {
+      const loaded = await loadAudio();
+      await loaded.play();
+    } catch (err) {
       setPlaying(false);
+      setError(err instanceof Error ? err.message : 'Unable to play this voice note.');
     }
   };
 
@@ -143,8 +160,7 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
     <div className="w-[220px] max-w-full">
       <audio
         ref={audioRef}
-        preload="metadata"
-        src={url || undefined}
+        preload="none"
         onLoadedMetadata={(e) => {
           const value = e.currentTarget.duration;
           if (Number.isFinite(value) && value > 0) setDuration(value);
@@ -193,8 +209,12 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
       </div>
 
       {error && (
-        <button type="button" onClick={() => void retry()} className={`mt-1 text-[10px] underline ${mine ? 'text-white/80' : 'text-rose-700'}`}>
-          {error} · Retry
+        <button
+          type="button"
+          onClick={() => void retry()}
+          className={`mt-1 text-left text-[11px] underline ${mine ? 'text-white/80' : 'text-rose-900'}`}
+        >
+          {error} Tap to retry.
         </button>
       )}
     </div>
