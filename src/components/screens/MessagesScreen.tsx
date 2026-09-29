@@ -24,6 +24,7 @@ import {
   Heart,
   Star,
   Reply,
+  Pencil,
   Smile,
   Search
 } from 'lucide-react';
@@ -744,7 +745,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
-  const [showContactExchange, setShowContactExchange] = useState(true);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [showContactExchange, setShowContactExchange] = useState(false);
   const [resolvedOtherContact, setResolvedOtherContact] = useState<{ phone: string; email: string } | undefined>(undefined);
   const [otherOnline, setOtherOnline] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
@@ -931,7 +933,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   }, [currentMessages, activeConvId]);
 
   useEffect(() => {
-    setShowContactExchange(true);
+    setShowContactExchange(false);
+  }, [activeConvId]);
+
+  useEffect(() => {
     if (!activeConvId) {
       setContactState(null);
       return;
@@ -985,6 +990,33 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       cancelled = true;
     };
   }, [activeConvId, liveUi, myId, matchRecords, currentProfile?.phone, currentProfile?.whatsapp, user?.phone, user?.email]);
+
+  const handleEditMessage = async () => {
+    if (!activeConvId || !editingMessageId || !inputVal.trim()) return;
+    setSendError(null);
+    try {
+      await import('../../lib/chat').then(({ editMatchMessage }) =>
+        editMatchMessage(activeConvId, editingMessageId, inputVal)
+      );
+      setEditingMessageId(null);
+      setInputVal('');
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to edit this message.');
+    }
+  };
+
+  const handleStartEditing = (message: Message) => {
+    if (message.senderId !== myId || message.kind !== 'text') return;
+    setEditingMessageId(message.id);
+    setInputVal(message.content || '');
+    setReplyTarget(null);
+    setMessageMenuId(null);
+  };
+
+  const handleCancelEditing = () => {
+    setEditingMessageId(null);
+    setInputVal('');
+  };
 
   const handleUnsendMessage = async () => {
     if (!activeConvId || !unsendMessageId || unsending) return;
@@ -1069,6 +1101,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
     if (!text || !activeConvId) return;
+    if (editingMessageId) {
+      await handleEditMessage();
+      return;
+    }
     setInputVal('');
     setReplyTarget(null);
     setSendError(null);
@@ -1562,17 +1598,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            {activeConv.exchangeState === 'unlocked' && !showContactExchange && activeConv.otherUserContact && (
-              <button
-                type="button"
-                onClick={() => setShowContactExchange(true)}
-                className="w-full mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-stone-100 border border-stone-200 text-[11px] text-stone-700"
-              >
-                <span className="font-semibold">🤝 Contacts exchanged</span>
-                <span className="text-rose-900 font-semibold">View contacts</span>
-              </button>
-            )}
-
             {showMessageSearch && (
               <div className="mb-2 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
                 <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
@@ -1677,6 +1702,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                             <button type="button" onClick={(e) => { e.stopPropagation(); void handleStar(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
                               <Star className={`w-3.5 h-3.5 ${starredMessageIds.has(m.id) ? 'fill-amber-400 text-amber-500' : ''}`} /> {starredMessageIds.has(m.id) ? 'Unstar' : 'Star'}
                             </button>
+                            {isMine && m.kind === 'text' && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleStartEditing(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                                <Pencil className="w-3.5 h-3.5" /> Edit
+                              </button>
+                            )}
                             {isMine && (
                               <button type="button" onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
                                 <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -1699,6 +1729,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
+                      {(m as Message & { editedAt?: string }).editedAt && <span className="text-stone-400">· edited</span>}
                       {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Read" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
                     </div>
                   </motion.div>
@@ -1759,7 +1790,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
-              {replyTarget && !isRecording && !recordingPreview && (
+              {editingMessageId && !isRecording && !recordingPreview && (
+                <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-amber-900">Editing message</p>
+                    <p className="text-[10px] text-stone-500 truncate">Change the text, then tap ✓</p>
+                  </div>
+                  <button type="button" onClick={handleCancelEditing} className="w-7 h-7 rounded-full hover:bg-amber-100 text-stone-500 flex items-center justify-center" aria-label="Cancel editing">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {replyTarget && !isRecording && !recordingPreview && !editingMessageId && (
                 <div className="mb-1.5 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-semibold text-rose-900">Replying to {replyTarget.senderId === myId ? 'your message' : activeConv.otherUser?.displayName}</p>
@@ -1887,9 +1929,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     onClick={() => void handleSendMessage()}
                     disabled={!inputVal.trim()}
                     className="w-8 h-8 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                    aria-label="Send message"
+                    aria-label={editingMessageId ? 'Save edited message' : 'Send message'}
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    {editingMessageId ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               )}
@@ -2009,6 +2051,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
 
               <div className="space-y-1.5 text-xs">
+                {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
+                  <button
+                    onClick={() => {
+                      setShowOptionsModal(false);
+                      setShowContactExchange(true);
+                    }}
+                    className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+                  >
+                    <span className="text-base">🤝</span>
+                    <span>View exchanged contacts</span>
+                  </button>
+                )}
+
+                {activeConv.exchangeState !== 'unlocked' && (
                 <button
                   onClick={() => {
                     setShowOptionsModal(false);
@@ -2019,6 +2075,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <span className="text-base">🤝</span>
                   <span>Mutual Contact Exchange Request</span>
                 </button>
+                )}
 
                 <button
                   onClick={() => {
