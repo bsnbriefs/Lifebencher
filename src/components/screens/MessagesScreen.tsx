@@ -248,6 +248,98 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
   );
 };
 
+const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ message, matchId }) => {
+  const imagePath = (message as Message & { imagePath?: string }).imagePath || '';
+  const [url, setUrl] = useState<string | null>((message as Message & { imageUrl?: string }).imageUrl || null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fullScreen, setFullScreen] = useState(false);
+
+  const loadImage = async () => {
+    if (url || loading) return;
+    if (!imagePath) {
+      setError('Photo is unavailable.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const resolved = await resolveChatMediaUrl(matchId, imagePath);
+      setUrl(resolved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load this photo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!url && imagePath) void loadImage();
+  }, [imagePath]);
+
+  if (!url) {
+    return (
+      <button
+        type="button"
+        onClick={() => void loadImage()}
+        disabled={loading}
+        className="w-[220px] max-w-full min-h-[120px] rounded-xl bg-black/10 flex items-center justify-center text-[11px] font-semibold disabled:opacity-60"
+      >
+        {loading ? 'Loading photo…' : error || 'Tap to load photo'}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setFullScreen(true)}
+        className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
+        aria-label="View photo full screen"
+      >
+        <img
+          src={url}
+          alt="Sent photo"
+          className="block max-w-[78vw] sm:max-w-[420px] max-h-[55dvh] w-auto h-auto object-contain rounded-xl"
+          onError={() => {
+            setUrl(null);
+            setError('Unable to load this photo. Tap to retry.');
+          }}
+        />
+      </button>
+
+      {fullScreen && (
+        <div
+          className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3"
+          onClick={() => setFullScreen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo viewer"
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullScreen(false);
+            }}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center"
+            aria-label="Close photo"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={url}
+            alt="Sent photo"
+            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  );
+};
+
 const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
   const consumed = Boolean(message.viewedAt) && !mine;
   const [open, setOpen] = useState(false);
@@ -354,6 +446,113 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
   );
 };
 
+
+const SwipeToReply: React.FC<{
+  children: React.ReactNode;
+  onReply: () => void;
+  mine: boolean;
+}> = ({ children, onReply, mine }) => {
+  const [offset, setOffset] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const offsetRef = useRef(0);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    startRef.current = { x: e.clientX, y: e.clientY };
+    offsetRef.current = 0;
+    setOffset(0);
+    setSwiping(false);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture is optional.
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = startRef.current;
+    if (!start) return;
+
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+
+    // Let normal vertical scrolling win. Only a clearly horizontal gesture
+    // becomes a reply gesture.
+    if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+
+    const direction = mine ? -1 : 1;
+    const signed = dx * direction;
+    if (signed <= 0) {
+      offsetRef.current = 0;
+      setOffset(0);
+      return;
+    }
+
+    const next = Math.min(72, signed);
+    offsetRef.current = next;
+    setOffset(next);
+    if (next > 12) setSwiping(true);
+  };
+
+  const finishSwipe = (e?: React.PointerEvent<HTMLDivElement>) => {
+    const start = startRef.current;
+    if (!start) return;
+
+    const finalOffset = offsetRef.current;
+    if (finalOffset >= 52) {
+      onReply();
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate(12); } catch { /* optional */ }
+      }
+    }
+
+    if (e) {
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // Pointer capture is optional.
+      }
+    }
+
+    startRef.current = null;
+    offsetRef.current = 0;
+    setOffset(0);
+    setSwiping(false);
+  };
+
+  return (
+    <div
+      className="relative min-w-0 touch-pan-y"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={(e) => finishSwipe(e)}
+      onPointerCancel={(e) => finishSwipe(e)}
+      onPointerLeave={(e) => {
+        if (e.pointerType === 'mouse') finishSwipe();
+      }}
+    >
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-rose-100 text-rose-900 flex items-center justify-center transition-opacity ${
+          offset > 8 ? 'opacity-100' : 'opacity-0'
+        } ${mine ? 'right-full mr-2' : 'left-full ml-2'}`}
+        aria-hidden="true"
+      >
+        ↩
+      </div>
+      <div
+        style={{ transform: `translateX(${mine ? -offset : offset}px)` }}
+        className={swiping ? 'transition-none' : 'transition-transform duration-150'}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversationId }) => {
   const { user } = useAuth();
   const myId = user?.id || '';
@@ -362,6 +561,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [activeConvId, setActiveConvId] = useState<string | null>(initialConversationId || null);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
@@ -371,6 +573,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordingSession, setRecordingSession] = useState<RecordingSession | null>(null);
+  const [recordingPreview, setRecordingPreview] = useState<{ blob: Blob; duration: number; url: string } | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartedAtRef = useRef<number | null>(null);
@@ -378,8 +583,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
+  const [showContactExchange, setShowContactExchange] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
   const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
   const otherContact =
@@ -457,22 +664,56 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     if (!activeConvId) {
       setCurrentMessages([]);
+      setInputVal('');
+      setHasLoadedDraft(false);
+      setShowJumpToLatest(false);
       return;
     }
+    const draftKey = `lifebencher:chat-draft:${activeConvId}`;
+    try {
+      setInputVal(localStorage.getItem(draftKey) || '');
+    } catch {
+      setInputVal('');
+    }
+    setHasLoadedDraft(true);
+    void markMatchMessagesRead(activeConvId);
     return listenMatchMessages(activeConvId, setCurrentMessages);
   }, [activeConvId]);
 
-  // Mark received messages as read only when the conversation is opened.
   useEffect(() => {
-    if (!activeConvId) return;
-    void markMatchMessagesRead(activeConvId);
+    if (!activeConvId || !hasLoadedDraft) return;
+    const draftKey = `lifebencher:chat-draft:${activeConvId}`;
+    try {
+      if (inputVal.trim()) localStorage.setItem(draftKey, inputVal);
+      else localStorage.removeItem(draftKey);
+    } catch {
+      // Draft persistence is best-effort only.
+    }
+  }, [activeConvId, inputVal, hasLoadedDraft]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowJumpToLatest(distance > 220);
+    };
+    onScroll();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
   }, [activeConvId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distance < 220) {
+      messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
+    }
   }, [currentMessages, activeConvId]);
 
   useEffect(() => {
+    setShowContactExchange(true);
     if (!activeConvId) {
       setContactState(null);
       return;
@@ -501,9 +742,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     const text = (textToSend || inputVal).trim();
     if (!text || !activeConvId) return;
     setInputVal('');
+    setReplyTarget(null);
     setSendError(null);
     try {
-      await sendMatchMessage(activeConvId, text);
+      await sendMatchMessage(activeConvId, text, replyTarget ? { id: replyTarget.id, preview: replyTarget.content || (replyTarget.kind === 'image' ? 'Photo' : replyTarget.kind === 'audio' ? 'Voice message' : 'Message') } : undefined);
       void import('../../lib/aiClient').then(({ scanText }) =>
         scanText({ text, kind: 'message', targetId: activeConvId }).catch(() => undefined)
       );
@@ -522,6 +764,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const handleStartRecording = async () => {
     if (!activeConvId || isRecording) return;
     setRecordingError(null);
+    handleDiscardPreview();
     try {
       const session = await startAudioRecording();
       setRecordingSession(session);
@@ -532,7 +775,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
         const startedAt = recordingStartedAtRef.current;
         if (startedAt === null) return;
         setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
-      }, 250);
+      }, 200);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Microphone is currently unavailable.';
       setRecordingError(message);
@@ -549,30 +792,53 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setRecordingSession(null);
     setIsRecording(false);
     setRecordingDuration(0);
+    setRecordingError(null);
   };
 
-  const handleSendVoiceNote = async () => {
-    if (!activeConvId || !recordingSession) return;
-
+  const handleStopRecordingForPreview = async () => {
+    if (!recordingSession) return;
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-
     try {
       const result = await recordingSession.stop();
-      await sendMatchAudio(activeConvId, result.blob, result.duration * 1000);
-        recordingStartedAtRef.current = null;
+      const url = URL.createObjectURL(result.blob);
+      setRecordingPreview({
+        blob: result.blob,
+        duration: Math.max(0.01, result.duration),
+        url
+      });
       setRecordingSession(null);
       setIsRecording(false);
       setRecordingDuration(0);
+      recordingStartedAtRef.current = null;
+      setPreviewPlaying(false);
+      setRecordingError(null);
+    } catch (err) {
+      setRecordingError(err instanceof Error ? err.message : 'Could not finish recording.');
+      setRecordingSession(null);
+      setIsRecording(false);
+      recordingStartedAtRef.current = null;
+    }
+  };
+
+  const handleDiscardPreview = () => {
+    if (recordingPreview) URL.revokeObjectURL(recordingPreview.url);
+    previewAudioRef.current?.pause();
+    previewAudioRef.current = null;
+    setRecordingPreview(null);
+    setPreviewPlaying(false);
+  };
+
+  const handleSendVoiceNote = async () => {
+    if (!activeConvId || !recordingPreview) return;
+    try {
+      await sendMatchAudio(activeConvId, recordingPreview.blob, recordingPreview.duration * 1000);
+        handleDiscardPreview();
       setRecordingError(null);
     } catch (err) {
       setRecordingError(err instanceof Error ? err.message : 'Could not send voice note.');
-      recordingStartedAtRef.current = null;
-      setRecordingSession(null);
-      setIsRecording(false);
-      setRecordingDuration(0);
     }
   };
 
@@ -587,8 +853,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       recordingStartedAtRef.current = null;
       recordingSession?.cancel();
+      if (recordingPreview) URL.revokeObjectURL(recordingPreview.url);
+      previewAudioRef.current?.pause();
     };
-  }, [recordingSession]);
+  }, [recordingSession, recordingPreview]);
 
   // Contact Exchange Trigger
   const handleRequestExchange = () => {
@@ -776,15 +1044,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <h3 className="font-serif font-bold text-sm text-stone-900">
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <div className="flex items-center gap-1 text-[11px] text-emerald-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <span>Active in window</span>
+                  <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="text-emerald-700">Active</span>
+                    <span>•</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Header Action Menu */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {activeConv.exchangeState === 'none' && (
                   <button
                     onClick={handleRequestExchange}
@@ -807,29 +1077,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <MoreVertical className="w-4 h-4" />
                 </button>
 
-                {activeConv.exchangeState === 'unlocked' && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveConvId(null)}
-                    className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer"
-                    aria-label="Close conversation"
-                    title="Close conversation"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
               </div>
-            </div>
-
-            {/* Expiration Countdown Reminder Banner */}
-            <div className="py-1 px-3 bg-amber-50/90 border border-amber-200 rounded-xl text-center text-[11px] text-amber-900 flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <span className="font-semibold">
-                  {formatRemainingTime(activeConv.expiresAt)} in this connection window
-                </span>
-              </div>
-              <span className="text-[10px] text-stone-500">Extends on mutual agreement</span>
             </div>
 
             {/* MUTUAL CONTACT EXCHANGE UNLOCKED CARD */}
@@ -839,13 +1087,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
+            {showContactExchange && activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3.5 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
+                className="relative p-3.5 bg-[#2a2422] border border-white/10 rounded-2xl shadow-xs text-xs text-[#f3ece6] space-y-2 mb-2 min-w-0"
               >
-                <div className="flex items-center justify-between text-amber-100 font-bold gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setShowContactExchange(false)}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                  aria-label="Close contact exchange"
+                  title="Close contact exchange"
+                >
+                  <X className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+                <div className="flex items-center justify-between text-amber-100 font-bold gap-2 min-w-0 pr-11">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
                     <span className="truncate">Mutual Contact Exchange Unlocked!</span>
@@ -935,31 +1192,58 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
+            {activeConv.exchangeState === 'unlocked' && !showContactExchange && activeConv.otherUserContact && (
+              <button
+                type="button"
+                onClick={() => setShowContactExchange(true)}
+                className="w-full mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-stone-100 border border-stone-200 text-[11px] text-stone-700"
+              >
+                <span className="font-semibold">🤝 Contacts exchanged</span>
+                <span className="text-rose-900 font-semibold">View contacts</span>
+              </button>
+            )}
+
             {/* Message Stream */}
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-1">
-              {currentMessages.map((m) => {
+            <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
+              {currentMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
+                const previous = currentMessages[index - 1];
+                const currentDay = new Date(m.createdAt);
+                const previousDay = previous ? new Date(previous.createdAt) : null;
+                const showDateSeparator = !previous ||
+                  currentDay.toDateString() !== previousDay?.toDateString();
+                const dateLabel = currentDay.toLocaleDateString([], {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric'
+                });
                 const canUnsend = isMine && Date.now() - new Date(m.createdAt).getTime() <= 15 * 60 * 1000;
                 return (
+                  <React.Fragment key={`message-group-${m.id}`}>
+                  {showDateSeparator && (
+                    <div className="flex items-center justify-center py-1">
+                      <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-semibold text-stone-500">
+                        {dateLabel}
+                      </span>
+                    </div>
+                  )}
                   <motion.div
-                    key={m.id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                   >
                     <div className="flex items-center gap-1 max-w-[92%]">
+                      <SwipeToReply
+                        mine={isMine}
+                        onReply={() => {
+                          setReplyTarget(m);
+                          setMessageMenuId(null);
+                        }}
+                      >
                       <div className="relative max-w-full min-w-0">
                         <div
-                          role={isMine ? 'button' : undefined}
-                          tabIndex={isMine ? 0 : undefined}
                           onClick={() => {
                             if (isMine) setMessageMenuId((current) => current === m.id ? null : m.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (isMine && (e.key === 'Enter' || e.key === ' ')) {
-                              e.preventDefault();
-                              setMessageMenuId((current) => current === m.id ? null : m.id);
-                            }
                           }}
                           className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
                             isMine
@@ -967,8 +1251,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                               : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
                           }`}
                         >
-                        {m.kind === 'image' && m.imageUrl ? (
-                          <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
+                        {m.replyToPreview && (
+                          <div className={`mb-2 rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
+                            Replying to: {m.replyToPreview}
+                          </div>
+                        )}
+                        {m.kind === 'image' ? (
+                          <ImageMessageBubble message={m} matchId={activeConvId || ''} />
                         ) : m.kind === 'audio' ? (
                           <VoiceMessageBubble message={m} matchId={activeConvId || ''} mine={isMine} />
                         ) : m.kind === 'viewOnce' || m.viewOnce ? (
@@ -979,7 +1268,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                         </div>
 
                         {isMine && messageMenuId === m.id && (
-                          <div className="mt-1 flex justify-end">
+                          <div className="mt-1 flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setReplyTarget(m); setMessageMenuId(null); }}
+                              className="inline-flex items-center rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700"
+                            >
+                              Reply
+                            </button>
                             <button
                               type="button"
                               disabled={!canUnsend}
@@ -998,21 +1294,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           </div>
                         )}
                       </div>
+                      </SwipeToReply>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
-                      {isMine && (
-                        m.readAt ? (
-                          <CheckCheck className="w-3 h-3 text-blue-600" aria-label="Read" />
-                        ) : (
-                          <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />
-                        )
-                      )}
+                      {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Seen" /> : <CheckCheck className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
                     </div>
                   </motion.div>
+                  </React.Fragment>
                 );
               })}
               <div ref={messagesEndRef} />
+              {showJumpToLatest && (
+                <button
+                  type="button"
+                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  className="sticky bottom-2 mx-auto flex items-center gap-1.5 rounded-full bg-white border border-stone-200 shadow-lg px-3 py-1.5 text-[11px] font-semibold text-rose-900"
+                  aria-label="Jump to latest messages"
+                >
+                  ↓ New messages
+                </button>
+              )}
             </div>
 
             {/* Icebreaker Prompts for thoughtful communication */}
@@ -1056,30 +1358,87 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             </label>
 
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
+              {replyTarget && !isRecording && !recordingPreview && (
+                <div className="mb-1.5 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-rose-900">Replying to {replyTarget.senderId === myId ? 'your message' : activeConv.otherUser?.displayName}</p>
+                    <p className="text-[10px] text-stone-500 truncate">{replyTarget.content || (replyTarget.kind === 'image' ? 'Photo' : replyTarget.kind === 'audio' ? 'Voice message' : 'Message')}</p>
+                  </div>
+                  <button type="button" onClick={() => setReplyTarget(null)} className="w-7 h-7 rounded-full hover:bg-stone-200 text-stone-500 flex items-center justify-center" aria-label="Cancel reply">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               {isRecording ? (
-                <div className="flex items-center justify-between gap-2 bg-rose-50 rounded-full border border-rose-300 px-2.5 py-1.5 shadow-xs">
+                <div className="flex items-center justify-between gap-2 bg-rose-50 rounded-2xl border border-rose-300 px-2.5 py-2 shadow-xs">
                   <button
                     type="button"
                     onClick={handleCancelRecording}
-                    className="h-8 px-2 rounded-full text-stone-600 hover:text-rose-900 hover:bg-rose-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold"
+                    className="h-9 px-2 rounded-full text-stone-600 hover:text-rose-900 hover:bg-rose-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold shrink-0"
                     aria-label="Discard recording"
-                    title="Discard recording"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>Discard</span>
                   </button>
-                  <div className="flex items-center gap-2 text-rose-900 text-xs font-semibold">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
+                  <div className="flex items-center gap-2 text-rose-900 text-xs font-semibold min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse shrink-0" />
                     <span>Recording {formatRecordTime(recordingDuration)}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => void handleSendVoiceNote()}
-                    className="px-3 py-1.5 rounded-full bg-rose-900 text-amber-200 text-xs font-semibold flex items-center gap-1.5"
+                    onClick={() => void handleStopRecordingForPreview()}
+                    className="px-3 py-2 rounded-full bg-rose-900 text-amber-200 text-xs font-semibold shrink-0"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    Send
+                    Done
                   </button>
+                </div>
+              ) : recordingPreview ? (
+                <div className="bg-stone-50 rounded-2xl border border-emerald-300 px-3 py-2.5 shadow-xs space-y-2">
+                  <audio
+                    ref={previewAudioRef}
+                    src={recordingPreview.url}
+                    preload="metadata"
+                    onPlay={() => {
+                      if (activeVoiceAudio && activeVoiceAudio !== previewAudioRef.current) {
+                        activeVoiceAudio.pause();
+                        activeVoiceAudio.currentTime = 0;
+                      }
+                      activeVoiceAudio = previewAudioRef.current;
+                      setPreviewPlaying(true);
+                    }}
+                    onPause={() => {
+                      if (activeVoiceAudio === previewAudioRef.current) activeVoiceAudio = null;
+                      setPreviewPlaying(false);
+                    }}
+                    onEnded={() => {
+                      if (activeVoiceAudio === previewAudioRef.current) activeVoiceAudio = null;
+                      setPreviewPlaying(false);
+                    }}
+                    className="hidden"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const audio = previewAudioRef.current;
+                        if (!audio) return;
+                        if (audio.paused) void audio.play();
+                        else audio.pause();
+                      }}
+                      className="w-9 h-9 rounded-full bg-rose-900 text-white flex items-center justify-center shrink-0"
+                      aria-label={previewPlaying ? 'Pause recording preview' : 'Play recording preview'}
+                    >
+                      {previewPlaying ? '❚❚' : '▶'}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-stone-800">Review your recording</p>
+                      <p className="text-[10px] text-stone-500">{formatRecordTime(Math.round(recordingPreview.duration))} · Not sent yet</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleDiscardPreview} className="flex-1 py-2 rounded-full border border-stone-300 text-stone-700 text-xs font-semibold">Discard</button>
+                    <button type="button" onClick={() => void handleSendVoiceNote()} className="flex-1 py-2 rounded-full bg-rose-900 text-amber-200 text-xs font-semibold flex items-center justify-center gap-1.5"><Send className="w-3.5 h-3.5" />Send</button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-end gap-1.5 bg-white rounded-2xl border border-stone-300 px-2.5 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
