@@ -25,7 +25,7 @@ import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -455,6 +455,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [activeConvId, setActiveConvId] = useState<string | null>(initialConversationId || null);
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
@@ -477,6 +481,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showContactExchange, setShowContactExchange] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
   const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
   const otherContact =
@@ -554,13 +559,52 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     if (!activeConvId) {
       setCurrentMessages([]);
+      setInputVal('');
+      setHasLoadedDraft(false);
+      setShowJumpToLatest(false);
       return;
     }
+    const draftKey = `lifebencher:chat-draft:${activeConvId}`;
+    try {
+      setInputVal(localStorage.getItem(draftKey) || '');
+    } catch {
+      setInputVal('');
+    }
+    setHasLoadedDraft(true);
+    void markMatchMessagesRead(activeConvId);
     return listenMatchMessages(activeConvId, setCurrentMessages);
   }, [activeConvId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!activeConvId || !hasLoadedDraft) return;
+    const draftKey = `lifebencher:chat-draft:${activeConvId}`;
+    try {
+      if (inputVal.trim()) localStorage.setItem(draftKey, inputVal);
+      else localStorage.removeItem(draftKey);
+    } catch {
+      // Draft persistence is best-effort only.
+    }
+  }, [activeConvId, inputVal, hasLoadedDraft]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowJumpToLatest(distance > 220);
+    };
+    onScroll();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [activeConvId]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distance < 220) {
+      messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
+    }
   }, [currentMessages, activeConvId]);
 
   useEffect(() => {
@@ -593,10 +637,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     const text = (textToSend || inputVal).trim();
     if (!text || !activeConvId) return;
     setInputVal('');
+    setReplyTarget(null);
     setSendError(null);
     sounds.playSend();
     try {
-      await sendMatchMessage(activeConvId, text);
+      await sendMatchMessage(activeConvId, text, replyTarget ? { id: replyTarget.id, preview: replyTarget.content || (replyTarget.kind === 'image' ? 'Photo' : replyTarget.kind === 'audio' ? 'Voice message' : 'Message') } : undefined);
       void import('../../lib/aiClient').then(({ scanText }) =>
         scanText({ text, kind: 'message', targetId: activeConvId }).catch(() => undefined)
       );
@@ -903,7 +948,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     <span className="text-emerald-700">Active</span>
                     <span>•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
                   </div>
                 </div>
               </div>
@@ -1047,14 +1092,42 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
+            {activeConv.exchangeState === 'unlocked' && !showContactExchange && activeConv.otherUserContact && (
+              <button
+                type="button"
+                onClick={() => setShowContactExchange(true)}
+                className="w-full mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-stone-100 border border-stone-200 text-[11px] text-stone-700"
+              >
+                <span className="font-semibold">🤝 Contacts exchanged</span>
+                <span className="text-rose-900 font-semibold">View contacts</span>
+              </button>
+            )}
+
             {/* Message Stream */}
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-1">
-              {currentMessages.map((m) => {
+            <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
+              {currentMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
+                const previous = currentMessages[index - 1];
+                const currentDay = new Date(m.createdAt);
+                const previousDay = previous ? new Date(previous.createdAt) : null;
+                const showDateSeparator = !previous ||
+                  currentDay.toDateString() !== previousDay?.toDateString();
+                const dateLabel = currentDay.toLocaleDateString([], {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric'
+                });
                 const canUnsend = isMine && Date.now() - new Date(m.createdAt).getTime() <= 15 * 60 * 1000;
                 return (
+                  <React.Fragment key={`message-group-${m.id}`}>
+                  {showDateSeparator && (
+                    <div className="flex items-center justify-center py-1">
+                      <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-semibold text-stone-500">
+                        {dateLabel}
+                      </span>
+                    </div>
+                  )}
                   <motion.div
-                    key={m.id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
@@ -1066,6 +1139,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           tabIndex={isMine ? 0 : undefined}
                           onClick={() => {
                             if (isMine) setMessageMenuId((current) => current === m.id ? null : m.id);
+                          }}
+                          onPointerDown={() => {
+                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = setTimeout(() => setReplyTarget(m), 550);
+                          }}
+                          onPointerUp={() => {
+                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = null;
+                          }}
+                          onPointerLeave={() => {
+                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = null;
+                          }}
+                          onPointerCancel={() => {
+                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = null;
                           }}
                           onKeyDown={(e) => {
                             if (isMine && (e.key === 'Enter' || e.key === ' ')) {
@@ -1079,6 +1168,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                               : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
                           }`}
                         >
+                        {m.replyToPreview && (
+                          <div className={`mb-2 rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
+                            Replying to: {m.replyToPreview}
+                          </div>
+                        )}
                         {m.kind === 'image' ? (
                           <ImageMessageBubble message={m} matchId={activeConvId || ''} />
                         ) : m.kind === 'audio' ? (
@@ -1091,7 +1185,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                         </div>
 
                         {isMine && messageMenuId === m.id && (
-                          <div className="mt-1 flex justify-end">
+                          <div className="mt-1 flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setReplyTarget(m); setMessageMenuId(null); }}
+                              className="inline-flex items-center rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700"
+                            >
+                              Reply
+                            </button>
                             <button
                               type="button"
                               disabled={!canUnsend}
@@ -1113,12 +1214,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
-                      {isMine && <CheckCheck className="w-3 h-3 text-rose-700" />}
+                      {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Seen" /> : <CheckCheck className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
                     </div>
                   </motion.div>
+                  </React.Fragment>
                 );
               })}
               <div ref={messagesEndRef} />
+              {showJumpToLatest && (
+                <button
+                  type="button"
+                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  className="sticky bottom-2 mx-auto flex items-center gap-1.5 rounded-full bg-white border border-stone-200 shadow-lg px-3 py-1.5 text-[11px] font-semibold text-rose-900"
+                  aria-label="Jump to latest messages"
+                >
+                  ↓ New messages
+                </button>
+              )}
             </div>
 
             {/* Icebreaker Prompts for thoughtful communication */}
@@ -1162,6 +1274,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             </label>
 
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
+              {replyTarget && !isRecording && !recordingPreview && (
+                <div className="mb-1.5 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-rose-900">Replying to {replyTarget.senderId === myId ? 'your message' : activeConv.otherUser?.displayName}</p>
+                    <p className="text-[10px] text-stone-500 truncate">{replyTarget.content || (replyTarget.kind === 'image' ? 'Photo' : replyTarget.kind === 'audio' ? 'Voice message' : 'Message')}</p>
+                  </div>
+                  <button type="button" onClick={() => setReplyTarget(null)} className="w-7 h-7 rounded-full hover:bg-stone-200 text-stone-500 flex items-center justify-center" aria-label="Cancel reply">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               {isRecording ? (
                 <div className="flex items-center justify-between gap-2 bg-rose-50 rounded-2xl border border-rose-300 px-2.5 py-2 shadow-xs">
                   <button
