@@ -595,6 +595,7 @@ service cloud.firestore {
           && parentMatch().status == 'active';
 
         allow update: if isParticipant()
+          && (isAdmin() || request.auth.uid != existing().senderId)
           && isValidMessage(incoming())
           && incoming().id == existing().id
           && incoming().matchId == existing().matchId
