@@ -1,4 +1,4 @@
-import { getAdmin, json, requireUser } from '../_lib/admin.js';
+import { getAdmin, json, requireUser } from '../../server/_lib/admin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
