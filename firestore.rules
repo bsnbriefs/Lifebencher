@@ -623,6 +623,55 @@ service cloud.firestore {
 
 
       // ==========================================================
+      // CHAT PRESENCE / TYPING
+      // ==========================================================
+
+      match /presence/{presenceUid} {
+        function isParticipantPresence() {
+          return isSignedIn()
+            && exists(/databases/$(database)/documents/matches/$(matchId))
+            && (
+              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+              || isAdmin()
+            );
+        }
+
+        allow read: if isParticipantPresence();
+        allow create, update: if isParticipantPresence()
+          && presenceUid == request.auth.uid
+          && incoming().keys().hasOnly(['uid', 'online', 'updatedAt'])
+          && incoming().uid == request.auth.uid
+          && incoming().online is bool
+          && incoming().updatedAt is string
+          && incoming().updatedAt.size() <= 64;
+        allow delete: if isParticipantPresence() && presenceUid == request.auth.uid;
+      }
+
+      match /typing/{typingUid} {
+        function isParticipantTyping() {
+          return isSignedIn()
+            && exists(/databases/$(database)/documents/matches/$(matchId))
+            && (
+              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+              || isAdmin()
+            );
+        }
+
+        allow read: if isParticipantTyping();
+        allow create, update: if isParticipantTyping()
+          && typingUid == request.auth.uid
+          && incoming().keys().hasOnly(['uid', 'typing', 'updatedAt'])
+          && incoming().uid == request.auth.uid
+          && incoming().typing is bool
+          && incoming().updatedAt is string
+          && incoming().updatedAt.size() <= 64;
+        allow delete: if isParticipantTyping() && typingUid == request.auth.uid;
+      }
+
+
+      // ==========================================================
       // CONTACT EXCHANGE STATE
       // ==========================================================
 
