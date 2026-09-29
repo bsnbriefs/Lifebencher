@@ -383,6 +383,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
   const [showContactExchange, setShowContactExchange] = useState(true);
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
@@ -838,15 +839,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <MoreVertical className="w-4 h-4" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveConvId(null)}
-                  className="w-8 h-8 rounded-full border border-stone-300 bg-white hover:bg-stone-100 text-stone-700 flex items-center justify-center transition cursor-pointer shrink-0 shadow-sm"
-                  aria-label="Close conversation"
-                  title="Close conversation"
-                >
-                  <X className="w-5 h-5" strokeWidth={2.5} />
-                </button>
               </div>
             </div>
 
@@ -1006,7 +998,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           }`}
                         >
                         {m.kind === 'image' && m.imageUrl ? (
-                          <img src={m.imageUrl} alt="" className="max-w-full rounded-xl mb-1" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFullImageUrl(m.imageUrl || null);
+                            }}
+                            className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
+                            aria-label="View photo full screen"
+                          >
+                            <img
+                              src={m.imageUrl}
+                              alt="Sent photo"
+                              className="block w-auto max-w-[78vw] sm:max-w-[420px] max-h-[55dvh] object-contain rounded-xl"
+                            />
+                          </button>
                         ) : m.kind === 'audio' ? (
                           <VoiceMessageBubble message={m} matchId={activeConvId || ''} mine={isMine} />
                         ) : m.kind === 'viewOnce' || m.viewOnce ? (
@@ -1230,6 +1236,35 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* FULL-SCREEN SENT PHOTO VIEWER */}
+      <AnimatePresence>
+        {fullImageUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-3"
+            onClick={() => setFullImageUrl(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setFullImageUrl(null)}
+              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/15 border border-white/30 text-white flex items-center justify-center"
+              aria-label="Close full-screen photo"
+              title="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={fullImageUrl}
+              alt="Sent photo full screen"
+              className="max-w-full max-h-[92dvh] w-auto h-auto object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
         )}
       </AnimatePresence>
 
