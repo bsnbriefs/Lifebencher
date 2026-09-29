@@ -372,6 +372,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordingSession, setRecordingSession] = useState<RecordingSession | null>(null);
+  const [recordingPreview, setRecordingPreview] = useState<{ blob: Blob; duration: number; url: string } | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartedAtRef = useRef<number | null>(null);
@@ -518,6 +521,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const handleStartRecording = async () => {
     if (!activeConvId || isRecording) return;
     setRecordingError(null);
+    handleDiscardPreview();
     try {
       const session = await startAudioRecording();
       setRecordingSession(session);
@@ -529,7 +533,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
         const startedAt = recordingStartedAtRef.current;
         if (startedAt === null) return;
         setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
-      }, 250);
+      }, 200);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Microphone is currently unavailable.';
       setRecordingError(message);
@@ -546,31 +550,54 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setRecordingSession(null);
     setIsRecording(false);
     setRecordingDuration(0);
+    setRecordingError(null);
   };
 
-  const handleSendVoiceNote = async () => {
-    if (!activeConvId || !recordingSession) return;
-
+  const handleStopRecordingForPreview = async () => {
+    if (!recordingSession) return;
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-
     try {
       const result = await recordingSession.stop();
-      await sendMatchAudio(activeConvId, result.blob, result.duration * 1000);
-      sounds.playSend();
-      recordingStartedAtRef.current = null;
+      const url = URL.createObjectURL(result.blob);
+      setRecordingPreview({
+        blob: result.blob,
+        duration: Math.max(0.01, result.duration),
+        url
+      });
       setRecordingSession(null);
       setIsRecording(false);
       setRecordingDuration(0);
+      recordingStartedAtRef.current = null;
+      setPreviewPlaying(false);
+      setRecordingError(null);
+    } catch (err) {
+      setRecordingError(err instanceof Error ? err.message : 'Could not finish recording.');
+      setRecordingSession(null);
+      setIsRecording(false);
+      recordingStartedAtRef.current = null;
+    }
+  };
+
+  const handleDiscardPreview = () => {
+    if (recordingPreview) URL.revokeObjectURL(recordingPreview.url);
+    previewAudioRef.current?.pause();
+    previewAudioRef.current = null;
+    setRecordingPreview(null);
+    setPreviewPlaying(false);
+  };
+
+  const handleSendVoiceNote = async () => {
+    if (!activeConvId || !recordingPreview) return;
+    try {
+      await sendMatchAudio(activeConvId, recordingPreview.blob, recordingPreview.duration * 1000);
+      sounds.playSend();
+      handleDiscardPreview();
       setRecordingError(null);
     } catch (err) {
       setRecordingError(err instanceof Error ? err.message : 'Could not send voice note.');
-      recordingStartedAtRef.current = null;
-      setRecordingSession(null);
-      setIsRecording(false);
-      setRecordingDuration(0);
     }
   };
 
@@ -585,8 +612,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       recordingStartedAtRef.current = null;
       recordingSession?.cancel();
+      if (recordingPreview) URL.revokeObjectURL(recordingPreview.url);
+      previewAudioRef.current?.pause();
     };
-  }, [recordingSession]);
+  }, [recordingSession, recordingPreview]);
 
   // Contact Exchange Trigger
   const handleRequestExchange = () => {
@@ -807,17 +836,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <MoreVertical className="w-4 h-4" />
                 </button>
 
-                {activeConv.exchangeState === 'unlocked' && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveConvId(null)}
-                    className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer"
-                    aria-label="Close conversation"
-                    title="Close conversation"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setActiveConvId(null)}
+                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer shrink-0"
+                  aria-label="Close conversation"
+                  title="Close conversation"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -1051,29 +1078,75 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
               {isRecording ? (
-                <div className="flex items-center justify-between gap-2 bg-rose-50 rounded-full border border-rose-300 px-2.5 py-1.5 shadow-xs">
+                <div className="flex items-center justify-between gap-2 bg-rose-50 rounded-2xl border border-rose-300 px-2.5 py-2 shadow-xs">
                   <button
                     type="button"
                     onClick={handleCancelRecording}
-                    className="h-8 px-2 rounded-full text-stone-600 hover:text-rose-900 hover:bg-rose-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold"
+                    className="h-9 px-2 rounded-full text-stone-600 hover:text-rose-900 hover:bg-rose-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold shrink-0"
                     aria-label="Discard recording"
-                    title="Discard recording"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>Discard</span>
                   </button>
-                  <div className="flex items-center gap-2 text-rose-900 text-xs font-semibold">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
+                  <div className="flex items-center gap-2 text-rose-900 text-xs font-semibold min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse shrink-0" />
                     <span>Recording {formatRecordTime(recordingDuration)}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => void handleSendVoiceNote()}
-                    className="px-3 py-1.5 rounded-full bg-rose-900 text-amber-200 text-xs font-semibold flex items-center gap-1.5"
+                    onClick={() => void handleStopRecordingForPreview()}
+                    className="px-3 py-2 rounded-full bg-rose-900 text-amber-200 text-xs font-semibold shrink-0"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    Send
+                    Done
                   </button>
+                </div>
+              ) : recordingPreview ? (
+                <div className="bg-stone-50 rounded-2xl border border-emerald-300 px-3 py-2.5 shadow-xs space-y-2">
+                  <audio
+                    ref={previewAudioRef}
+                    src={recordingPreview.url}
+                    preload="metadata"
+                    onPlay={() => {
+                      if (activeVoiceAudio && activeVoiceAudio !== previewAudioRef.current) {
+                        activeVoiceAudio.pause();
+                        activeVoiceAudio.currentTime = 0;
+                      }
+                      activeVoiceAudio = previewAudioRef.current;
+                      setPreviewPlaying(true);
+                    }}
+                    onPause={() => {
+                      if (activeVoiceAudio === previewAudioRef.current) activeVoiceAudio = null;
+                      setPreviewPlaying(false);
+                    }}
+                    onEnded={() => {
+                      if (activeVoiceAudio === previewAudioRef.current) activeVoiceAudio = null;
+                      setPreviewPlaying(false);
+                    }}
+                    className="hidden"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const audio = previewAudioRef.current;
+                        if (!audio) return;
+                        if (audio.paused) void audio.play();
+                        else audio.pause();
+                      }}
+                      className="w-9 h-9 rounded-full bg-rose-900 text-white flex items-center justify-center shrink-0"
+                      aria-label={previewPlaying ? 'Pause recording preview' : 'Play recording preview'}
+                    >
+                      {previewPlaying ? '❚❚' : '▶'}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-stone-800">Review your recording</p>
+                      <p className="text-[10px] text-stone-500">{formatRecordTime(Math.round(recordingPreview.duration))} · Not sent yet</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleDiscardPreview} className="flex-1 py-2 rounded-full border border-stone-300 text-stone-700 text-xs font-semibold">Discard</button>
+                    <button type="button" onClick={() => void handleSendVoiceNote()} className="flex-1 py-2 rounded-full bg-rose-900 text-amber-200 text-xs font-semibold flex items-center justify-center gap-1.5"><Send className="w-3.5 h-3.5" />Send</button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-end gap-1.5 bg-white rounded-2xl border border-stone-300 px-2.5 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
