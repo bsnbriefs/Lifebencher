@@ -1,4 +1,4 @@
-import { getAdmin, json, requireUser } from '../_lib/admin.js';
+import { getAdmin, json, requireUser } from '../../server/_lib/admin.js';
 
 const SUPER = 'admin@barristerstreet.org';
 
