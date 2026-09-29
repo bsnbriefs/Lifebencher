@@ -613,9 +613,11 @@ service cloud.firestore {
           && incoming().createdAt == existing().createdAt
           && incoming().diff(existing()).affectedKeys().hasOnly([
             'readAt',
-            'viewedAt',
-            'reactions',
-            'starredBy'
+'viewedAt',
+'reactions',
+'starredBy',
+'content',
+'editedAt'
           ]);
 
         allow delete: if isAdmin();
