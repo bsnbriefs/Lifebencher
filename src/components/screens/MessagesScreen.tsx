@@ -506,6 +506,7 @@ const SwipeToReply: React.FC<{
       onReply();
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         try { navigator.vibrate(12); } catch { /* optional */ }
+      }
     }
 
     if (e) {
