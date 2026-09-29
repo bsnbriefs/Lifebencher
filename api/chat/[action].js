@@ -199,14 +199,6 @@ async function deleteMessage(req, res) {
     return json(res, 403, { error: 'You can only unsend your own messages.' });
   }
 
-  const createdAt = msg.createdAt?.toDate
-    ? msg.createdAt.toDate().getTime()
-    : new Date(msg.createdAt || 0).getTime();
-
-  if (!Number.isFinite(createdAt) || Date.now() - createdAt > 15 * 60 * 1000) {
-    return json(res, 403, { error: 'Messages can only be unsent within 15 minutes.' });
-  }
-
   const mediaPath = msg.audioPath || msg.imagePath || null;
   await msgRef.delete();
 
