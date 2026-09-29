@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ImagePlus,
@@ -19,13 +20,17 @@ import {
   Mic,
   MicOff,
   Trash2,
-  X
+  X,
+  Heart,
+  Star,
+  Reply,
+  Smile
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -257,8 +262,10 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
   const [error, setError] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const pointerPositionsRef = useRef(new Map<number, { x: number; y: number }>());
-  const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const pinchStartRef = useRef<{ distance: number; zoom: number; midpoint: { x: number; y: number } } | null>(null);
+  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
   const loadImage = async () => {
     if (url || loading) return;
@@ -287,6 +294,7 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
     pointerPositionsRef.current.clear();
     pinchStartRef.current = null;
     setZoom(1);
+    setPan({ x: 0, y: 0 });
     setFullScreen(false);
   };
 
@@ -316,6 +324,7 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
         onClick={(e) => {
           e.stopPropagation();
           setZoom(1);
+          setPan({ x: 0, y: 0 });
           setFullScreen(true);
         }}
         className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
@@ -332,76 +341,53 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
         />
       </button>
 
-      {fullScreen && (
+      {fullScreen && createPortal(
         <div
-          className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            closeViewer();
-          }}
+          className="fixed inset-0 z-[9999] bg-black flex items-center justify-center overflow-hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Photo viewer"
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) closeViewer(e);
+          }}
         >
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => closeViewer(e)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center z-10"
-            aria-label="Close photo"
-          >
-            <X className="w-5 h-5" />
-          </button>
-
-          <div
-            className="absolute top-4 left-4 z-10 flex items-center gap-1 rounded-full bg-black/60 border border-white/20 p-1"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-4 bg-gradient-to-b from-black/75 to-transparent pointer-events-none">
             <button
               type="button"
-              onClick={() => setZoom((z) => Math.max(1, Number((z - 0.5).toFixed(1))))}
-              className="w-9 h-9 rounded-full text-white text-lg font-bold"
-              aria-label="Zoom out"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => closeViewer(e)}
+              className="pointer-events-auto w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-95"
+              aria-label="Close photo"
             >
-              −
+              <X className="w-6 h-6" />
             </button>
-            <button
-              type="button"
-              onClick={() => setZoom(1)}
-              className="px-2 h-9 rounded-full text-white text-[10px] font-semibold"
-              aria-label="Reset zoom"
-            >
+            <span className="text-white/75 text-[11px] font-medium">
               {Math.round(zoom * 100)}%
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.min(4, Number((z + 0.5).toFixed(1))))}
-              className="w-9 h-9 rounded-full text-white text-lg font-bold"
-              aria-label="Zoom in"
-            >
-              +
-            </button>
+            </span>
           </div>
 
-          <img
-            src={url}
-            alt="Sent photo enlarged"
-            draggable={false}
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ touchAction: 'none' }}
             onPointerDown={(e) => {
               e.stopPropagation();
-              if (e.pointerType !== 'touch') return;
               pointerPositionsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
               if (pointerPositionsRef.current.size === 2) {
                 const points = Array.from(pointerPositionsRef.current.values());
                 const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-                pinchStartRef.current = { distance: Math.max(1, distance), zoom };
+                const midpoint = {
+                  x: (points[0].x + points[1].x) / 2,
+                  y: (points[0].y + points[1].y) / 2
+                };
+                pinchStartRef.current = { distance: Math.max(1, distance), zoom, midpoint };
+                panStartRef.current = null;
+              } else if (zoom > 1) {
+                panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
               }
             }}
             onPointerMove={(e) => {
               e.stopPropagation();
-              if (e.pointerType !== 'touch') return;
               if (!pointerPositionsRef.current.has(e.pointerId)) return;
               pointerPositionsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -413,30 +399,93 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
                   Math.min(4, pinchStartRef.current.zoom * (distance / pinchStartRef.current.distance))
                 );
                 setZoom(Number(nextZoom.toFixed(2)));
+
+                const midpoint = {
+                  x: (points[0].x + points[1].x) / 2,
+                  y: (points[0].y + points[1].y) / 2
+                };
+                setPan((current) => ({
+                  x: current.x + (midpoint.x - pinchStartRef.current!.midpoint.x),
+                  y: current.y + (midpoint.y - pinchStartRef.current!.midpoint.y)
+                }));
+                pinchStartRef.current.midpoint = midpoint;
+                return;
+              }
+
+              if (pointerPositionsRef.current.size === 1 && panStartRef.current && zoom > 1) {
+                setPan({
+                  x: panStartRef.current.panX + (e.clientX - panStartRef.current.x),
+                  y: panStartRef.current.panY + (e.clientY - panStartRef.current.y)
+                });
               }
             }}
             onPointerUp={(e) => {
               e.stopPropagation();
               pointerPositionsRef.current.delete(e.pointerId);
               if (pointerPositionsRef.current.size < 2) pinchStartRef.current = null;
+              if (pointerPositionsRef.current.size === 0) panStartRef.current = null;
             }}
             onPointerCancel={(e) => {
               e.stopPropagation();
               pointerPositionsRef.current.delete(e.pointerId);
               pinchStartRef.current = null;
+              panStartRef.current = null;
             }}
             onDoubleClick={(e) => {
               e.stopPropagation();
-              setZoom((z) => (z > 1 ? 1 : 2));
+              const next = zoom > 1 ? 1 : 2;
+              setZoom(next);
+              setPan({ x: 0, y: 0 });
             }}
-            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none transition-transform duration-100"
-            style={{
-              transform: `scale(${zoom})`,
-              transformOrigin: 'center center',
-              touchAction: 'none'
-            }}
-          />
-        </div>
+          >
+            <img
+              src={url}
+              alt="Sent photo enlarged"
+              draggable={false}
+              className="max-w-[96vw] max-h-[88dvh] w-auto h-auto object-contain select-none rounded-sm"
+              style={{
+                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+                transformOrigin: 'center center',
+                transition: pointerPositionsRef.current.size ? 'none' : 'transform 120ms ease-out',
+                willChange: 'transform',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                pointerEvents: 'none'
+              }}
+            />
+          </div>
+
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full bg-black/65 px-2 py-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.max(1, Number((zoom - 0.5).toFixed(1)));
+                setZoom(next);
+                if (next === 1) setPan({ x: 0, y: 0 });
+              }}
+              disabled={zoom <= 1}
+              className="w-9 h-9 rounded-full text-white text-xl flex items-center justify-center disabled:opacity-40"
+              aria-label="Zoom out"
+            >−</button>
+            <button
+              type="button"
+              onClick={() => {
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+              }}
+              className="min-w-12 h-9 rounded-full text-white text-[11px] font-semibold"
+              aria-label="Reset zoom"
+            >{Math.round(zoom * 100)}%</button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(4, Number((z + 0.5).toFixed(1))))}
+              disabled={zoom >= 4}
+              className="w-9 h-9 rounded-full text-white text-xl flex items-center justify-center disabled:opacity-40"
+              aria-label="Zoom in"
+            >+</button>
+          </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -685,6 +734,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const recordingPreviewUrlRef = useRef<string | null>(null);
   const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
+  const [reactionMenuId, setReactionMenuId] = useState<string | null>(null);
+  const [starredMessageIds, setStarredMessageIds] = useState<Set<string>>(new Set());
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
   const [showContactExchange, setShowContactExchange] = useState(true);
@@ -788,6 +840,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   // Re-run the read receipt after the realtime message listener has loaded.
   // This avoids the initial open/read race and lets the sender receive the
   // blue double tick through the existing realtime listener.
+  useEffect(() => {
+    const ids = new Set<string>();
+    currentMessages.forEach((message) => {
+      const starredBy = (message as Message & { starredBy?: string[] }).starredBy || [];
+      if (myId && starredBy.includes(myId)) ids.add(message.id);
+    });
+    setStarredMessageIds(ids);
+  }, [currentMessages, myId]);
+
   useEffect(() => {
     if (!activeConvId || currentMessages.length === 0) return;
     void markMatchMessagesRead(activeConvId);
@@ -893,6 +954,39 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setSendError(err instanceof Error ? err.message : 'Unable to unsend this message.');
     } finally {
       setUnsending(false);
+    }
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const node = messageRefs.current[messageId];
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.classList.add('ring-2', 'ring-amber-300');
+    window.setTimeout(() => node.classList.remove('ring-2', 'ring-amber-300'), 900);
+  };
+
+  const handleReact = async (message: Message, emoji: string) => {
+    if (!activeConvId) return;
+    setReactionMenuId(null);
+    try {
+      await toggleMessageReaction(activeConvId, message.id, emoji);
+    } catch {
+      setSendError('Could not update reaction.');
+    }
+  };
+
+  const handleStar = async (message: Message) => {
+    if (!activeConvId) return;
+    try {
+      const starred = await toggleMessageStar(activeConvId, message.id);
+      setStarredMessageIds((prev) => {
+        const next = new Set(prev);
+        if (starred) next.add(message.id); else next.delete(message.id);
+        return next;
+      });
+      setMessageMenuId(null);
+    } catch {
+      setSendError('Could not update starred message.');
     }
   };
 
@@ -1420,11 +1514,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           setMessageMenuId(null);
                         }}
                       >
-                      <div className="relative max-w-full min-w-0">
+                      <div
+                        ref={(node) => { messageRefs.current[m.id] = node; }}
+                        className="relative max-w-full min-w-0"
+                        onContextMenu={(e) => { e.preventDefault(); setMessageMenuId(m.id); }}
+                      >
                         <div
-                          onClick={() => {
-                            if (isMine) setMessageMenuId((current) => current === m.id ? null : m.id);
-                          }}
+                          onClick={() => setMessageMenuId((current) => current === m.id ? null : m.id)}
                           className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
                             isMine
                               ? 'bg-rose-900 text-white rounded-br-xs cursor-pointer'
@@ -1432,9 +1528,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           }`}
                         >
                         {m.replyToPreview && (
-                          <div className={`mb-2 rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
-                            Replying to: {m.replyToPreview}
-                          </div>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); if (m.replyToId) scrollToMessage(m.replyToId); }} className={`mb-2 w-full text-left rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
+                            <span className="block opacity-70">Replying to</span>{m.replyToPreview}
+                          </button>
                         )}
                         {m.kind === 'image' ? (
                           <ImageMessageBubble message={m} matchId={activeConvId || ''} />
@@ -1447,32 +1543,37 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                         )}
                         </div>
 
-                        {isMine && messageMenuId === m.id && (
-                          <div className="mt-1 flex justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setReplyTarget(m); setMessageMenuId(null); }}
-                              className="inline-flex items-center rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700"
-                            >
-                              Reply
+                        {messageMenuId === m.id && (
+                          <div className={`mt-1 flex flex-wrap gap-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setReplyTarget(m); setMessageMenuId(null); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                              <Reply className="w-3.5 h-3.5" /> Reply
                             </button>
-                            <button
-                              type="button"
-                              disabled={!canUnsend}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (canUnsend) {
-                                  setMessageMenuId(null);
-                                  setUnsendMessageId(m.id);
-                                }
-                              }}
-                              className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 whitespace-nowrap active:scale-[0.98] disabled:text-stone-400 disabled:border-stone-200"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              {canUnsend ? 'Delete message' : 'Delete unavailable'}
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setReactionMenuId((v) => v === m.id ? null : m.id); setMessageMenuId(null); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                              <Smile className="w-3.5 h-3.5" /> React
                             </button>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); void navigator.clipboard?.writeText(m.content || (m.kind === 'image' ? 'Photo' : m.kind === 'audio' ? 'Voice message' : 'Message')); setMessageMenuId(null); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                              <Copy className="w-3.5 h-3.5" /> Copy
+                            </button>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); void handleStar(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                              <Star className={`w-3.5 h-3.5 ${starredMessageIds.has(m.id) ? 'fill-amber-400 text-amber-500' : ''}`} /> {starredMessageIds.has(m.id) ? 'Unstar' : 'Star'}
+                            </button>
+                            {isMine && (
+                              <button type="button" disabled={!canUnsend} onClick={(e) => { e.stopPropagation(); if (canUnsend) { setMessageMenuId(null); setUnsendMessageId(m.id); } }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
+                                <Trash2 className="w-3.5 h-3.5" /> {canUnsend ? 'Delete' : 'Delete unavailable'}
+                              </button>
+                            )}
                           </div>
                         )}
+                        {reactionMenuId === m.id && (
+                          <div className={`mt-1 flex gap-1 rounded-full bg-white border border-stone-200 shadow-lg px-2 py-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            {['❤️','😂','👍','😮','😢','🙏'].map((emoji) => (
+                              <button key={emoji} type="button" onClick={(e) => { e.stopPropagation(); void handleReact(m, emoji); }} className="w-8 h-8 rounded-full hover:bg-stone-100 text-base active:scale-90" aria-label={`React ${emoji}`}>{emoji}</button>
+                            ))}
+                          </div>
+                        )}
+                        {Object.entries(m.reactions || {}).flatMap(([emoji, users]) => users.includes(myId) || users.length ? [[emoji, users.length]] : []).map(([emoji, count]) => (
+                          <span key={emoji as string} className="inline-flex items-center gap-1 mt-1 mr-1 px-2 py-0.5 rounded-full bg-white border border-stone-200 text-[10px] shadow-sm">{emoji as string} {count as number}</span>
+                        ))}
                       </div>
                       </SwipeToReply>
                     </div>
