@@ -257,6 +257,8 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
   const [error, setError] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const pointerPositionsRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
 
   const loadImage = async () => {
     if (url || loading) return;
@@ -280,11 +282,23 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
     if (!url && imagePath) void loadImage();
   }, [imagePath]);
 
+  const closeViewer = (e?: React.SyntheticEvent) => {
+    e?.stopPropagation();
+    pointerPositionsRef.current.clear();
+    pinchStartRef.current = null;
+    setZoom(1);
+    setFullScreen(false);
+  };
+
   if (!url) {
     return (
       <button
         type="button"
-        onClick={() => void loadImage()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          void loadImage();
+        }}
         disabled={loading}
         className="w-[220px] max-w-full min-h-[120px] rounded-xl bg-black/10 flex items-center justify-center text-[11px] font-semibold disabled:opacity-60"
       >
@@ -297,9 +311,15 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
     <>
       <button
         type="button"
-        onClick={() => { setZoom(1); setFullScreen(true); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setZoom(1);
+          setFullScreen(true);
+        }}
         className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
-        aria-label="View photo full screen"
+        aria-label="Open photo"
       >
         <img
           src={url}
@@ -315,39 +335,106 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
       {fullScreen && (
         <div
           className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3"
-          onClick={() => { setZoom(1); setFullScreen(false); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeViewer();
+          }}
           role="dialog"
           aria-modal="true"
           aria-label="Photo viewer"
         >
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setZoom(1);
-              setFullScreen(false);
-            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => closeViewer(e)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center z-10"
             aria-label="Close photo"
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="absolute top-4 left-4 z-10 flex items-center gap-1 rounded-full bg-black/50 border border-white/20 p-1" onClick={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => setZoom((z) => Math.max(1, Number((z - 0.5).toFixed(1))))} className="w-9 h-9 rounded-full text-white text-lg font-bold" aria-label="Zoom out">−</button>
-            <button type="button" onClick={() => setZoom(1)} className="px-2 h-9 rounded-full text-white text-[10px] font-semibold" aria-label="Reset zoom">{Math.round(zoom * 100)}%</button>
-            <button type="button" onClick={() => setZoom((z) => Math.min(3, Number((z + 0.5).toFixed(1))))} className="w-9 h-9 rounded-full text-white text-lg font-bold" aria-label="Zoom in">+</button>
+
+          <div
+            className="absolute top-4 left-4 z-10 flex items-center gap-1 rounded-full bg-black/60 border border-white/20 p-1"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(1, Number((z - 0.5).toFixed(1))))}
+              className="w-9 h-9 rounded-full text-white text-lg font-bold"
+              aria-label="Zoom out"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              className="px-2 h-9 rounded-full text-white text-[10px] font-semibold"
+              aria-label="Reset zoom"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(4, Number((z + 0.5).toFixed(1))))}
+              className="w-9 h-9 rounded-full text-white text-lg font-bold"
+              aria-label="Zoom in"
+            >
+              +
+            </button>
           </div>
+
           <img
             src={url}
-            alt="Sent photo"
+            alt="Sent photo enlarged"
             draggable={false}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              if (e.pointerType !== 'touch') return;
+              pointerPositionsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+              if (pointerPositionsRef.current.size === 2) {
+                const points = Array.from(pointerPositionsRef.current.values());
+                const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+                pinchStartRef.current = { distance: Math.max(1, distance), zoom };
+              }
+            }}
+            onPointerMove={(e) => {
+              e.stopPropagation();
+              if (e.pointerType !== 'touch') return;
+              if (!pointerPositionsRef.current.has(e.pointerId)) return;
+              pointerPositionsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+              if (pointerPositionsRef.current.size === 2 && pinchStartRef.current) {
+                const points = Array.from(pointerPositionsRef.current.values());
+                const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+                const nextZoom = Math.max(
+                  1,
+                  Math.min(4, pinchStartRef.current.zoom * (distance / pinchStartRef.current.distance))
+                );
+                setZoom(Number(nextZoom.toFixed(2)));
+              }
+            }}
+            onPointerUp={(e) => {
+              e.stopPropagation();
+              pointerPositionsRef.current.delete(e.pointerId);
+              if (pointerPositionsRef.current.size < 2) pinchStartRef.current = null;
+            }}
+            onPointerCancel={(e) => {
+              e.stopPropagation();
+              pointerPositionsRef.current.delete(e.pointerId);
+              pinchStartRef.current = null;
+            }}
             onDoubleClick={(e) => {
               e.stopPropagation();
               setZoom((z) => (z > 1 ? 1 : 2));
             }}
-            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none transition-transform duration-150"
-            style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', touchAction: 'none' }}
-            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none transition-transform duration-100"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: 'center center',
+              touchAction: 'none'
+            }}
           />
         </div>
       )}
