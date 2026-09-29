@@ -17,7 +17,8 @@ import {
   MessageSquare,
   Mic,
   MicOff,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
@@ -58,6 +59,9 @@ const ICEBREAKER_PROMPTS = [
   'What does emotional safety mean to you in a long-term partnership?'
 ];
 
+// Keep voice playback exclusive: only one voice note can play at a time.
+let activeVoiceAudio: HTMLAudioElement | null = null;
+
 const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: boolean }> = ({ message, matchId, mine }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,6 +70,16 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(Math.max(0, Number(message.durationMs || 0) / 1000));
   const audioPath = (message as Message & { audioPath?: string }).audioPath || '';
+
+  useEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      if (audio && activeVoiceAudio === audio) {
+        audio.pause();
+        activeVoiceAudio = null;
+      }
+    };
+  }, []);
 
   const loadAudio = async (): Promise<HTMLAudioElement> => {
     const audio = audioRef.current;
@@ -121,9 +135,16 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
     try {
       const audio = await loadAudio();
       if (audio.paused) {
+        // Stop any other voice note before starting this one.
+        if (activeVoiceAudio && activeVoiceAudio !== audio) {
+          activeVoiceAudio.pause();
+          activeVoiceAudio.currentTime = 0;
+        }
+        activeVoiceAudio = audio;
         await audio.play();
       } else {
         audio.pause();
+        if (activeVoiceAudio === audio) activeVoiceAudio = null;
       }
     } catch (err) {
       const audio = audioRef.current;
@@ -170,9 +191,16 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
           const total = e.currentTarget.duration || duration || 1;
           setProgress(Math.min(100, (current / total) * 100));
         }}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlay={() => {
+          activeVoiceAudio = audioRef.current;
+          setPlaying(true);
+        }}
+        onPause={() => {
+          if (activeVoiceAudio === audioRef.current) activeVoiceAudio = null;
+          setPlaying(false);
+        }}
         onEnded={() => {
+          if (activeVoiceAudio === audioRef.current) activeVoiceAudio = null;
           setPlaying(false);
           setProgress(0);
           if (audioRef.current) audioRef.current.currentTime = 0;
@@ -346,6 +374,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [recordingSession, setRecordingSession] = useState<RecordingSession | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
@@ -494,10 +523,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setRecordingSession(session);
       setIsRecording(true);
       setRecordingDuration(0);
+      recordingStartedAtRef.current = Date.now();
       sounds.playTap();
       recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
-      }, 1000);
+        const startedAt = recordingStartedAtRef.current;
+        if (startedAt === null) return;
+        setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
+      }, 250);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Microphone is currently unavailable.';
       setRecordingError(message);
@@ -510,6 +542,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       recordingTimerRef.current = null;
     }
     recordingSession?.cancel();
+    recordingStartedAtRef.current = null;
     setRecordingSession(null);
     setIsRecording(false);
     setRecordingDuration(0);
@@ -527,12 +560,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       const result = await recordingSession.stop();
       await sendMatchAudio(activeConvId, result.blob, result.duration * 1000);
       sounds.playSend();
+      recordingStartedAtRef.current = null;
       setRecordingSession(null);
       setIsRecording(false);
       setRecordingDuration(0);
       setRecordingError(null);
     } catch (err) {
       setRecordingError(err instanceof Error ? err.message : 'Could not send voice note.');
+      recordingStartedAtRef.current = null;
       setRecordingSession(null);
       setIsRecording(false);
       setRecordingDuration(0);
@@ -548,6 +583,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     return () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingStartedAtRef.current = null;
       recordingSession?.cancel();
     };
   }, [recordingSession]);
@@ -770,6 +806,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
+
+                {activeConv.exchangeState === 'unlocked' && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveConvId(null)}
+                    className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer"
+                    aria-label="Close conversation"
+                    title="Close conversation"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
