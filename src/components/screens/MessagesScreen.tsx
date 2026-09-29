@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ImagePlus,
   Send,
@@ -33,6 +34,7 @@ import {
   requestOrApproveContact
 } from '../../lib/contactExchange';
 import { ContactExchangeRequest } from '../../types';
+import { db } from '../../lib/firebase';
 
 interface MessagesScreenProps {
   initialConversationId?: string | null;
@@ -254,6 +256,7 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   const loadImage = async () => {
     if (url || loading) return;
@@ -294,7 +297,7 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
     <>
       <button
         type="button"
-        onClick={() => setFullScreen(true)}
+        onClick={() => { setZoom(1); setFullScreen(true); }}
         className="block max-w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-amber-300"
         aria-label="View photo full screen"
       >
@@ -312,7 +315,7 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
       {fullScreen && (
         <div
           className="fixed inset-0 z-[90] bg-black/95 flex items-center justify-center p-3"
-          onClick={() => setFullScreen(false)}
+          onClick={() => { setZoom(1); setFullScreen(false); }}
           role="dialog"
           aria-modal="true"
           aria-label="Photo viewer"
@@ -321,17 +324,29 @@ const ImageMessageBubble: React.FC<{ message: Message; matchId: string }> = ({ m
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              setZoom(1);
               setFullScreen(false);
             }}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 border border-white/25 text-white flex items-center justify-center z-10"
             aria-label="Close photo"
           >
             <X className="w-5 h-5" />
           </button>
+          <div className="absolute top-4 left-4 z-10 flex items-center gap-1 rounded-full bg-black/50 border border-white/20 p-1" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => setZoom((z) => Math.max(1, Number((z - 0.5).toFixed(1))))} className="w-9 h-9 rounded-full text-white text-lg font-bold" aria-label="Zoom out">−</button>
+            <button type="button" onClick={() => setZoom(1)} className="px-2 h-9 rounded-full text-white text-[10px] font-semibold" aria-label="Reset zoom">{Math.round(zoom * 100)}%</button>
+            <button type="button" onClick={() => setZoom((z) => Math.min(3, Number((z + 0.5).toFixed(1))))} className="w-9 h-9 rounded-full text-white text-lg font-bold" aria-label="Zoom in">+</button>
+          </div>
           <img
             src={url}
             alt="Sent photo"
-            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none"
+            draggable={false}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setZoom((z) => (z > 1 ? 1 : 2));
+            }}
+            className="max-w-full max-h-[92dvh] w-auto h-auto object-contain select-none transition-transform duration-150"
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', touchAction: 'none' }}
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -554,7 +569,7 @@ const SwipeToReply: React.FC<{
 };
 
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversationId }) => {
-  const { user } = useAuth();
+  const { user, currentProfile } = useAuth();
   const myId = user?.id || '';
   const [matchRecords, setMatchRecords] = useState<Record<string, Match>>({});
   const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
@@ -579,11 +594,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartedAtRef = useRef<number | null>(null);
+  const recordingSessionRef = useRef<RecordingSession | null>(null);
+  const recordingPreviewUrlRef = useRef<string | null>(null);
   const [contactState, setContactState] = useState<ContactExchangeRequest | null>(null);
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
   const [showContactExchange, setShowContactExchange] = useState(true);
+  const [resolvedOtherContact, setResolvedOtherContact] = useState<{ phone: string; email: string } | undefined>(undefined);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -600,9 +618,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
         ...rawConv,
         exchangeState:
           liveUi === 'declined' ? 'none' : liveUi,
-        otherUserContact: otherContact
+        otherUserContact: resolvedOtherContact || (otherContact
           ? { phone: otherContact.phone || '', email: otherContact.email || '' }
-          : undefined
+          : undefined)
       }
     : null;
 
@@ -680,6 +698,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     return listenMatchMessages(activeConvId, setCurrentMessages);
   }, [activeConvId]);
 
+  // Re-run the read receipt after the realtime message listener has loaded.
+  // This avoids the initial open/read race and lets the sender receive the
+  // blue double tick through the existing realtime listener.
+  useEffect(() => {
+    if (!activeConvId || currentMessages.length === 0) return;
+    void markMatchMessagesRead(activeConvId);
+  }, [activeConvId, currentMessages.length]);
+
   useEffect(() => {
     if (!activeConvId || !hasLoadedDraft) return;
     const draftKey = `lifebencher:chat-draft:${activeConvId}`;
@@ -722,6 +748,51 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!match) return;
     return listenContactExchange(match.id, match.user1Id, match.user2Id, setContactState);
   }, [activeConvId, matchRecords]);
+
+  // After mutual consent, repair/read the private contact secret directly.
+  // This keeps phone numbers private while fixing older exchanges where the
+  // contact listener did not surface the stored number.
+  useEffect(() => {
+    if (!activeConvId || liveUi !== 'unlocked' || !myId) {
+      setResolvedOtherContact(undefined);
+      return;
+    }
+    const match = matchRecords[activeConvId];
+    if (!match) return;
+    const otherUid = match.user1Id === myId ? match.user2Id : match.user1Id;
+    let cancelled = false;
+
+    const repairAndLoad = async () => {
+      const ownPhone = currentProfile?.phone || currentProfile?.whatsapp || user?.phone || '';
+      const ownEmail = user?.email || '';
+      try {
+        if (ownEmail) {
+          await setDoc(
+            doc(db, 'matches', activeConvId, 'contactSecrets', myId),
+            { email: ownEmail, phone: ownPhone },
+            { merge: true }
+          );
+        }
+      } catch {
+        // Existing contact exchange remains usable even if this repair is denied.
+      }
+
+      try {
+        const snap = await getDoc(doc(db, 'matches', activeConvId, 'contactSecrets', otherUid));
+        if (!cancelled && snap.exists()) {
+          const data = snap.data() as { phone?: string; email?: string };
+          setResolvedOtherContact({ phone: data.phone || '', email: data.email || '' });
+        }
+      } catch {
+        // Fall back to the contact exchange listener data.
+      }
+    };
+
+    void repairAndLoad();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConvId, liveUi, myId, matchRecords, currentProfile?.phone, currentProfile?.whatsapp, user?.phone, user?.email]);
 
   const handleUnsendMessage = async () => {
     if (!activeConvId || !unsendMessageId || unsending) return;
@@ -767,27 +838,43 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     handleDiscardPreview();
     try {
       const session = await startAudioRecording();
+      recordingSessionRef.current = session;
       setRecordingSession(session);
-      setIsRecording(true);
-      setRecordingDuration(0);
       recordingStartedAtRef.current = Date.now();
-      recordingTimerRef.current = setInterval(() => {
-        const startedAt = recordingStartedAtRef.current;
-        if (startedAt === null) return;
-        setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
-      }, 200);
+      setRecordingDuration(0);
+      setIsRecording(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Microphone is currently unavailable.';
       setRecordingError(message);
     }
   };
 
+  // Keep the recording clock alive while the recording UI is mounted.
+  // This is intentionally separate from recordingSession state so a state
+  // update cannot accidentally clear the timer.
+  useEffect(() => {
+    if (!isRecording) return;
+    const tick = () => {
+      const startedAt = recordingStartedAtRef.current;
+      if (startedAt === null) return;
+      setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
+    };
+    tick();
+    const timer = setInterval(tick, 250);
+    recordingTimerRef.current = timer;
+    return () => {
+      clearInterval(timer);
+      if (recordingTimerRef.current === timer) recordingTimerRef.current = null;
+    };
+  }, [isRecording]);
+
   const handleCancelRecording = () => {
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-    recordingSession?.cancel();
+    recordingSessionRef.current?.cancel();
+    recordingSessionRef.current = null;
     recordingStartedAtRef.current = null;
     setRecordingSession(null);
     setIsRecording(false);
@@ -804,11 +891,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     try {
       const result = await recordingSession.stop();
       const url = URL.createObjectURL(result.blob);
+      recordingPreviewUrlRef.current = url;
       setRecordingPreview({
         blob: result.blob,
         duration: Math.max(0.01, result.duration),
         url
       });
+      recordingSessionRef.current = null;
       setRecordingSession(null);
       setIsRecording(false);
       setRecordingDuration(0);
@@ -817,6 +906,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setRecordingError(null);
     } catch (err) {
       setRecordingError(err instanceof Error ? err.message : 'Could not finish recording.');
+      recordingSessionRef.current = null;
       setRecordingSession(null);
       setIsRecording(false);
       recordingStartedAtRef.current = null;
@@ -825,6 +915,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   const handleDiscardPreview = () => {
     if (recordingPreview) URL.revokeObjectURL(recordingPreview.url);
+    recordingPreviewUrlRef.current = null;
     previewAudioRef.current?.pause();
     previewAudioRef.current = null;
     setRecordingPreview(null);
@@ -851,12 +942,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     return () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingSessionRef.current?.cancel();
+      recordingSessionRef.current = null;
       recordingStartedAtRef.current = null;
-      recordingSession?.cancel();
-      if (recordingPreview) URL.revokeObjectURL(recordingPreview.url);
+      if (recordingPreviewUrlRef.current) URL.revokeObjectURL(recordingPreviewUrlRef.current);
+      recordingPreviewUrlRef.current = null;
       previewAudioRef.current?.pause();
     };
-  }, [recordingSession, recordingPreview]);
+  }, []);
 
   // Contact Exchange Trigger
   const handleRequestExchange = () => {
@@ -867,9 +960,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       user1Id: match.user1Id,
       user2Id: match.user2Id,
       myContact: {
-        phone: user.phone || '',
+        phone: currentProfile?.phone || currentProfile?.whatsapp || user.phone || '',
         email: user.email,
-        whatsapp: user.phone
+        whatsapp: currentProfile?.whatsapp || currentProfile?.phone || user.phone || ''
       }
     }).then(() => {
     });
@@ -1298,7 +1391,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
-                      {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Seen" /> : <CheckCheck className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
+                      {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Seen" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
                     </div>
                   </motion.div>
                   </React.Fragment>
