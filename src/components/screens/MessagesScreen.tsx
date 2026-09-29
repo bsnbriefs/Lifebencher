@@ -903,7 +903,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     <span className="text-emerald-700">Active</span>
                     <span>•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                   </div>
                 </div>
               </div>
