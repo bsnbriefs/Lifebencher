@@ -485,13 +485,22 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/matches/$(matchId)).data;
         }
 
+        function isBlockedForParticipant() {
+          return (
+            exists(/databases/$(database)/documents/blocks/$(request.auth.uid)_$(parentMatch().user1Id == request.auth.uid ? parentMatch().user2Id : parentMatch().user1Id))
+            || exists(/databases/$(database)/documents/blocks/$(parentMatch().user1Id == request.auth.uid ? parentMatch().user2Id : parentMatch().user1Id)_$(request.auth.uid))
+          );
+        }
+
         function isParticipant() {
           return isSignedIn()
             && exists(/databases/$(database)/documents/matches/$(matchId))
             && (
-              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
-              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
-              || isAdmin()
+              isAdmin()
+              || (
+                (request.auth.uid == parentMatch().user1Id || request.auth.uid == parentMatch().user2Id)
+                && !isBlockedForParticipant()
+              )
             );
         }
 
@@ -609,8 +618,8 @@ service cloud.firestore {
 
         allow read: if isParticipant();
 
-        // Message creation is server-authorized so the server computes
-        // disappearing-message expiration and clients cannot forge/extend it.
+        // Message creation is server-authorized so the API computes expiration
+        // and blocked users cannot bypass chat restrictions from the client.
         allow create: if false;
 
         allow update: if isParticipant()
@@ -648,32 +657,25 @@ service cloud.firestore {
 
 
       // ==========================================================
-      // DISAPPEARING MESSAGE SETTING
+      // DISAPPEARING CHAT SETTINGS
       // ==========================================================
 
       match /chatSettings/{settingId} {
-        function isParticipantSetting() {
-          return isSignedIn()
-            && exists(/databases/$(database)/documents/matches/$(matchId))
-            && (
-              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
-              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
-              || isAdmin()
-            );
-        }
-
-        allow get: if isParticipantSetting() && settingId == 'config';
-        allow list: if false;
-
-        allow create, update: if isParticipantSetting()
+        allow get: if isSignedIn()
           && settingId == 'config'
-          && incoming().keys().hasOnly(['duration', 'updatedBy', 'updatedAt'])
-          && incoming().duration in ['off', '24h', '7d', '30d']
-          && incoming().updatedBy == request.auth.uid
-          && incoming().updatedAt is string
-          && incoming().updatedAt.size() <= 64;
+          && (
+            isAdmin()
+            || (
+              exists(/databases/$(database)/documents/matches/$(matchId))
+              && (
+                request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+                || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+              )
+            )
+          );
 
-        allow delete: if false;
+        allow create, update: if false;
+        allow delete, list: if false;
       }
 
 
@@ -1126,6 +1128,28 @@ service cloud.firestore {
 
       allow read, update, delete: if isAdmin();
       allow create: if isAdmin();
+    }
+
+
+    // ============================================================
+    // DISAPPEARING CHAT SETTINGS
+    // ============================================================
+
+    match /chatSettings/{matchId} {
+      allow get: if isSignedIn()
+        && (
+          isAdmin()
+          || (
+            exists(/databases/$(database)/documents/matches/$(matchId))
+            && (
+              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+            )
+          )
+        );
+
+      allow create, update: if false;
+      allow delete, list: if false;
     }
 
 
