@@ -26,7 +26,8 @@ import {
   Reply,
   Pencil,
   Smile,
-  Search
+  Search,
+  ArrowDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
@@ -746,6 +747,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -796,6 +798,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const lastObservedMessageIdRef = useRef<string | null>(null);
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
   const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
   const otherContact =
@@ -895,6 +898,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setInputVal('');
       setHasLoadedDraft(false);
       setShowJumpToLatest(false);
+      setNewMessagesWhileAway(0);
+      lastObservedMessageIdRef.current = null;
       setOtherOnline(false);
       setOtherTyping(false);
       return;
@@ -976,7 +981,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!container) return;
     const onScroll = () => {
       const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-      setShowJumpToLatest(distance > 220);
+      const awayFromLatest = distance > 220;
+      setShowJumpToLatest(awayFromLatest);
+      if (!awayFromLatest) setNewMessagesWhileAway(0);
     };
     onScroll();
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -991,6 +998,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
     }
   }, [currentMessages, activeConvId]);
+
+  // If an incoming message arrives while the user is reading older messages,
+  // show a compact WhatsApp-style jump indicator instead of a persistent text label.
+  useEffect(() => {
+    const latest = currentMessages[currentMessages.length - 1];
+    if (!latest) return;
+    const previousId = lastObservedMessageIdRef.current;
+    lastObservedMessageIdRef.current = latest.id;
+    if (!previousId || previousId === latest.id || latest.senderId === myId) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distance > 220) {
+      setShowJumpToLatest(true);
+      setNewMessagesWhileAway((count) => Math.min(count + 1, 99));
+    }
+  }, [currentMessages, myId]);
 
   useEffect(() => {
     setShowContactExchange(false);
@@ -1899,11 +1924,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               {showJumpToLatest && (
                 <button
                   type="button"
-                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                  className="sticky bottom-2 mx-auto flex items-center gap-1.5 rounded-full bg-white border border-stone-200 shadow-lg px-3 py-1.5 text-[11px] font-semibold text-rose-900"
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    setShowJumpToLatest(false);
+                    setNewMessagesWhileAway(0);
+                  }}
+                  className="sticky bottom-3 ml-auto mr-2 flex h-10 w-10 items-center justify-center rounded-full bg-white border border-stone-200 shadow-lg text-rose-900 transition active:scale-95"
                   aria-label="Jump to latest messages"
+                  title="Jump to latest messages"
                 >
-                  ↓ New messages
+                  <ArrowDown className="w-4 h-4" />
+                  {newMessagesWhileAway > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-900 text-white text-[9px] font-bold flex items-center justify-center">
+                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
