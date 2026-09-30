@@ -1653,7 +1653,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                     {disappearingMode !== 'off' && (
                       <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 font-semibold whitespace-nowrap">
                         Disappearing {disappearingLabel}
@@ -1950,15 +1950,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               )}
               <div ref={messagesEndRef} />
-              {showJumpToLatest && (
+              {currentMessages.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
-                  className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-rose-900 text-white border border-white/20 shadow-2xl ring-2 ring-black/10 active:scale-95"
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    setShowJumpToLatest(false);
+                  }}
+                  className={`fixed bottom-24 right-4 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-rose-900 text-white border-2 border-white/70 shadow-2xl ring-2 ring-black/20 active:scale-95 transition-opacity ${showJumpToLatest ? 'opacity-100' : 'opacity-90'}`}
                   aria-label="Jump to latest messages"
                   title="Jump to latest messages"
                 >
-                  <ArrowDown className="h-5 w-5" strokeWidth={2.5} />
+                  <ArrowDown className="h-6 w-6" strokeWidth={3} />
+                  {newMessagesWhileAway > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-white text-rose-900 text-[10px] font-bold flex items-center justify-center border border-rose-900">
+                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
