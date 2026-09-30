@@ -522,8 +522,7 @@ service cloud.firestore {
               'replyToPreview',
               'editedAt',
               'reactions',
-              'starredBy',
-'expiresAt'
+              'starredBy'
             ])
             && isValidId(data.id)
             && data.id == messageId
@@ -572,12 +571,6 @@ service cloud.firestore {
               || (
                 data.readAt is string
                 && data.readAt.size() <= 64
-&& (
-  !data.keys().hasAny(['expiresAt'])
-  || (
-    data.expiresAt is string
-    && data.expiresAt.size() <= 64
-    && data.expiresAt > data.createdAt
               )
             )
             && (
