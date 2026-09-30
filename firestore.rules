@@ -485,11 +485,15 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/matches/$(matchId)).data;
         }
 
+        function otherParticipantId() {
+          return parentMatch().user1Id == request.auth.uid
+            ? parentMatch().user2Id
+            : parentMatch().user1Id;
+        }
+
         function isBlockedForParticipant() {
-          return (
-            exists(/databases/$(database)/documents/blocks/$(request.auth.uid)_$(parentMatch().user1Id == request.auth.uid ? parentMatch().user2Id : parentMatch().user1Id))
-            || exists(/databases/$(database)/documents/blocks/$(parentMatch().user1Id == request.auth.uid ? parentMatch().user2Id : parentMatch().user1Id)_$(request.auth.uid))
-          );
+          return exists(/databases/$(database)/documents/blocks/$(request.auth.uid + '_' + otherParticipantId()))
+            || exists(/databases/$(database)/documents/blocks/$(otherParticipantId() + '_' + request.auth.uid));
         }
 
         function isParticipant() {
