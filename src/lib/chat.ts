@@ -132,8 +132,11 @@ export function listenMatchMessages(
           durationMs: typeof data.durationMs === 'number' ? data.durationMs : undefined,
           replyToId: data.replyToId ? String(data.replyToId) : undefined,
           replyToPreview: data.replyToPreview ? String(data.replyToPreview) : undefined,
-          reactions: data.reactions && typeof data.reactions === 'object' ? (data.reactions as Record<string, string[]>) : undefined
-        };
+          reactions: data.reactions && typeof data.reactions === 'object' ? (data.reactions as Record<string, string[]>) : undefined,
+          starredBy: Array.isArray(data.starredBy) ? data.starredBy.map(String) : undefined,
+          editedAt: data.editedAt ? toIso(data.editedAt) : undefined,
+          expiresAt: data.expiresAt ? toIso(data.expiresAt) : undefined
+        } as Message;
       });
       onChange(messages);
     },
@@ -281,7 +284,7 @@ export async function unsendMatchMessage(matchId: string, messageId: string): Pr
   }
 
   if (!res.ok) {
-    throw new Error(body.error || 'Unable to unsend this message.');
+    throw new Error(body.error || 'Unable to delete this message.');
   }
 }
 
