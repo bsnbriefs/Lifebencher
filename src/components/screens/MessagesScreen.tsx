@@ -26,14 +26,13 @@ import {
   Reply,
   Pencil,
   Smile,
-  Search,
-  ArrowDown
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, listenUnreadCount, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -747,7 +746,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -798,9 +796,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const lastObservedMessageIdRef = useRef<string | null>(null);
-  const latestMessageIdsRef = useRef<Record<string, string>>({});
-  const notifiedMessageIdsRef = useRef<Set<string>>(new Set());
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
   const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
   const otherContact =
@@ -874,22 +869,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     return () => { cancelled = true; };
   }, [activeConvId]);
 
-  // Keep conversation badges authoritative from the message read state.
-  useEffect(() => {
-    if (!myId) return;
-    const unsubs = conversations.map((c) =>
-      listenUnreadCount(c.matchId, myId, (count) => {
-        setConversations((prev) =>
-          prev.map((item) => item.matchId === c.matchId
-            ? { ...item, unreadCount: item.matchId === activeConvId ? 0 : count }
-            : item
-          )
-        );
-      })
-    );
-    return () => unsubs.forEach((u) => u());
-  }, [myId, conversations.map((c) => c.matchId).join('|'), activeConvId]);
-
   useEffect(() => {
     const unsubs = conversations.map((c) =>
       listenLatestMessage(c.matchId, (preview) => {
@@ -905,24 +884,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               : item
           )
         );
-
-        const previousLatestId = latestMessageIdsRef.current[c.matchId];
-        latestMessageIdsRef.current[c.matchId] = preview.messageId;
-        if (previousLatestId && previousLatestId !== preview.messageId && preview.senderId !== myId && activeConvId !== c.matchId && !notifiedMessageIdsRef.current.has(preview.messageId)) {
-          notifiedMessageIdsRef.current.add(preview.messageId);
-          if (typeof document !== 'undefined' && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-            try {
-              new Notification(c.otherUser?.displayName || 'Lifebencher', {
-                body: preview.text === 'Photo' || preview.text === 'Voice message' || preview.text === 'View once photo' ? preview.text : preview.text.slice(0, 120),
-                tag: `lifebencher-${c.matchId}`
-              });
-            } catch { /* browser notifications are best-effort */ }
-          }
-        }
       })
     );
     return () => unsubs.forEach((u) => u());
-  }, [conversations.map((c) => c.matchId).join('|'), activeConvId, myId]);
+  }, [conversations.map((c) => c.matchId).join('|')]);
 
   useEffect(() => {
     if (!activeConvId) {
@@ -930,8 +895,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setInputVal('');
       setHasLoadedDraft(false);
       setShowJumpToLatest(false);
-      setNewMessagesWhileAway(0);
-      lastObservedMessageIdRef.current = null;
       setOtherOnline(false);
       setOtherTyping(false);
       return;
@@ -969,22 +932,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       typingStateRef.current = false;
     };
 
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        void setChatPresence(activeConvId, myId, true);
-      } else {
-        goOffline();
-      }
-    };
-
     window.addEventListener('pagehide', goOffline);
-    document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       typingTimerRef.current = null;
       goOffline();
       window.removeEventListener('pagehide', goOffline);
-      document.removeEventListener('visibilitychange', handleVisibility);
       stopPresence();
       stopTyping();
     };
@@ -1023,9 +976,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!container) return;
     const onScroll = () => {
       const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-      const awayFromLatest = distance > 220;
-      setShowJumpToLatest(awayFromLatest);
-      if (!awayFromLatest) setNewMessagesWhileAway(0);
+      setShowJumpToLatest(distance > 220);
     };
     onScroll();
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -1040,24 +991,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
     }
   }, [currentMessages, activeConvId]);
-
-  // If an incoming message arrives while the user is reading older messages,
-  // show a compact WhatsApp-style jump indicator instead of a persistent text label.
-  useEffect(() => {
-    const latest = currentMessages[currentMessages.length - 1];
-    if (!latest) return;
-    const previousId = lastObservedMessageIdRef.current;
-    lastObservedMessageIdRef.current = latest.id;
-    if (!previousId || previousId === latest.id || latest.senderId === myId) return;
-
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (distance > 220) {
-      setShowJumpToLatest(true);
-      setNewMessagesWhileAway((count) => Math.min(count + 1, 99));
-    }
-  }, [currentMessages, myId]);
 
   useEffect(() => {
     setShowContactExchange(false);
@@ -1134,6 +1067,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   const handleStartEditing = (message: Message) => {
     if (message.senderId !== myId || message.kind !== 'text') return;
+    const ageMs = Date.now() - new Date(message.createdAt).getTime();
+    if (!Number.isFinite(ageMs) || ageMs > 10 * 60 * 1000) {
+      setSendError('Messages can only be edited within 10 minutes.');
+      setMessageMenuId(null);
+      return;
+    }
     setEditingMessageId(message.id);
     setInputVal(message.content || '');
     setReplyTarget(null);
@@ -1663,7 +1602,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500 leading-tight mt-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping ? `${activeConv.otherUser?.displayName || 'They'} is typing…` : otherOnline ? 'Active now' : 'Offline'}
+                      {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
@@ -1924,12 +1863,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                               <Star className={`w-3.5 h-3.5 ${starredMessageIds.has(m.id) ? 'fill-amber-400 text-amber-500' : ''}`} /> {starredMessageIds.has(m.id) ? 'Unstar' : 'Star'}
                             </button>
                             {isMine && m.kind === 'text' && (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); handleStartEditing(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleStartEditing(m); }}
+                                disabled={Date.now() - new Date(m.createdAt).getTime() > 10 * 60 * 1000}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700 disabled:text-stone-300 disabled:cursor-not-allowed"
+                                title="Editing is available for 10 minutes"
+                              >
                                 <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
                             )}
                             {isMine && (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700"
+                              >
                                 <Trash2 className="w-3.5 h-3.5" /> Delete
                               </button>
                             )}
@@ -1966,21 +1915,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               {showJumpToLatest && (
                 <button
                   type="button"
-                  onClick={() => {
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                    setShowJumpToLatest(false);
-                    setNewMessagesWhileAway(0);
-                  }}
-                  className="sticky bottom-3 ml-auto mr-2 flex h-10 w-10 items-center justify-center rounded-full bg-white border border-stone-200 shadow-lg text-rose-900 transition active:scale-95"
+                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  className="sticky bottom-2 mx-auto flex items-center gap-1.5 rounded-full bg-white border border-stone-200 shadow-lg px-3 py-1.5 text-[11px] font-semibold text-rose-900"
                   aria-label="Jump to latest messages"
-                  title="Jump to latest messages"
                 >
-                  <ArrowDown className="w-4 h-4" />
-                  {newMessagesWhileAway > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-900 text-white text-[9px] font-bold flex items-center justify-center">
-                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
-                    </span>
-                  )}
+                  ↓ New messages
                 </button>
               )}
             </div>
@@ -2246,7 +2185,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               exit={{ y: '100%', opacity: 0 }}
               className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
             >
-              <h3 className="font-serif font-bold text-base">Unsend this message?</h3>
+              <h3 className="font-serif font-bold text-base">Delete this message?</h3>
               <p className="text-xs text-stone-600 leading-relaxed">This removes the message for both you and the recipient. Voice notes and photos attached to it will also be removed.</p>
               <div className="flex gap-2 pt-1">
                 <button type="button" disabled={unsending} onClick={() => setUnsendMessageId(null)} className="flex-1 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold">Cancel</button>
