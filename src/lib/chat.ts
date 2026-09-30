@@ -336,18 +336,26 @@ export async function sendMatchMessage(matchId: string, content: string, replyTo
 
 
 export async function editMatchMessage(matchId: string, messageId: string, content: string): Promise<void> {
-  const uid = auth.currentUser;
+  const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   const text = content.trim();
   if (!messageId) throw new Error('Missing message');
   if (!text) throw new Error('Message cannot be empty');
   if (text.length > 2000) throw new Error('Message is too long');
 
-  await chatAction('edit', {
-    matchId,
-    messageId,
-    content: text
-  });
+  const ref = doc(db, 'matches', matchId, 'messages', messageId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error('Message not found');
+      const data = snap.data() as Record<string, unknown>;
+      if (data.senderId !== uid) throw new Error('You can only edit your own messages');
+      if (data.kind && data.kind !== 'text') throw new Error('Only text messages can be edited');
+      tx.update(ref, { content: text, editedAt: new Date().toISOString() });
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `/matches/${matchId}/messages/${messageId}`);
+  }
 }
 
 export async function toggleMessageReaction(matchId: string, messageId: string, emoji: string): Promise<void> {
