@@ -3,10 +3,12 @@ import {
   doc,
   getDocs,
   getDoc,
+  deleteDoc,
   limit,
   onSnapshot,
   orderBy,
   query,
+  where,
   setDoc,
   Timestamp,
   updateDoc,
@@ -331,6 +333,31 @@ export async function isUserBlocked(targetUserId: string): Promise<boolean> {
   if (!snap.exists()) return false;
   const data = snap.data() as Record<string, unknown>;
   return data.blockerId === uid && data.blockedUserId === targetUserId;
+}
+
+export async function listBlockedUserIds(): Promise<string[]> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  const q = query(
+    collection(db, 'blocks'),
+    where('blockerId', '==', uid)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      return typeof data.blockedUserId === 'string' ? data.blockedUserId : '';
+    })
+    .filter(Boolean);
+}
+
+export async function unblockUser(targetUserId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  if (!targetUserId || targetUserId === uid) throw new Error('Invalid unblock target');
+
+  await deleteDoc(doc(db, 'blocks', `${uid}_${targetUserId}`));
 }
 
 export async function sendMatchMessage(matchId: string, content: string, replyTo?: { id: string; preview: string }): Promise<void> {
