@@ -811,7 +811,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   useEffect(() => {
     if (!myId) return;
-    return listenUserMatches(myId, (matches) => {
+    return listenUserMatches(myId, async (matches) => {
       const record: Record<string, Match> = {};
       matches.forEach((m) => {
         record[m.id] = m;
