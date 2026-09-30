@@ -271,6 +271,35 @@ async function viewOnce(req, res) {
   return json(res, 200, { url, expiresIn: 45 });
 }
 
+async function editMessage(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  const decoded = await requireUser(req);
+  const { matchId, messageId, content } = await readBody(req);
+  if (!matchId || !messageId) return json(res, 400, { error: 'Missing message' });
+  const text = String(content || '').trim();
+  if (!text || text.length > 2000) return json(res, 400, { error: 'Invalid message content' });
+
+  const admin = getAdmin();
+  const db = admin.firestore();
+  await getMatchForUser(db, decoded, matchId);
+  const msgRef = db.doc(`matches/${matchId}/messages/${messageId}`);
+  const msgSnap = await msgRef.get();
+  if (!msgSnap.exists) return json(res, 404, { error: 'Message not found' });
+
+  const msg = msgSnap.data();
+  if (msg.senderId !== decoded.uid) return json(res, 403, { error: 'You can only edit your own messages.' });
+  if (msg.kind && msg.kind !== 'text') return json(res, 400, { error: 'Only text messages can be edited.' });
+
+  const createdAt = parseTime(msg.createdAt);
+  if (!Number.isFinite(createdAt)) return json(res, 400, { error: 'Invalid message timestamp.' });
+  if (Date.now() - createdAt > 10 * 60 * 1000) {
+    return json(res, 403, { error: 'Messages can only be edited within 10 minutes.' });
+  }
+
+  await msgRef.update({ content: text, editedAt: new Date().toISOString() });
+  return json(res, 200, { ok: true });
+}
+
 async function deleteMessage(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const decoded = await requireUser(req);
@@ -292,34 +321,6 @@ async function deleteMessage(req, res) {
   return json(res, 200, { ok: true });
 }
 
-
-async function editMessage(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
-  const decoded = await requireUser(req);
-  const { matchId, messageId, content } = await readBody(req);
-  if (!matchId || !messageId) return json(res, 400, { error: 'Missing message' });
-  const text = String(content || '').trim();
-  if (!text || text.length > 2000) return json(res, 400, { error: 'Invalid message content' });
-
-  const admin = getAdmin();
-  const db = admin.firestore();
-  await getMatchForUser(db, decoded, matchId);
-  const msgRef = db.doc(`matches/${matchId}/messages/${messageId}`);
-  const msgSnap = await msgRef.get();
-  if (!msgSnap.exists) return json(res, 404, { error: 'Message not found' });
-
-  const msg = msgSnap.data();
-  if (msg.senderId !== decoded.uid) return json(res, 403, { error: 'You can only edit your own messages.' });
-  if (msg.kind && msg.kind !== 'text') return json(res, 400, { error: 'Only text messages can be edited.' });
-
-  const createdAt = parseTime(msg.createdAt);
-  if (!Number.isFinite(createdAt) || Date.now() - createdAt > 10 * 60 * 1000) {
-    return json(res, 403, { error: 'Messages can only be edited within 10 minutes.' });
-  }
-
-  await msgRef.update({ content: text, editedAt: new Date().toISOString() });
-  return json(res, 200, { ok: true });
-}
 
 const handlers = { media, send, disappearing, 'view-once': viewOnce, 'delete-message': deleteMessage, edit: editMessage, 'cleanup-expired': cleanupExpired };
 
