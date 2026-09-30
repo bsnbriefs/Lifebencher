@@ -32,7 +32,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, reportUser, blockUser, isUserBlocked, listBlockedUserIds, unblockUser } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -755,6 +755,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [reportReason, setReportReason] = useState();
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [blockSubmitting, setBlockSubmitting] = useState(false);
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -1326,6 +1330,56 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setShowOptionsModal(false);
   };
 
+  const openBlockedUsers = async () => {
+    setShowBlockedUsers(true);
+    setLoadingBlockedUsers(true);
+    try {
+      const ids = await listBlockedUserIds();
+      setBlockedUserIds(ids);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to load blocked users.');
+    } finally {
+      setLoadingBlockedUsers(false);
+    }
+  };
+
+  const handleUnblock = async (targetUserId: string) => {
+    if (!targetUserId || unblockingUserId) return;
+    setUnblockingUserId(targetUserId);
+    setSendError(null);
+    try {
+      await unblockUser(targetUserId);
+      setBlockedUserIds((prev) => prev.filter((id) => id !== targetUserId));
+
+      const restored = Object.values(matchRecords).find(
+        (m) => m.status !== 'ended' && (m.user1Id === targetUserId || m.user2Id === targetUserId)
+      );
+      if (restored) {
+        setConversations((prev) => {
+          if (prev.some((c) => c.matchId === restored.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: restored.id,
+              matchId: restored.id,
+              participantIds: [restored.user1Id, restored.user2Id],
+              otherUser: restored.otherProfile,
+              lastMessageText: 'Start a thoughtful conversation',
+              lastMessageAt: '',
+              unreadCount: 0,
+              expiresAt: restored.expiresAt,
+              exchangeState: 'none'
+            } satisfies ConversationWithMeta
+          ];
+        });
+      }
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to unblock this person.');
+    } finally {
+      setUnblockingUserId(null);
+    }
+  };
+
   const handleReport = async () => {
     if (!activeConv?.otherUser?.userId || reportSubmitting) return;
     const reason = reportReason.trim();
@@ -1395,6 +1449,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               <p className="text-xs text-stone-500">
                 Encrypted private dialogues with your intentional matches
               </p>
+              <button
+                type="button"
+                onClick={() => void openBlockedUsers()}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-[11px] font-semibold text-stone-700 hover:border-rose-300 hover:text-rose-800 transition"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                Blocked users
+              </button>
             </div>
 
             {conversations.length === 0 ? (
@@ -2097,6 +2159,75 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <button type="button" disabled={unsending} onClick={() => void handleUnsendMessage()} className="flex-1 py-2.5 rounded-xl bg-rose-900 text-white text-xs font-semibold disabled:opacity-50">
                   {unsending ? 'Removing…' : 'Unsend'}
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* BLOCKED USERS MODAL */}
+      <AnimatePresence>
+        {showBlockedUsers && (
+          <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3 max-h-[80dvh] flex flex-col"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                <div>
+                  <h3 className="font-serif font-bold text-base">Blocked users</h3>
+                  <p className="text-[11px] text-stone-500 mt-0.5">Manage people you have blocked.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBlockedUsers(false)}
+                  className="w-8 h-8 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center"
+                  aria-label="Close blocked users"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-2 pr-1">
+                {loadingBlockedUsers ? (
+                  <div className="py-8 text-center text-xs text-stone-500">Loading blocked users…</div>
+                ) : blockedUserIds.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <Shield className="w-7 h-7 text-stone-300 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-stone-700">No blocked users</p>
+                    <p className="text-[11px] text-stone-500 mt-1">People you block will appear here.</p>
+                  </div>
+                ) : (
+                  blockedUserIds.map((blockedId) => {
+                    const match = Object.values(matchRecords).find(
+                      (m) => m.user1Id === blockedId || m.user2Id === blockedId
+                    );
+                    const profile = match?.otherProfile;
+                    const name = profile?.displayName || 'Blocked user';
+                    const photo = profile?.photos?.[0] || PLACEHOLDER_PHOTO;
+                    const isUnblocking = unblockingUserId === blockedId;
+
+                    return (
+                      <div key={blockedId} className="flex items-center gap-3 rounded-2xl border border-stone-200 p-3">
+                        <img src={photo} alt="" className="w-11 h-11 rounded-full object-cover border border-stone-200 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-stone-800 truncate">{name}</p>
+                          <p className="text-[10px] text-stone-400 truncate">Blocked</p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!!unblockingUserId}
+                          onClick={() => void handleUnblock(blockedId)}
+                          className="shrink-0 rounded-xl bg-stone-900 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+                        >
+                          {isUnblocking ? 'Unblocking…' : 'Unblock'}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </motion.div>
           </div>
