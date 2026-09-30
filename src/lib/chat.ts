@@ -3,12 +3,10 @@ import {
   doc,
   getDocs,
   getDoc,
-  deleteDoc,
   limit,
   onSnapshot,
   orderBy,
   query,
-  where,
   setDoc,
   Timestamp,
   updateDoc,
@@ -46,6 +44,43 @@ export function formatMessageTime(iso: string): string {
     date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+export type DisappearingMode = 'off' | '24h' | '7d' | '30d';
+
+async function chatAction(action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Not signed in');
+  const token = await currentUser.getIdToken();
+  const res = await fetch(`/api/chat/${action}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  let responseBody: Record<string, unknown> = {};
+  try {
+    responseBody = (await res.json()) as Record<string, unknown>;
+  } catch {
+    /* leave body empty */
+  }
+  if (!res.ok) {
+    throw new Error(String(responseBody.error || 'Chat request failed'));
+  }
+  return responseBody;
+}
+
+export async function getDisappearingMessages(matchId: string): Promise<DisappearingMode> {
+  await chatAction('cleanup-expired', { matchId }).catch(() => undefined);
+  const body = await chatAction('disappearing', { matchId, method: 'get' });
+  const mode = String(body.duration || 'off');
+  return ['off', '24h', '7d', '30d'].includes(mode) ? mode as DisappearingMode : 'off';
+}
+
+export async function setDisappearingMessages(matchId: string, duration: DisappearingMode): Promise<void> {
+  await chatAction('disappearing', { matchId, duration });
+}
+
 export function listenMatchMessages(
   matchId: string,
   onChange: (messages: Message[]) => void
@@ -59,14 +94,17 @@ export function listenMatchMessages(
   return onSnapshot(
     q,
     (snap) => {
+      const now = Date.now();
       const messages: Message[] = snap.docs.map((d) => {
         const data = d.data() as Record<string, unknown>;
+        const expiresAt = data.expiresAt ? toIso(data.expiresAt) : undefined;
         return {
           id: d.id,
           conversationId: matchId,
           senderId: String(data.senderId || ''),
           content: String(data.content || ''),
           createdAt: toIso(data.createdAt),
+          expiresAt,
           readAt: data.readAt ? toIso(data.readAt) : undefined,
           kind: (data.kind as Message['kind']) || 'text',
           imagePath: data.imagePath ? String(data.imagePath) : undefined,
@@ -80,7 +118,7 @@ export function listenMatchMessages(
           replyToPreview: data.replyToPreview ? String(data.replyToPreview) : undefined,
           reactions: data.reactions && typeof data.reactions === 'object' ? (data.reactions as Record<string, string[]>) : undefined
         };
-      });
+      }).filter((message) => !message.expiresAt || new Date(message.expiresAt).getTime() > now);
       onChange(messages);
     },
     (error) => handleFirestoreError(error, OperationType.LIST, `/matches/${matchId}/messages`)
@@ -105,10 +143,17 @@ export function listenLatestMessage(
         return;
       }
       const data = d.data() as Record<string, unknown>;
-      onChange({
-        text: String(data.content || ''),
-        at: toIso(data.createdAt)
-      });
+      const expiresAt = data.expiresAt ? toIso(data.expiresAt) : '';
+      if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+        onChange(null);
+        return;
+      }
+      let text = String(data.content || '');
+      if (data.viewOnce === true || data.kind === 'viewOnce') text = 'View once photo';
+      else if (expiresAt) text = 'Disappearing message';
+      else if (data.kind === 'image') text = 'Photo';
+      else if (data.kind === 'audio') text = 'Voice message';
+      onChange({ text, at: toIso(data.createdAt) });
     },
     () => onChange(null)
   );
@@ -124,18 +169,23 @@ export async function sendMatchImage(matchId: string, file: File, viewOnce: bool
   if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB');
   const path = `chatPhotos/${matchId}/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, '')}`;
   await uploadBytes(storageRef(storage, path), file, { contentType: type });
-  const col = collection(db, 'matches', matchId, 'messages');
-  const msgRef = doc(col);
-  await setDoc(msgRef, {
-    id: msgRef.id,
-    matchId,
-    senderId: uid,
-    content: viewOnce ? 'View once photo' : 'Photo',
-    createdAt: new Date().toISOString(),
-    kind: viewOnce ? 'viewOnce' : 'image',
-    imagePath: path,
-    viewOnce
-  });
+  try {
+    await chatAction('send', {
+      matchId,
+      kind: viewOnce ? 'viewOnce' : 'image',
+      content: viewOnce ? 'View once photo' : 'Photo',
+      path,
+      viewOnce
+    });
+  } catch (error) {
+    try {
+      const { deleteObject } = await import('firebase/storage');
+      await deleteObject(storageRef(storage, path));
+    } catch {
+      // Best-effort orphan cleanup.
+    }
+    throw error;
+  }
 }
 
 export async function resolveChatMediaUrl(matchId: string, path: string): Promise<string> {
@@ -198,18 +248,23 @@ export async function sendMatchAudio(matchId: string, blob: Blob, durationMs: nu
   const ext = type.includes('mp4') || type.includes('aac') ? 'm4a' : type.includes('mpeg') ? 'mp3' : 'webm';
   const path = `chatAudio/${matchId}/${uid}/${Date.now()}.${ext}`;
   await uploadBytes(storageRef(storage, path), blob, { contentType: type.split(';')[0] });
-  const col = collection(db, 'matches', matchId, 'messages');
-  const msgRef = doc(col);
-  await setDoc(msgRef, {
-    id: msgRef.id,
-    matchId,
-    senderId: uid,
-    content: 'Voice message',
-    createdAt: new Date().toISOString(),
-    kind: 'audio',
-    audioPath: path,
-    durationMs: Math.max(1, Math.round(durationMs))
-  });
+  try {
+    await chatAction('send', {
+      matchId,
+      kind: 'audio',
+      content: 'Voice message',
+      path,
+      durationMs: Math.max(1, Math.round(durationMs))
+    });
+  } catch (error) {
+    try {
+      const { deleteObject } = await import('firebase/storage');
+      await deleteObject(storageRef(storage, path));
+    } catch {
+      // Best-effort orphan cleanup.
+    }
+    throw error;
+  }
 }
 
 export async function unsendMatchMessage(matchId: string, messageId: string): Promise<void> {
@@ -278,31 +333,6 @@ export async function isUserBlocked(targetUserId: string): Promise<boolean> {
   return data.blockerId === uid && data.blockedUserId === targetUserId;
 }
 
-export async function listBlockedUserIds(): Promise<string[]> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
-
-  const q = query(
-    collection(db, 'blocks'),
-    where('blockerId', '==', uid)
-  );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => {
-      const data = d.data() as Record<string, unknown>;
-      return typeof data.blockedUserId === 'string' ? data.blockedUserId : '';
-    })
-    .filter(Boolean);
-}
-
-export async function unblockUser(targetUserId: string): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
-  if (!targetUserId || targetUserId === uid) throw new Error('Invalid unblock target');
-
-  await deleteDoc(doc(db, 'blocks', `${uid}_${targetUserId}`));
-}
-
 export async function sendMatchMessage(matchId: string, content: string, replyTo?: { id: string; preview: string }): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
@@ -310,19 +340,15 @@ export async function sendMatchMessage(matchId: string, content: string, replyTo
   if (!text) return;
   if (text.length > 2000) throw new Error('Message is too long');
 
-  const col = collection(db, 'matches', matchId, 'messages');
-  const ref = doc(col);
   try {
-    await setDoc(ref, {
-      id: ref.id,
+    await chatAction('send', {
       matchId,
-      senderId: uid,
+      kind: 'text',
       content: text.slice(0, 2000),
-      ...(replyTo ? { replyToId: replyTo.id, replyToPreview: replyTo.preview.slice(0, 240) } : {}),
-      createdAt: new Date().toISOString()
+      ...(replyTo ? { replyToId: replyTo.id, replyToPreview: replyTo.preview.slice(0, 240) } : {})
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, `/matches/${matchId}/messages`);
+    throw error;
   }
 }
 
