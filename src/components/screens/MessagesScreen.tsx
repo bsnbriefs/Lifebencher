@@ -1575,11 +1575,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             className="flex flex-col min-h-0 h-[calc(100dvh-11rem)] overflow-x-hidden"
           >
             {/* Thread Header */}
-            <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 mb-2">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-200 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setActiveConvId(null)}
-                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-700 transition cursor-pointer"
+                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-700 transition cursor-pointer shrink-0"
                   aria-label="Back to conversations"
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -1587,40 +1587,30 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <img
                   src={activeConv.otherUser?.photos?.[0] || PLACEHOLDER_PHOTO}
                   alt={activeConv.otherUser?.displayName}
-                  className="w-9 h-9 rounded-full object-cover"
+                  className="w-9 h-9 rounded-full object-cover shrink-0"
                 />
-                <div>
-                  <h3 className="font-serif font-bold text-sm text-stone-900">
+                <div className="min-w-0">
+                  <h3 className="font-serif font-bold text-sm text-stone-900 truncate">
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500 leading-tight mt-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping ? `${activeConv.otherUser?.displayName || 'They'} is typing…` : otherOnline ? 'Active now' : 'Offline'}
+                      {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
                     </span>
-                    <span>•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
-                    {disappearingMode !== 'off' && <><span>•</span><span>Disappearing {disappearingLabel}</span></>}
+                    <span className="text-stone-300">•</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
+                    {disappearingMode !== 'off' && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 font-semibold whitespace-nowrap">
+                        Disappearing {disappearingLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Header Action Menu */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {activeConv.exchangeState === 'none' && (
-                  <button
-                    onClick={handleRequestExchange}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-900 border border-rose-200"
-                  >
-                    Exchange Contacts
-                  </button>
-                )}
-                {activeConv.exchangeState === 'pending_me' && (
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-500 border border-stone-200">
-                    Request Sent
-                  </span>
-                )}
-
+              <div className="flex items-center gap-0.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => { setShowMessageSearch((v) => !v); setShowStarredOnly(false); }}
