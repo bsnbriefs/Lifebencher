@@ -489,8 +489,8 @@ service cloud.firestore {
           return isSignedIn()
             && exists(/databases/$(database)/documents/matches/$(matchId))
             && (
-              request.auth.uid == parentMatch().user1Id
-              || request.auth.uid == parentMatch().user2Id
+              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
               || isAdmin()
             );
         }
@@ -522,7 +522,8 @@ service cloud.firestore {
               'replyToPreview',
               'editedAt',
               'reactions',
-              'starredBy'
+              'starredBy',
+              'expiresAt'
             ])
             && isValidId(data.id)
             && data.id == messageId
@@ -534,6 +535,14 @@ service cloud.firestore {
             && data.content.size() <= 2000
             && data.createdAt is string
             && data.createdAt.size() <= 64
+            && (
+              !data.keys().hasAny(['expiresAt'])
+              || (
+                data.expiresAt is string
+                && data.expiresAt.size() <= 64
+                && data.expiresAt > data.createdAt
+              )
+            )
             && (
               !data.keys().hasAny(['kind'])
               || data.kind in ['text', 'image', 'viewOnce', 'audio']
@@ -600,10 +609,9 @@ service cloud.firestore {
 
         allow read: if isParticipant();
 
-        allow create: if isParticipant()
-          && isValidMessage(incoming())
-          && incoming().senderId == request.auth.uid
-          && parentMatch().status == 'active';
+        // Message creation is server-authorized so the server computes
+        // disappearing-message expiration and clients cannot forge/extend it.
+        allow create: if false;
 
         allow update: if isParticipant()
           && isValidMessage(incoming())
@@ -636,6 +644,36 @@ service cloud.firestore {
           );
 
         allow delete: if isAdmin();
+      }
+
+
+      // ==========================================================
+      // DISAPPEARING MESSAGE SETTING
+      // ==========================================================
+
+      match /chatSettings/{settingId} {
+        function isParticipantSetting() {
+          return isSignedIn()
+            && exists(/databases/$(database)/documents/matches/$(matchId))
+            && (
+              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+              || isAdmin()
+            );
+        }
+
+        allow get: if isParticipantSetting() && settingId == 'config';
+        allow list: if false;
+
+        allow create, update: if isParticipantSetting()
+          && settingId == 'config'
+          && incoming().keys().hasOnly(['duration', 'updatedBy', 'updatedAt'])
+          && incoming().duration in ['off', '24h', '7d', '30d']
+          && incoming().updatedBy == request.auth.uid
+          && incoming().updatedAt is string
+          && incoming().updatedAt.size() <= 64;
+
+        allow delete: if false;
       }
 
 
