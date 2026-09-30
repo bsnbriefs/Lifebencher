@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, doc, getDoc, setDoc, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ImagePlus,
   Send,
@@ -869,53 +869,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       .catch(() => { if (!cancelled) setDisappearingMode('off'); });
     return () => { cancelled = true; };
   }, [activeConvId]);
-
-  // Keep conversation previews and unread counts live. Unread means a received
-  // message that does not yet have a readAt timestamp. The count is derived
-  // from Firestore so it survives navigation/reloads instead of living only in
-  // local React state. The active conversation is cleared by markMatchMessagesRead.
-  useEffect(() => {
-    if (!myId) return;
-    const unsubs = conversations.map((c) => {
-      const latestQuery = query(
-        collection(db, 'matches', c.matchId, 'messages'),
-        orderBy('createdAt', 'desc'),
-        limit(200)
-      );
-
-      return onSnapshot(latestQuery, (snap) => {
-        const now = Date.now();
-        let unreadCount = 0;
-
-        snap.docs.forEach((messageDoc) => {
-          const data = messageDoc.data() as Record<string, unknown>;
-          const senderId = String(data.senderId || '');
-          if (!senderId || senderId === myId || data.readAt) return;
-
-          const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
-          if (expiresAt > 0 && expiresAt <= now) return;
-          unreadCount += 1;
-        });
-
-        // Opening the conversation means its received messages are read.
-        // Never show an unread badge while that conversation is currently open.
-        if (activeConvId === c.matchId) unreadCount = 0;
-
-        setConversations((prev) =>
-          prev.map((item) =>
-            item.matchId === c.matchId
-              ? { ...item, unreadCount }
-              : item
-          )
-        );
-      }, () => {
-        // Keep the existing conversation state if an unread-count listener
-        // temporarily fails. The chat itself remains unaffected.
-      });
-    });
-
-    return () => unsubs.forEach((unsubscribe) => unsubscribe());
-  }, [myId, conversations.map((c) => c.matchId).join('|'), activeConvId]);
 
   useEffect(() => {
     const unsubs = conversations.map((c) =>
@@ -1950,14 +1903,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               )}
               <div ref={messagesEndRef} />
-              {currentMessages.length > 0 && (
+              {showJumpToLatest && (
                 <button
                   type="button"
                   onClick={() => {
                     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
                     setShowJumpToLatest(false);
+                    setNewMessagesWhileAway(0);
                   }}
-                  className={`fixed bottom-24 right-4 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-rose-900 text-white border-2 border-white/70 shadow-2xl ring-2 ring-black/20 active:scale-95 transition-opacity ${showJumpToLatest ? 'opacity-100' : 'opacity-90'}`}
+                  className="fixed bottom-24 right-4 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-rose-900 text-white border-2 border-white/80 shadow-2xl ring-2 ring-black/20 active:scale-95"
                   aria-label="Jump to latest messages"
                   title="Jump to latest messages"
                 >
