@@ -32,7 +32,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, reportUser, blockUser, isUserBlocked, listBlockedUserIds, unblockUser } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -750,17 +750,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
-  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
-  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
-  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
-  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
-  const [disappearingMode, setDisappearingMode] = useState<'off' | '24h' | '7d' | '30d'>('off');
-  const [savingDisappearing, setSavingDisappearing] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState();
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [blockSubmitting, setBlockSubmitting] = useState(false);
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -856,18 +854,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     if (initialConversationId) setActiveConvId(initialConversationId);
   }, [initialConversationId]);
-
-  useEffect(() => {
-    if (!activeConvId) {
-      setDisappearingMode('off');
-      return;
-    }
-    let cancelled = false;
-    void getDisappearingMessages(activeConvId)
-      .then((mode) => { if (!cancelled) setDisappearingMode(mode); })
-      .catch(() => { if (!cancelled) setDisappearingMode('off'); });
-    return () => { cancelled = true; };
-  }, [activeConvId]);
 
   useEffect(() => {
     const unsubs = conversations.map((c) =>
@@ -1158,21 +1144,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     }, 1400);
   };
 
-  const handleSetDisappearingMode = async (mode: 'off' | '24h' | '7d' | '30d') => {
-    if (!activeConvId || savingDisappearing) return;
-    setSavingDisappearing(true);
-    try {
-      await setDisappearingMessages(activeConvId, mode);
-      setDisappearingMode(mode);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Could not update disappearing messages.');
-    } finally {
-      setSavingDisappearing(false);
-    }
-  };
-
-  const disappearingLabel = disappearingMode === 'off' ? 'Off' : disappearingMode === '24h' ? '24 hours' : disappearingMode === '7d' ? '7 days' : '30 days';
-
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
     if (!text || !activeConvId) return;
@@ -1185,6 +1156,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setSendError(null);
     try {
       await sendMatchMessage(activeConvId, text, replyTarget ? { id: replyTarget.id, preview: replyTarget.content || (replyTarget.kind === 'image' ? 'Photo' : replyTarget.kind === 'audio' ? 'Voice message' : 'Message') } : undefined);
+      void import('../../lib/aiClient').then(({ scanText }) =>
+        scanText({ text, kind: 'message', targetId: activeConvId }).catch(() => undefined)
+      );
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Could not send message');
     }
@@ -1600,7 +1574,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     </span>
                     <span>•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)}</span>
-                    {disappearingMode !== 'off' && <><span>•</span><span>Disappearing {disappearingLabel}</span></>}
                   </div>
                 </div>
               </div>
@@ -2281,34 +2254,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 >
                   Close
                 </button>
-              </div>
-
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-stone-900">Disappearing messages</p>
-                    <p className="text-[10px] text-stone-500 mt-0.5">New messages disappear after the selected time.</p>
-                  </div>
-                  <span className="text-[10px] font-semibold text-rose-900">{disappearingLabel}</span>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {([
-                    ['off', 'Off'],
-                    ['24h', '24h'],
-                    ['7d', '7d'],
-                    ['30d', '30d']
-                  ] as const).map(([mode, label]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      disabled={savingDisappearing}
-                      onClick={() => void handleSetDisappearingMode(mode)}
-                      className={`py-2 rounded-xl text-[10px] font-bold border transition ${disappearingMode === mode ? 'bg-rose-900 text-white border-rose-900' : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300'} disabled:opacity-50`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="space-y-1.5 text-xs">
