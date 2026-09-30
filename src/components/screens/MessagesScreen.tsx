@@ -818,10 +818,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       });
       setMatchRecords(record);
       const activeMatches = matches.filter((m) => m.status !== 'ended');
-      const blocked = await Promise.all(activeMatches.map(async (m) => {
+      Promise.all(activeMatches.map(async (m) => {
         const otherId = m.user1Id === myId ? m.user2Id : m.user1Id;
         return { matchId: m.id, blocked: await isUserBlocked(otherId).catch(() => false) };
-      }));
+      })).then((blocked) => {
       const blockedIds = new Set(blocked.filter((x) => x.blocked).map((x) => x.matchId));
       setConversations((prev) => {
         const prevById = new Map(prev.map((c) => [c.matchId, c]));
@@ -842,6 +842,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               otherUserContact: existing?.otherUserContact
             } satisfies ConversationWithMeta;
           });
+      });
       });
     });
   }, [myId]);
