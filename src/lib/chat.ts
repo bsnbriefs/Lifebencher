@@ -2,7 +2,6 @@ import {
   collection,
   doc,
   getDocs,
-  getDoc,
   limit,
   onSnapshot,
   orderBy,
@@ -12,8 +11,7 @@ import {
   updateDoc,
   runTransaction,
   arrayUnion,
-  arrayRemove,
-  where
+  arrayRemove
 } from 'firebase/firestore';
 import { uploadBytes, ref as storageRef } from 'firebase/storage';
 import { Message } from '../types';
@@ -22,50 +20,21 @@ import { auth, db, storage, handleFirestoreError, OperationType } from './fireba
 export type DisappearingMode = 'off' | '24h' | '7d' | '30d';
 
 async function chatAction(action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const uid = auth.currentUser;
-  if (!uid) throw new Error('Not signed in');
-  const token = await uid.getIdToken();
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Not signed in');
+  const token = await currentUser.getIdToken();
   const res = await fetch(`/api/chat/${action}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify(body)
   });
-  let payload: Record<string, unknown> = {};
-  try { payload = (await res.json()) as Record<string, unknown>; } catch { /* empty */ }
-  if (!res.ok) throw new Error(String(payload.error || 'Chat request failed'));
-  return payload;
-}
-
-export async function getDisappearingMessages(matchId: string): Promise<DisappearingMode> {
-  await chatAction('cleanup-expired', { matchId }).catch(() => undefined);
-  const result = await chatAction('disappearing', { matchId, method: 'get' });
-  const mode = result.duration;
-  return mode === '24h' || mode === '7d' || mode === '30d' ? mode : 'off';
-}
-
-export async function setDisappearingMessages(matchId: string, duration: DisappearingMode): Promise<void> {
-  await chatAction('disappearing', { matchId, duration });
-}
-
-export function listenUnreadCount(
-  matchId: string,
-  uid: string,
-  onChange: (count: number) => void
-): () => void {
-  const q = query(
-    collection(db, 'matches', matchId, 'messages'),
-    orderBy('createdAt', 'desc'),
-    limit(200)
-  );
-  return onSnapshot(q, (snap) => {
-    const count = snap.docs.reduce((total, d) => {
-      const data = d.data() as Record<string, unknown>;
-      const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
-      if (expiresAt && expiresAt <= Date.now()) return total;
-      return total + (data.senderId !== uid && !data.readAt ? 1 : 0);
-    }, 0);
-    onChange(count);
-  }, () => onChange(0));
+  let data: Record<string, unknown> = {};
+  try { data = (await res.json()) as Record<string, unknown>; } catch { /* leave empty */ }
+  if (!res.ok) throw new Error(String(data.error || 'Chat request failed'));
+  return data;
 }
 
 function toIso(value: unknown): string {
@@ -109,12 +78,12 @@ export function listenMatchMessages(
     (snap) => {
       const now = Date.now();
       const messages: Message[] = snap.docs
-        .map((d) => ({ d, data: d.data() as Record<string, unknown> }))
-        .filter(({ data }) => {
-          const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
-          return !expiresAt || expiresAt > now;
+        .filter((d) => {
+          const expiresAt = toIso((d.data() as Record<string, unknown>).expiresAt);
+          return !expiresAt || Number.isNaN(Date.parse(expiresAt)) || Date.parse(expiresAt) > now;
         })
-        .map(({ d, data }) => {
+        .map((d) => {
+        const data = d.data() as Record<string, unknown>;
         return {
           id: d.id,
           conversationId: matchId,
@@ -134,7 +103,7 @@ export function listenMatchMessages(
           replyToPreview: data.replyToPreview ? String(data.replyToPreview) : undefined,
           reactions: data.reactions && typeof data.reactions === 'object' ? (data.reactions as Record<string, string[]>) : undefined
         };
-      });
+        });
       onChange(messages);
     },
     (error) => handleFirestoreError(error, OperationType.LIST, `/matches/${matchId}/messages`)
@@ -143,7 +112,7 @@ export function listenMatchMessages(
 
 export function listenLatestMessage(
   matchId: string,
-  onChange: (preview: { text: string; at: string; senderId: string; messageId: string } | null) => void
+  onChange: (preview: { text: string; at: string } | null) => void
 ): () => void {
   const q = query(
     collection(db, 'matches', matchId, 'messages'),
@@ -159,15 +128,9 @@ export function listenLatestMessage(
         return;
       }
       const data = d.data() as Record<string, unknown>;
-      const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
-      if (expiresAt && expiresAt <= Date.now()) { onChange(null); return; }
-      const kind = String(data.kind || 'text');
-      const text = data.viewOnce ? 'View once photo' : kind === 'image' ? 'Photo' : kind === 'audio' ? 'Voice message' : String(data.content || '');
       onChange({
-        text,
-        at: toIso(data.createdAt),
-        senderId: String(data.senderId || ''),
-        messageId: d.id
+        text: String(data.content || ''),
+        at: toIso(data.createdAt)
       });
     },
     () => onChange(null)
@@ -180,14 +143,16 @@ export async function sendMatchImage(matchId: string, file: File, viewOnce: bool
   const type = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) throw new Error('Use a JPG, PNG or WebP.');
   if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB');
-  const path = `chatPhotos/${matchId}/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, '')}`;
+  const safeName = file.name.replace(/[^\w.-]+/g, '') || 'photo';
+  const path = `chatPhotos/${matchId}/${uid}/${Date.now()}-${safeName}`;
   await uploadBytes(storageRef(storage, path), file, { contentType: type });
-  try {
-    await chatAction('send', { matchId, kind: viewOnce ? 'viewOnce' : 'image', content: viewOnce ? 'View once photo' : 'Photo', imagePath: path, viewOnce });
-  } catch (error) {
-    try { await (await import('firebase/storage')).deleteObject(storageRef(storage, path)); } catch { /* orphan cleanup best effort */ }
-    throw error;
-  }
+  await chatAction('send', {
+    matchId,
+    kind: viewOnce ? 'viewOnce' : 'image',
+    content: viewOnce ? 'View once photo' : 'Photo',
+    imagePath: path,
+    viewOnce
+  });
 }
 
 export async function resolveChatMediaUrl(matchId: string, path: string): Promise<string> {
@@ -250,12 +215,13 @@ export async function sendMatchAudio(matchId: string, blob: Blob, durationMs: nu
   const ext = type.includes('mp4') || type.includes('aac') ? 'm4a' : type.includes('mpeg') ? 'mp3' : 'webm';
   const path = `chatAudio/${matchId}/${uid}/${Date.now()}.${ext}`;
   await uploadBytes(storageRef(storage, path), blob, { contentType: type.split(';')[0] });
-  try {
-    await chatAction('send', { matchId, kind: 'audio', content: 'Voice message', audioPath: path, durationMs: Math.max(1, Math.round(durationMs)) });
-  } catch (error) {
-    try { await (await import('firebase/storage')).deleteObject(storageRef(storage, path)); } catch { /* orphan cleanup best effort */ }
-    throw error;
-  }
+  await chatAction('send', {
+    matchId,
+    kind: 'audio',
+    content: 'Voice message',
+    audioPath: path,
+    durationMs: Math.max(1, Math.round(durationMs))
+  });
 }
 
 export async function unsendMatchMessage(matchId: string, messageId: string): Promise<void> {
@@ -281,47 +247,8 @@ export async function unsendMatchMessage(matchId: string, messageId: string): Pr
   }
 
   if (!res.ok) {
-    throw new Error(body.error || 'Unable to unsend this message.');
+    throw new Error(body.error || 'Unable to delete this message.');
   }
-}
-
-
-export async function reportUser(targetUserId: string, reason: string, matchId?: string): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
-  if (!targetUserId || targetUserId === uid) throw new Error('Invalid report target');
-  const reportRef = doc(collection(db, 'reports'));
-  await setDoc(reportRef, {
-    id: reportRef.id,
-    reporterId: uid,
-    reportedUserId: targetUserId,
-    matchId: matchId || '',
-    reason: reason.trim().slice(0, 500),
-    status: 'open',
-    createdAt: new Date().toISOString()
-  });
-}
-
-export async function blockUser(targetUserId: string): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
-  if (!targetUserId || targetUserId === uid) throw new Error('Invalid block target');
-  const blockId = `${uid}_${targetUserId}`;
-  await setDoc(doc(db, 'blocks', blockId), {
-    id: blockId,
-    blockerId: uid,
-    blockedUserId: targetUserId,
-    createdAt: new Date().toISOString()
-  });
-}
-
-export async function isUserBlocked(targetUserId: string): Promise<boolean> {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !targetUserId) return false;
-  const snap = await getDoc(doc(db, 'blocks', `${uid}_${targetUserId}`));
-  if (!snap.exists()) return false;
-  const data = snap.data() as Record<string, unknown>;
-  return data.blockerId === uid && data.blockedUserId === targetUserId;
 }
 
 export async function sendMatchMessage(matchId: string, content: string, replyTo?: { id: string; preview: string }): Promise<void> {
@@ -329,33 +256,35 @@ export async function sendMatchMessage(matchId: string, content: string, replyTo
   if (!text) return;
   if (text.length > 2000) throw new Error('Message is too long');
   await chatAction('send', {
-    matchId, kind: 'text', content: text.slice(0, 2000),
+    matchId,
+    kind: 'text',
+    content: text.slice(0, 2000),
     ...(replyTo ? { replyToId: replyTo.id, replyToPreview: replyTo.preview.slice(0, 240) } : {})
   });
 }
 
 
 export async function editMatchMessage(matchId: string, messageId: string, content: string): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
   const text = content.trim();
   if (!messageId) throw new Error('Missing message');
   if (!text) throw new Error('Message cannot be empty');
   if (text.length > 2000) throw new Error('Message is too long');
+  await chatAction('edit', { matchId, messageId, content: text });
+}
 
-  const ref = doc(db, 'matches', matchId, 'messages', messageId);
-  try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists()) throw new Error('Message not found');
-      const data = snap.data() as Record<string, unknown>;
-      if (data.senderId !== uid) throw new Error('You can only edit your own messages');
-      if (data.kind && data.kind !== 'text') throw new Error('Only text messages can be edited');
-      tx.update(ref, { content: text, editedAt: new Date().toISOString() });
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `/matches/${matchId}/messages/${messageId}`);
-  }
+export async function cleanupExpiredMessages(matchId: string): Promise<void> {
+  await chatAction('cleanup-expired', { matchId });
+}
+
+export async function getDisappearingMessages(matchId: string): Promise<DisappearingMode> {
+  await cleanupExpiredMessages(matchId).catch(() => undefined);
+  const data = await chatAction('disappearing', { matchId, method: 'get' });
+  const duration = String(data.duration || 'off') as DisappearingMode;
+  return ['off', '24h', '7d', '30d'].includes(duration) ? duration : 'off';
+}
+
+export async function setDisappearingMessages(matchId: string, duration: DisappearingMode): Promise<void> {
+  await chatAction('disappearing', { matchId, duration });
 }
 
 export async function toggleMessageReaction(matchId: string, messageId: string, emoji: string): Promise<void> {
