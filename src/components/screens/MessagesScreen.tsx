@@ -26,7 +26,8 @@ import {
   Reply,
   Pencil,
   Smile,
-  Search
+  Search,
+  ArrowDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
@@ -1605,7 +1606,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                     {disappearingMode !== 'off' && (
                       <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 font-semibold whitespace-nowrap">
                         Disappearing {disappearingLabel}
@@ -1783,7 +1784,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             {/* Message Stream */}
-            <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
+            <div className="relative flex-1 min-h-0">
+              <style>{`
+                .lifebencher-chat-scroll::-webkit-scrollbar { display: none; }
+                .lifebencher-chat-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+              `}</style>
+              <div ref={messagesContainerRef} className="lifebencher-chat-scroll h-full overflow-y-auto space-y-3 pr-1 py-1 overscroll-contain">
               {visibleMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
                 const previous = currentMessages[index - 1];
@@ -1911,15 +1917,26 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   {showStarredOnly ? 'No starred messages yet.' : 'No messages found.'}
                 </div>
               )}
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} />
+              </div>
               {showJumpToLatest && (
                 <button
                   type="button"
-                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                  className="sticky bottom-2 mx-auto flex items-center gap-1.5 rounded-full bg-white border border-stone-200 shadow-lg px-3 py-1.5 text-[11px] font-semibold text-rose-900"
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    setShowJumpToLatest(false);
+                    setNewMessagesWhileAway(0);
+                  }}
+                  className="absolute bottom-3 right-3 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white border-2 border-rose-900 shadow-xl text-rose-900 transition active:scale-90 focus:outline-none focus:ring-2 focus:ring-amber-300"
                   aria-label="Jump to latest messages"
+                  title="Jump to latest messages"
                 >
-                  ↓ New messages
+                  <ArrowDown className="w-5 h-5" strokeWidth={2.5} />
+                  {newMessagesWhileAway > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-900 text-white text-[9px] font-bold flex items-center justify-center">
+                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -2190,7 +2207,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               <div className="flex gap-2 pt-1">
                 <button type="button" disabled={unsending} onClick={() => setUnsendMessageId(null)} className="flex-1 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold">Cancel</button>
                 <button type="button" disabled={unsending} onClick={() => void handleUnsendMessage()} className="flex-1 py-2.5 rounded-xl bg-rose-900 text-white text-xs font-semibold disabled:opacity-50">
-                  {unsending ? 'Removing…' : 'Unsend'}
+                  {unsending ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
             </motion.div>
