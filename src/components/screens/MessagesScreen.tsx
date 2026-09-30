@@ -747,6 +747,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
+  const prevMessageCountRef = useRef(0);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -759,7 +761,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [savingDisappearing, setSavingDisappearing] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState();
+  const [reportReason, setReportReason] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [blockSubmitting, setBlockSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -896,6 +898,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setInputVal('');
       setHasLoadedDraft(false);
       setShowJumpToLatest(false);
+      setNewMessagesWhileAway(0);
+      prevMessageCountRef.current = 0;
       setOtherOnline(false);
       setOtherTyping(false);
       return;
@@ -977,7 +981,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!container) return;
     const onScroll = () => {
       const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-      setShowJumpToLatest(distance > 220);
+      const away = distance > 140;
+      setShowJumpToLatest(away);
+      if (!away) setNewMessagesWhileAway(0);
     };
     onScroll();
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -986,10 +992,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   useEffect(() => {
     const container = messagesContainerRef.current;
+    const prevCount = prevMessageCountRef.current;
+    const nextCount = currentMessages.length;
+    prevMessageCountRef.current = nextCount;
     if (!container) return;
     const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (distance < 220) {
-      messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
+    const nearBottom = distance < 140;
+    if (nearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: nextCount > 1 ? 'smooth' : 'auto' });
+      setShowJumpToLatest(false);
+      setNewMessagesWhileAway(0);
+    } else if (nextCount > prevCount) {
+      setShowJumpToLatest(true);
+      setNewMessagesWhileAway((n) => n + (nextCount - prevCount));
     }
   }, [currentMessages, activeConvId]);
 
@@ -1094,7 +1109,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setUnsendMessageId(null);
       setMessageMenuId(null);
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Unable to unsend this message.');
+      setSendError(err instanceof Error ? err.message : 'Unable to delete this message.');
     } finally {
       setUnsending(false);
     }
@@ -1784,7 +1799,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             {/* Message Stream */}
-            <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
+            <div className="relative flex-1 min-h-0">
+            <div ref={messagesContainerRef} className="h-full overflow-y-auto space-y-3 pr-1 py-1">
               {visibleMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
                 const previous = currentMessages[index - 1];
@@ -1797,7 +1813,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   month: 'short',
                   day: 'numeric'
                 });
-                const canUnsend = isMine;
                 return (
                   <React.Fragment key={`message-group-${m.id}`}>
                   {showDateSeparator && (
@@ -1903,6 +1918,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               )}
               <div ref={messagesEndRef} />
+            </div>
               {showJumpToLatest && (
                 <button
                   type="button"
@@ -1911,7 +1927,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     setShowJumpToLatest(false);
                     setNewMessagesWhileAway(0);
                   }}
-                  className="fixed bottom-24 right-4 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-rose-900 text-white border-2 border-white/80 shadow-2xl ring-2 ring-black/20 active:scale-95"
+                  className="absolute bottom-3 right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full bg-rose-900 text-white border-2 border-white shadow-2xl ring-2 ring-black/15 active:scale-95 pointer-events-auto"
                   aria-label="Jump to latest messages"
                   title="Jump to latest messages"
                 >
