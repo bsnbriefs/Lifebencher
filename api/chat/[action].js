@@ -271,6 +271,47 @@ async function viewOnce(req, res) {
   return json(res, 200, { url, expiresIn: 45 });
 }
 
+
+async function editMessage(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  const decoded = await requireUser(req);
+  const { matchId, messageId, content } = await readBody(req);
+
+  if (!matchId || !messageId) return json(res, 400, { error: 'Missing message' });
+
+  const text = String(content || '').trim();
+  if (!text) return json(res, 400, { error: 'Message cannot be empty.' });
+  if (text.length > 2000) return json(res, 400, { error: 'Message is too long.' });
+
+  const admin = getAdmin();
+  const db = admin.firestore();
+  await getMatchForUser(db, decoded, matchId);
+
+  const msgRef = db.doc(`matches/${matchId}/messages/${messageId}`);
+  const snap = await msgRef.get();
+  if (!snap.exists) return json(res, 404, { error: 'Message not found' });
+
+  const msg = snap.data();
+  if (msg.senderId !== decoded.uid) {
+    return json(res, 403, { error: 'You can only edit your own messages.' });
+  }
+  if (msg.kind && msg.kind !== 'text') {
+    return json(res, 403, { error: 'Only text messages can be edited.' });
+  }
+
+  const createdAt = parseTime(msg.createdAt);
+  if (!Number.isFinite(createdAt) || Date.now() - createdAt > 10 * 60 * 1000) {
+    return json(res, 403, { error: 'Messages can only be edited within 10 minutes.' });
+  }
+
+  await msgRef.update({
+    content: text,
+    editedAt: new Date().toISOString()
+  });
+
+  return json(res, 200, { ok: true });
+}
+
 async function deleteMessage(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const decoded = await requireUser(req);
@@ -284,8 +325,6 @@ async function deleteMessage(req, res) {
   if (!msgSnap.exists) return json(res, 404, { error: 'Message not found' });
   const msg = msgSnap.data();
   if (msg.senderId !== decoded.uid) return json(res, 403, { error: 'You can only unsend your own messages.' });
-  const createdAt = parseTime(msg.createdAt);
-  if (!Number.isFinite(createdAt) || Date.now() - createdAt > 15 * 60 * 1000) return json(res, 403, { error: 'Messages can only be unsent within 15 minutes.' });
   const mediaPath = msg.audioPath || msg.imagePath || null;
   await msgRef.delete();
   if (mediaPath) {
@@ -294,7 +333,7 @@ async function deleteMessage(req, res) {
   return json(res, 200, { ok: true });
 }
 
-const handlers = { media, send, disappearing, 'view-once': viewOnce, 'delete-message': deleteMessage, 'cleanup-expired': cleanupExpired };
+const handlers = { media, send, disappearing, edit: editMessage, 'view-once': viewOnce, 'delete-message': deleteMessage, 'cleanup-expired': cleanupExpired };
 
 export default async function handler(req, res) {
   const action = Array.isArray(req.query?.action) ? req.query.action[0] : String(req.query?.action || '');
