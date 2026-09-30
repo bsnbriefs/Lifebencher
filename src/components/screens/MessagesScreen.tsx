@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, doc, getDoc, setDoc, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ImagePlus,
   Send,
@@ -26,13 +26,14 @@ import {
   Reply,
   Pencil,
   Smile,
-  Search
+  Search,
+  ArrowDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, listenUnreadCount, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -746,6 +747,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -796,6 +798,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const lastObservedMessageIdRef = useRef<string | null>(null);
+  const latestMessageIdsRef = useRef<Record<string, string>>({});
+  const notifiedMessageIdsRef = useRef<Set<string>>(new Set());
   const rawConv = conversations.find((c) => c.id === activeConvId || c.matchId === activeConvId) || null;
   const liveUi = rawConv && myId ? exchangeUiState(contactState, myId) : 'none';
   const otherContact =
@@ -869,51 +874,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     return () => { cancelled = true; };
   }, [activeConvId]);
 
-  // Keep conversation previews and unread counts live. Unread means a received
-  // message that does not yet have a readAt timestamp. The count is derived
-  // from Firestore so it survives navigation/reloads instead of living only in
-  // local React state. The active conversation is cleared by markMatchMessagesRead.
+  // Keep conversation badges authoritative from the message read state.
   useEffect(() => {
     if (!myId) return;
-    const unsubs = conversations.map((c) => {
-      const latestQuery = query(
-        collection(db, 'matches', c.matchId, 'messages'),
-        orderBy('createdAt', 'desc'),
-        limit(200)
-      );
-
-      return onSnapshot(latestQuery, (snap) => {
-        const now = Date.now();
-        let unreadCount = 0;
-
-        snap.docs.forEach((messageDoc) => {
-          const data = messageDoc.data() as Record<string, unknown>;
-          const senderId = String(data.senderId || '');
-          if (!senderId || senderId === myId || data.readAt) return;
-
-          const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
-          if (expiresAt > 0 && expiresAt <= now) return;
-          unreadCount += 1;
-        });
-
-        // Opening the conversation means its received messages are read.
-        // Never show an unread badge while that conversation is currently open.
-        if (activeConvId === c.matchId) unreadCount = 0;
-
+    const unsubs = conversations.map((c) =>
+      listenUnreadCount(c.matchId, myId, (count) => {
         setConversations((prev) =>
-          prev.map((item) =>
-            item.matchId === c.matchId
-              ? { ...item, unreadCount }
-              : item
+          prev.map((item) => item.matchId === c.matchId
+            ? { ...item, unreadCount: item.matchId === activeConvId ? 0 : count }
+            : item
           )
         );
-      }, () => {
-        // Keep the existing conversation state if an unread-count listener
-        // temporarily fails. The chat itself remains unaffected.
-      });
-    });
-
-    return () => unsubs.forEach((unsubscribe) => unsubscribe());
+      })
+    );
+    return () => unsubs.forEach((u) => u());
   }, [myId, conversations.map((c) => c.matchId).join('|'), activeConvId]);
 
   useEffect(() => {
@@ -931,10 +905,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               : item
           )
         );
+
+        const previousLatestId = latestMessageIdsRef.current[c.matchId];
+        latestMessageIdsRef.current[c.matchId] = preview.messageId;
+        if (previousLatestId && previousLatestId !== preview.messageId && preview.senderId !== myId && activeConvId !== c.matchId && !notifiedMessageIdsRef.current.has(preview.messageId)) {
+          notifiedMessageIdsRef.current.add(preview.messageId);
+          if (typeof document !== 'undefined' && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(c.otherUser?.displayName || 'Lifebencher', {
+                body: preview.text === 'Photo' || preview.text === 'Voice message' || preview.text === 'View once photo' ? preview.text : preview.text.slice(0, 120),
+                tag: `lifebencher-${c.matchId}`
+              });
+            } catch { /* browser notifications are best-effort */ }
+          }
+        }
       })
     );
     return () => unsubs.forEach((u) => u());
-  }, [conversations.map((c) => c.matchId).join('|')]);
+  }, [conversations.map((c) => c.matchId).join('|'), activeConvId, myId]);
 
   useEffect(() => {
     if (!activeConvId) {
@@ -942,6 +930,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setInputVal('');
       setHasLoadedDraft(false);
       setShowJumpToLatest(false);
+      setNewMessagesWhileAway(0);
+      lastObservedMessageIdRef.current = null;
       setOtherOnline(false);
       setOtherTyping(false);
       return;
@@ -979,12 +969,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       typingStateRef.current = false;
     };
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void setChatPresence(activeConvId, myId, true);
+      } else {
+        goOffline();
+      }
+    };
+
     window.addEventListener('pagehide', goOffline);
+    document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       typingTimerRef.current = null;
       goOffline();
       window.removeEventListener('pagehide', goOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
       stopPresence();
       stopTyping();
     };
@@ -1023,7 +1023,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!container) return;
     const onScroll = () => {
       const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-      setShowJumpToLatest(distance > 220);
+      const awayFromLatest = distance > 220;
+      setShowJumpToLatest(awayFromLatest);
+      if (!awayFromLatest) setNewMessagesWhileAway(0);
     };
     onScroll();
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -1038,6 +1040,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
     }
   }, [currentMessages, activeConvId]);
+
+  // If an incoming message arrives while the user is reading older messages,
+  // show a compact WhatsApp-style jump indicator instead of a persistent text label.
+  useEffect(() => {
+    const latest = currentMessages[currentMessages.length - 1];
+    if (!latest) return;
+    const previousId = lastObservedMessageIdRef.current;
+    lastObservedMessageIdRef.current = latest.id;
+    if (!previousId || previousId === latest.id || latest.senderId === myId) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distance > 220) {
+      setShowJumpToLatest(true);
+      setNewMessagesWhileAway((count) => Math.min(count + 1, 99));
+    }
+  }, [currentMessages, myId]);
 
   useEffect(() => {
     setShowContactExchange(false);
@@ -1643,7 +1663,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500 leading-tight mt-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
+                      {otherTyping ? `${activeConv.otherUser?.displayName || 'They'} is typing…` : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
@@ -1946,11 +1966,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               {showJumpToLatest && (
                 <button
                   type="button"
-                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                  className="sticky bottom-2 mx-auto flex items-center gap-1.5 rounded-full bg-white border border-stone-200 shadow-lg px-3 py-1.5 text-[11px] font-semibold text-rose-900"
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    setShowJumpToLatest(false);
+                    setNewMessagesWhileAway(0);
+                  }}
+                  className="sticky bottom-3 ml-auto mr-2 flex h-10 w-10 items-center justify-center rounded-full bg-white border border-stone-200 shadow-lg text-rose-900 transition active:scale-95"
                   aria-label="Jump to latest messages"
+                  title="Jump to latest messages"
                 >
-                  ↓ New messages
+                  <ArrowDown className="w-4 h-4" />
+                  {newMessagesWhileAway > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-900 text-white text-[9px] font-bold flex items-center justify-center">
+                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
