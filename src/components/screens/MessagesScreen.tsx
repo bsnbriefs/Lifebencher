@@ -24,6 +24,7 @@ import {
   Heart,
   Star,
   Reply,
+  Pencil,
   Smile,
   Search
 } from 'lucide-react';
@@ -31,7 +32,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -60,11 +61,24 @@ interface ConversationWithMeta extends Conversation {
 const PLACEHOLDER_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
 
-const ICEBREAKER_PROMPTS = [
-  'What are your non-negotiables for family life and mutual growth?',
-  'How do you like to rest and unwind on quiet weekends?',
-  'What does emotional safety mean to you in a long-term partnership?'
-];
+function getSmartIcebreakers(profile?: ConversationWithMeta['otherUser']): string[] {
+  if (!profile) return [
+    'What is something you are genuinely excited about these days?',
+    'What does a really good weekend look like for you?',
+    'What are you hoping to build with the right person?'
+  ];
+  const prompts: string[] = [];
+  const interests = profile.interests || [];
+  const values = profile.values || [];
+  if (interests[0]) prompts.push(`I noticed you are into ${interests[0]}. How did you get into it?`);
+  if (profile.profession) prompts.push(`What do you enjoy most about working in ${profile.profession}?`);
+  if (profile.location) prompts.push(`What is one place in ${profile.location} you would happily recommend?`);
+  if (values[0]) prompts.push(`You listed ${values[0]} as a value. What does that look like in everyday life for you?`);
+  if (profile.relationshipGoal) prompts.push(`What would a healthy ${profile.relationshipGoal.toLowerCase()} look like for you?`);
+  if (profile.lifestyle?.kids) prompts.push(`How do you picture family life around the question of children?`);
+  prompts.push('What is something you are genuinely excited about these days?');
+  return [...new Set(prompts)].slice(0, 3);
+}
 
 // Keep voice playback exclusive: only one voice note can play at a time.
 let activeVoiceAudio: HTMLAudioElement | null = null;
@@ -76,6 +90,7 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(Math.max(0, Number(message.durationMs || 0) / 1000));
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioPath = (message as Message & { audioPath?: string }).audioPath || '';
 
   useEffect(() => {
@@ -148,6 +163,7 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
           activeVoiceAudio.currentTime = 0;
         }
         activeVoiceAudio = audio;
+        audio.playbackRate = playbackRate;
         await audio.play();
       } else {
         audio.pause();
@@ -237,8 +253,24 @@ const VoiceMessageBubble: React.FC<{ message: Message; matchId: string; mine: bo
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className={`mt-1 text-[10px] ${mine ? 'text-white/70' : 'text-stone-500'}`}>
-            {duration > 0 ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}` : 'Voice note'}
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <div className={`text-[10px] ${mine ? 'text-white/70' : 'text-stone-500'}`}>
+              {duration > 0 ? `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}` : 'Voice note'}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+                setPlaybackRate(next);
+                if (audioRef.current) audioRef.current.playbackRate = next;
+              }}
+              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${mine ? 'border-white/30 text-white/80' : 'border-stone-300 text-stone-600'}`}
+              aria-label={`Playback speed ${playbackRate} times`}
+              title="Change playback speed"
+            >
+              {playbackRate}×
+            </button>
           </div>
         </div>
       </div>
@@ -719,6 +751,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState();
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [blockSubmitting, setBlockSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [viewOnce, setViewOnce] = useState(false);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -744,6 +780,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [unsendMessageId, setUnsendMessageId] = useState<string | null>(null);
   const [unsending, setUnsending] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [showContactExchange, setShowContactExchange] = useState(false);
   const [resolvedOtherContact, setResolvedOtherContact] = useState<{ phone: string; email: string } | undefined>(undefined);
   const [otherOnline, setOtherOnline] = useState(false);
@@ -774,16 +811,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   useEffect(() => {
     if (!myId) return;
-    return listenUserMatches(myId, (matches) => {
+    return listenUserMatches(myId, async (matches) => {
       const record: Record<string, Match> = {};
       matches.forEach((m) => {
         record[m.id] = m;
       });
       setMatchRecords(record);
+      const activeMatches = matches.filter((m) => m.status !== 'ended');
+      Promise.all(activeMatches.map(async (m) => {
+        const otherId = m.user1Id === myId ? m.user2Id : m.user1Id;
+        return { matchId: m.id, blocked: await isUserBlocked(otherId).catch(() => false) };
+      })).then((blocked) => {
+      const blockedIds = new Set(blocked.filter((x) => x.blocked).map((x) => x.matchId));
       setConversations((prev) => {
         const prevById = new Map(prev.map((c) => [c.matchId, c]));
-        return matches
-          .filter((m) => m.status !== 'ended')
+        return activeMatches
+          .filter((m) => !blockedIds.has(m.id))
           .map((m) => {
             const existing = prevById.get(m.id);
             return {
@@ -799,6 +842,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               otherUserContact: existing?.otherUserContact
             } satisfies ConversationWithMeta;
           });
+      });
       });
     });
   }, [myId]);
@@ -931,6 +975,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   }, [currentMessages, activeConvId]);
 
   useEffect(() => {
+    setShowContactExchange(false);
+  }, [activeConvId]);
+
+  useEffect(() => {
     if (!activeConvId) {
       setContactState(null);
       return;
@@ -984,6 +1032,33 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       cancelled = true;
     };
   }, [activeConvId, liveUi, myId, matchRecords, currentProfile?.phone, currentProfile?.whatsapp, user?.phone, user?.email]);
+
+  const handleEditMessage = async () => {
+    if (!activeConvId || !editingMessageId || !inputVal.trim()) return;
+    setSendError(null);
+    try {
+      await import('../../lib/chat').then(({ editMatchMessage }) =>
+        editMatchMessage(activeConvId, editingMessageId, inputVal)
+      );
+      setEditingMessageId(null);
+      setInputVal('');
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to edit this message.');
+    }
+  };
+
+  const handleStartEditing = (message: Message) => {
+    if (message.senderId !== myId || message.kind !== 'text') return;
+    setEditingMessageId(message.id);
+    setInputVal(message.content || '');
+    setReplyTarget(null);
+    setMessageMenuId(null);
+  };
+
+  const handleCancelEditing = () => {
+    setEditingMessageId(null);
+    setInputVal('');
+  };
 
   const handleUnsendMessage = async () => {
     if (!activeConvId || !unsendMessageId || unsending) return;
@@ -1068,6 +1143,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
     if (!text || !activeConvId) return;
+    if (editingMessageId) {
+      await handleEditMessage();
+      return;
+    }
     setInputVal('');
     setReplyTarget(null);
     setSendError(null);
@@ -1247,6 +1326,39 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setShowOptionsModal(false);
   };
 
+  const handleReport = async () => {
+    if (!activeConv?.otherUser?.userId || reportSubmitting) return;
+    const reason = reportReason.trim();
+    if (!reason) return;
+    setReportSubmitting(true);
+    try {
+      await reportUser(activeConv.otherUser.userId, reason, activeConv.matchId);
+      setReportReason('');
+      setShowReportModal(false);
+      setSendError('Report submitted. Thank you for helping keep Lifebencher safe.');
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to submit report.');
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!activeConv?.otherUser?.userId || blockSubmitting) return;
+    setBlockSubmitting(true);
+    try {
+      await blockUser(activeConv.otherUser.userId);
+      setConversations((prev) => prev.filter((c) => c.matchId !== activeConv.matchId));
+      setActiveConvId(null);
+      setShowOptionsModal(false);
+      setShowReportModal(false);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Unable to block this person.');
+    } finally {
+      setBlockSubmitting(false);
+    }
+  };
+
   // Copy phone number helper
   const handleCopyPhone = (phoneNum: string) => {
     navigator.clipboard.writeText(phoneNum);
@@ -1396,7 +1508,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <div className="flex items-center gap-1.5 text-[10px] text-stone-500">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping ? 'typing…' : otherOnline ? 'Active now' : 'Offline'}
+                      {otherTyping ? `${activeConv.otherUser?.displayName || 'They'} is typing…` : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span>•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)}</span>
@@ -1561,17 +1673,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            {activeConv.exchangeState === 'unlocked' && !showContactExchange && activeConv.otherUserContact && (
-              <button
-                type="button"
-                onClick={() => setShowContactExchange(true)}
-                className="w-full mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-stone-100 border border-stone-200 text-[11px] text-stone-700"
-              >
-                <span className="font-semibold">🤝 Contacts exchanged</span>
-                <span className="text-rose-900 font-semibold">View contacts</span>
-              </button>
-            )}
-
             {showMessageSearch && (
               <div className="mb-2 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
                 <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
@@ -1676,6 +1777,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                             <button type="button" onClick={(e) => { e.stopPropagation(); void handleStar(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
                               <Star className={`w-3.5 h-3.5 ${starredMessageIds.has(m.id) ? 'fill-amber-400 text-amber-500' : ''}`} /> {starredMessageIds.has(m.id) ? 'Unstar' : 'Star'}
                             </button>
+                            {isMine && m.kind === 'text' && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleStartEditing(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
+                                <Pencil className="w-3.5 h-3.5" /> Edit
+                              </button>
+                            )}
                             {isMine && (
                               <button type="button" onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
                                 <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -1698,6 +1804,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
                       <span>{formatMessageTime(m.createdAt)}</span>
+                      {(m as Message & { editedAt?: string }).editedAt && <span className="text-stone-400">· edited</span>}
                       {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Read" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
                     </div>
                   </motion.div>
@@ -1725,7 +1832,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             {/* Icebreaker Prompts for thoughtful communication */}
             {currentMessages.length < 5 && (
               <div className="py-1.5 overflow-x-auto max-w-full no-scrollbar flex gap-1.5 shrink-0">
-                {ICEBREAKER_PROMPTS.map((prompt, idx) => (
+                {getSmartIcebreakers(activeConv.otherUser).map((prompt, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(prompt)}
@@ -1758,7 +1865,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
-              {replyTarget && !isRecording && !recordingPreview && (
+              {editingMessageId && !isRecording && !recordingPreview && (
+                <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-amber-900">Editing message</p>
+                    <p className="text-[10px] text-stone-500 truncate">Change the text, then tap ✓</p>
+                  </div>
+                  <button type="button" onClick={handleCancelEditing} className="w-7 h-7 rounded-full hover:bg-amber-100 text-stone-500 flex items-center justify-center" aria-label="Cancel editing">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {replyTarget && !isRecording && !recordingPreview && !editingMessageId && (
                 <div className="mb-1.5 flex items-center gap-2 rounded-xl bg-stone-100 border border-stone-200 px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-semibold text-rose-900">Replying to {replyTarget.senderId === myId ? 'your message' : activeConv.otherUser?.displayName}</p>
@@ -1886,9 +2004,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     onClick={() => void handleSendMessage()}
                     disabled={!inputVal.trim()}
                     className="w-8 h-8 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                    aria-label="Send message"
+                    aria-label={editingMessageId ? 'Save edited message' : 'Send message'}
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    {editingMessageId ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               )}
@@ -2008,6 +2126,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
 
               <div className="space-y-1.5 text-xs">
+                {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
+                  <button
+                    onClick={() => {
+                      setShowOptionsModal(false);
+                      setShowContactExchange(true);
+                    }}
+                    className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+                  >
+                    <span className="text-base">🤝</span>
+                    <span>View exchanged contacts</span>
+                  </button>
+                )}
+
+                {activeConv.exchangeState !== 'unlocked' && (
                 <button
                   onClick={() => {
                     setShowOptionsModal(false);
@@ -2017,6 +2149,28 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 >
                   <span className="text-base">🤝</span>
                   <span>Mutual Contact Exchange Request</span>
+                </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setShowOptionsModal(false);
+                    setReportReason('');
+                    setShowReportModal(true);
+                  }}
+                  className="w-full p-3 rounded-2xl hover:bg-amber-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+                >
+                  <AlertTriangle className="w-4 h-4 text-amber-700" />
+                  <span>Report {activeConv.otherUser?.displayName}</span>
+                </button>
+
+                <button
+                  onClick={() => void handleBlock()}
+                  disabled={blockSubmitting}
+                  className="w-full p-3 rounded-2xl hover:bg-rose-50 text-left flex items-center gap-3 transition cursor-pointer text-rose-800 font-medium disabled:opacity-50"
+                >
+                  <Shield className="w-4 h-4 text-rose-800" />
+                  <span>{blockSubmitting ? 'Blocking…' : `Block ${activeConv.otherUser?.displayName}`}</span>
                 </button>
 
                 <button
@@ -2030,6 +2184,38 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <span>End Connection / Unmatch</span>
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* REPORT MODAL */}
+      <AnimatePresence>
+        {showReportModal && activeConv && (
+          <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
+            >
+              <div>
+                <h3 className="font-serif font-bold text-base">Report {activeConv.otherUser?.displayName}</h3>
+                <p className="text-xs text-stone-500 mt-1">Tell us what happened. Your report will be reviewed privately.</p>
+              </div>
+              <textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="Briefly describe the issue…"
+                className="w-full rounded-2xl border border-stone-200 px-3 py-2.5 text-xs outline-none focus:border-rose-700 resize-none"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowReportModal(false)} className="flex-1 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold">Cancel</button>
+                <button type="button" disabled={!reportReason.trim() || reportSubmitting} onClick={() => void handleReport()} className="flex-1 py-2.5 rounded-xl bg-rose-900 text-white text-xs font-semibold disabled:opacity-50">{reportSubmitting ? 'Submitting…' : 'Submit Report'}</button>
+              </div>
+              <button type="button" onClick={() => void handleBlock()} disabled={blockSubmitting} className="w-full py-2 text-xs font-semibold text-rose-800">{blockSubmitting ? 'Blocking…' : `Report and block ${activeConv.otherUser?.displayName}`}</button>
             </motion.div>
           </div>
         )}
