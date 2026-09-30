@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import {
   ImagePlus,
   Send,
@@ -870,6 +870,53 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     return () => { cancelled = true; };
   }, [activeConvId]);
 
+  // Keep conversation previews and unread counts live. Unread means a received
+  // message that does not yet have a readAt timestamp. The count is derived
+  // from Firestore so it survives navigation/reloads instead of living only in
+  // local React state. The active conversation is cleared by markMatchMessagesRead.
+  useEffect(() => {
+    if (!myId) return;
+    const unsubs = conversations.map((c) => {
+      const latestQuery = query(
+        collection(db, 'matches', c.matchId, 'messages'),
+        orderBy('createdAt', 'desc'),
+        limit(200)
+      );
+
+      return onSnapshot(latestQuery, (snap) => {
+        const now = Date.now();
+        let unreadCount = 0;
+
+        snap.docs.forEach((messageDoc) => {
+          const data = messageDoc.data() as Record<string, unknown>;
+          const senderId = String(data.senderId || '');
+          if (!senderId || senderId === myId || data.readAt) return;
+
+          const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
+          if (expiresAt > 0 && expiresAt <= now) return;
+          unreadCount += 1;
+        });
+
+        // Opening the conversation means its received messages are read.
+        // Never show an unread badge while that conversation is currently open.
+        if (activeConvId === c.matchId) unreadCount = 0;
+
+        setConversations((prev) =>
+          prev.map((item) =>
+            item.matchId === c.matchId
+              ? { ...item, unreadCount }
+              : item
+          )
+        );
+      }, () => {
+        // Keep the existing conversation state if an unread-count listener
+        // temporarily fails. The chat itself remains unaffected.
+      });
+    });
+
+    return () => unsubs.forEach((unsubscribe) => unsubscribe());
+  }, [myId, conversations.map((c) => c.matchId).join('|'), activeConvId]);
+
   useEffect(() => {
     const unsubs = conversations.map((c) =>
       listenLatestMessage(c.matchId, (preview) => {
@@ -1068,8 +1115,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   const handleStartEditing = (message: Message) => {
     if (message.senderId !== myId || message.kind !== 'text') return;
-    const ageMs = Date.now() - new Date(message.createdAt).getTime();
-    if (!Number.isFinite(ageMs) || ageMs > 10 * 60 * 1000) {
+    const createdAt = new Date(message.createdAt).getTime();
+    if (!Number.isFinite(createdAt) || Date.now() - createdAt > 10 * 60 * 1000) {
       setSendError('Messages can only be edited within 10 minutes.');
       setMessageMenuId(null);
       return;
@@ -1606,7 +1653,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
                     {disappearingMode !== 'off' && (
                       <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 font-semibold whitespace-nowrap">
                         Disappearing {disappearingLabel}
@@ -1784,12 +1831,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             {/* Message Stream */}
-            <div className="relative flex-1 min-h-0">
-              <style>{`
-                .lifebencher-chat-scroll::-webkit-scrollbar { display: none; }
-                .lifebencher-chat-scroll { scrollbar-width: none; -ms-overflow-style: none; }
-              `}</style>
-              <div ref={messagesContainerRef} className="lifebencher-chat-scroll h-full overflow-y-auto space-y-3 pr-1 py-1 overscroll-contain">
+            <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
               {visibleMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
                 const previous = currentMessages[index - 1];
@@ -1868,23 +1910,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                             <button type="button" onClick={(e) => { e.stopPropagation(); void handleStar(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
                               <Star className={`w-3.5 h-3.5 ${starredMessageIds.has(m.id) ? 'fill-amber-400 text-amber-500' : ''}`} /> {starredMessageIds.has(m.id) ? 'Unstar' : 'Star'}
                             </button>
-                            {isMine && m.kind === 'text' && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleStartEditing(m); }}
-                                disabled={Date.now() - new Date(m.createdAt).getTime() > 10 * 60 * 1000}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700 disabled:text-stone-300 disabled:cursor-not-allowed"
-                                title="Editing is available for 10 minutes"
-                              >
+                            {isMine && m.kind === 'text' && Number.isFinite(new Date(m.createdAt).getTime()) && Date.now() - new Date(m.createdAt).getTime() <= 10 * 60 * 1000 && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleStartEditing(m); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-stone-200 shadow-sm px-3 py-2 text-[11px] font-bold text-stone-700">
                                 <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
                             )}
                             {isMine && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700"
-                              >
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
                                 <Trash2 className="w-3.5 h-3.5" /> Delete
                               </button>
                             )}
@@ -1917,26 +1949,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   {showStarredOnly ? 'No starred messages yet.' : 'No messages found.'}
                 </div>
               )}
-                <div ref={messagesEndRef} />
-              </div>
+              <div ref={messagesEndRef} />
               {showJumpToLatest && (
                 <button
                   type="button"
-                  onClick={() => {
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    setShowJumpToLatest(false);
-                    setNewMessagesWhileAway(0);
-                  }}
-                  className="absolute bottom-3 right-3 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white border-2 border-rose-900 shadow-xl text-rose-900 transition active:scale-90 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
+                  className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-rose-900 text-white border border-white/20 shadow-2xl ring-2 ring-black/10 active:scale-95"
                   aria-label="Jump to latest messages"
                   title="Jump to latest messages"
                 >
-                  <ArrowDown className="w-5 h-5" strokeWidth={2.5} />
-                  {newMessagesWhileAway > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-900 text-white text-[9px] font-bold flex items-center justify-center">
-                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
-                    </span>
-                  )}
+                  <ArrowDown className="h-5 w-5" strokeWidth={2.5} />
                 </button>
               )}
             </div>
