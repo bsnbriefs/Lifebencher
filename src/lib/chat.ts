@@ -21,18 +21,12 @@ import { Message } from '../types';
 import { auth, db, storage, handleFirestoreError, OperationType } from './firebase';
 
 export type DisappearingMode = 'off' | '24h' | '7d' | '30d';
-export type ChatThemeId = 'default' | 'light' | 'dark' | 'rose' | 'lavender' | 'ocean' | 'forest' | 'sunset' | 'midnight';
+export type ChatThemeId = 'classic' | 'midnight' | 'blush';
 
 export const CHAT_THEME_OPTIONS: { id: ChatThemeId; label: string; swatch: [string, string, string] }[] = [
-  { id: 'default', label: 'Default', swatch: ['#faf8f5', '#881337', '#ffffff'] },
-  { id: 'light', label: 'Light', swatch: ['#f4f4f5', '#44403c', '#ffffff'] },
-  { id: 'dark', label: 'Dark', swatch: ['#1c1917', '#44403c', '#292524'] },
-  { id: 'rose', label: 'Rose', swatch: ['#fff1f2', '#9f1239', '#ffe4e6'] },
-  { id: 'lavender', label: 'Lavender', swatch: ['#f5f3ff', '#6d28d9', '#ede9fe'] },
-  { id: 'ocean', label: 'Ocean', swatch: ['#ecfeff', '#0e7490', '#cffafe'] },
-  { id: 'forest', label: 'Forest', swatch: ['#f0fdf4', '#166534', '#dcfce7'] },
-  { id: 'sunset', label: 'Sunset', swatch: ['#fff7ed', '#c2410c', '#ffedd5'] },
-  { id: 'midnight', label: 'Midnight', swatch: ['#0f172a', '#1e293b', '#334155'] }
+  { id: 'classic', label: 'Classic', swatch: ['#F7F1E8', '#7A1F2B', '#C45C26'] },
+  { id: 'midnight', label: 'Midnight', swatch: ['#14110F', '#3A2A2C', '#7A1F2B'] },
+  { id: 'blush', label: 'Blush', swatch: ['#F8EEEA', '#C9898B', '#7A1F2B'] }
 ];
 
 function themeStorageKey(matchId: string): string {
@@ -40,7 +34,12 @@ function themeStorageKey(matchId: string): string {
 }
 
 function parseTheme(value: unknown): ChatThemeId {
-  return CHAT_THEME_OPTIONS.some((t) => t.id === value) ? (value as ChatThemeId) : 'default';
+  if (value === 'midnight') return 'midnight';
+  if (value === 'blush' || value === 'rose' || value === 'lavender' || value === 'sunset') return 'blush';
+  if (value === 'classic' || value === 'default' || value === 'light' || value === 'dark' || value === 'ocean' || value === 'forest') {
+    return value === 'dark' ? 'midnight' : 'classic';
+  }
+  return CHAT_THEME_OPTIONS.some((t) => t.id === value) ? (value as ChatThemeId) : 'classic';
 }
 
 async function chatAction(action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -80,7 +79,7 @@ export async function getChatTheme(matchId: string): Promise<ChatThemeId> {
     try { localStorage.setItem(themeStorageKey(matchId), theme); } catch { /* ignore */ }
     return theme;
   } catch {
-    return 'default';
+    return 'classic';
   }
 }
 
