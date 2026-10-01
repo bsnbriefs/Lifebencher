@@ -25,6 +25,7 @@ import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
 import { SupportInbox } from './SupportInbox';
+import { AdminReportsPanel } from './AdminReportsPanel';
 import { closeReviewItem, listenReviewQueue, ReviewItem } from '../../lib/reviewQueue';
 
 interface AdminDashboardProps {
@@ -47,8 +48,8 @@ interface VerificationCandidate {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) => {
-  const { isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing' | 'review' | 'support'>('verifications');
+  const { isAdmin, user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'verifications' | 'clients' | 'curate' | 'matches' | 'billing' | 'review' | 'support' | 'reports'>('verifications');
   const [liveProfiles, setLiveProfiles] = useState<Profile[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
@@ -342,6 +343,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             }`}
           >
             Support
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`shrink-0 px-3.5 py-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap border ${
+              activeTab === 'reports' ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-700 border-stone-200'
+            }`}
+          >
+            Reports
           </button>
         </div>
 
@@ -664,6 +673,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     >
                       Grant Abroad
                     </button>
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-rose-900"
+                      onClick={() =>
+                        void adminGrantMatchmaking(c.id, 'both')
+                          .then(() => setNotification(`${c.displayName}: ₦60,000 Local + Foreign package granted`))
+                          .catch((e) => setNotification(e instanceof Error ? e.message : 'Grant failed'))
+                      }
+                    >
+                      Grant Local + Foreign
+                    </button>
                   </div>
                 </div>
               ))}
@@ -673,6 +693,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
         {activeTab === 'billing' && <MonetizationPanel onNotice={setNotification} />}
         {activeTab === 'support' && <SupportInbox />}
+        {activeTab === 'reports' && <AdminReportsPanel adminUid={user?.id} />}
         {activeTab === 'review' && (
           <div className="space-y-2">
             <p className="text-[11px] text-stone-500">AI flags only. No automatic bans. Decide after reading the evidence.</p>
