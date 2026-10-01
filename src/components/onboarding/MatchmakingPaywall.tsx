@@ -93,75 +93,82 @@ export const MatchmakingPaywall: React.FC = () => {
       className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 p-4"
       style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
     >
-      <header className="max-w-md w-full mx-auto flex items-center gap-2.5 pb-4">
-        <AppLogo size={32} className="rounded-xl" />
-        <div>
-          <p className="font-serif font-bold text-lg text-rose-950 leading-tight">Lifebencher</p>
-          <p className="text-[10px] uppercase tracking-widest text-amber-800 font-semibold">Match</p>
+      <header className="max-w-md w-full mx-auto flex items-center justify-between gap-2 pb-3">
+        <div className="flex items-center gap-2">
+          <AppLogo size={28} className="rounded-lg" />
+          <div>
+            <p className="font-serif font-bold text-base text-rose-950 leading-tight">Lifebencher</p>
+            <p className="text-[9px] uppercase tracking-[0.18em] text-amber-800 font-semibold">Match</p>
+          </div>
         </div>
+        <button type="button" onClick={() => void logout()} className="text-[11px] text-stone-500 font-semibold">
+          Sign out
+        </button>
       </header>
 
-      <div className="max-w-md w-full mx-auto flex-1 space-y-4">
+      <div className="max-w-md w-full mx-auto flex-1 space-y-3">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-stone-900">Choose your matchmaking</h1>
-          <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-            Your profile is ready. Select Nigeria, Abroad, or Local + Foreign to continue. You will see other members only after this package is confirmed.
-          </p>
+          <h1 className="font-serif text-xl font-bold text-stone-900">Choose your match package</h1>
+          <p className="text-xs text-stone-500 mt-1">Choose where you'd like to meet potential matches.</p>
         </div>
 
         <button
           type="button"
           disabled={!!busy}
           onClick={() => void pay('matchmaking_local')}
-          className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
+          className={`w-full text-left px-4 py-3 rounded-2xl border bg-white space-y-1 ${busy === 'matchmaking_local' ? 'border-rose-300 ring-2 ring-rose-100' : 'border-stone-200'}`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
               <MapPin className="w-4 h-4 text-rose-800" />
               Nigeria
             </span>
-            <span className="font-bold text-rose-900">₦30,000</span>
+            <span className="font-bold text-rose-900 text-sm">₦30,000</span>
           </div>
-          <p className="text-[11px] text-stone-500">Local introductions. Up to 3 matches. One-time.</p>
+          <p className="text-[11px] text-stone-600">Meet matches in Nigeria</p>
+          <p className="text-[10px] text-stone-400">Up to 3 matches</p>
         </button>
 
         <button
           type="button"
           disabled={!!busy}
           onClick={() => void pay('matchmaking_international')}
-          className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
+          className={`w-full text-left px-4 py-3 rounded-2xl border bg-white space-y-1 ${busy === 'matchmaking_international' ? 'border-rose-300 ring-2 ring-rose-100' : 'border-stone-200'}`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
               <Globe2 className="w-4 h-4 text-rose-800" />
               Abroad
             </span>
-            <span className="font-bold text-rose-900">₦50,000</span>
+            <span className="font-bold text-rose-900 text-sm">₦50,000</span>
           </div>
-          <p className="text-[11px] text-stone-500">International introductions. Up to 3 matches. One-time.</p>
+          <p className="text-[11px] text-stone-600">Meet international matches</p>
+          <p className="text-[10px] text-stone-400">Up to 3 matches</p>
         </button>
 
         <button
           type="button"
           disabled={!!busy}
           onClick={() => void pay('matchmaking_both')}
-          className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
+          className={`w-full text-left px-4 py-3 rounded-2xl border bg-rose-50/70 space-y-1 ${busy === 'matchmaking_both' ? 'border-rose-400 ring-2 ring-rose-100' : 'border-rose-200'}`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
               <Globe2 className="w-4 h-4 text-rose-800" />
               Local + Foreign
             </span>
-            <span className="font-bold text-rose-900">₦60,000</span>
+            <span className="font-bold text-rose-900 text-sm">₦60,000</span>
           </div>
-          <p className="text-[11px] text-stone-500">Explore both local and international introductions. Up to 3 matches. One-time.</p>
+          <p className="text-[11px] text-stone-600">Meet matches in Nigeria and abroad</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-stone-400">Up to 3 matches total</p>
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-rose-800 bg-white/80 px-1.5 py-0.5 rounded-full">Both pools</span>
+          </div>
         </button>
 
-        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-3">
+        <div className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2">
           <p className="text-xs font-semibold text-stone-800">Already a paying client?</p>
-          <p className="text-[11px] text-stone-500">
-            Use this only if you paid Lifebencher before this website. Choose a receipt or bank-alert image from your gallery, then submit the package you bought. Do not pay again.
-          </p>
+          <p className="text-[11px] text-stone-500">Upload a receipt or bank-alert photo. Do not pay again.</p>
           <input
             ref={receiptInputRef}
             type="file"
@@ -216,10 +223,6 @@ export const MatchmakingPaywall: React.FC = () => {
           </p>
         )}
         {note && <p className="text-[11px] text-stone-600 bg-stone-100 rounded-2xl p-3">{note}</p>}
-
-        <button type="button" onClick={logout} className="text-[11px] text-stone-400 underline">
-          Sign out
-        </button>
       </div>
     </div>
   );
