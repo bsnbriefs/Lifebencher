@@ -339,7 +339,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             </button>
           </div>
 
-          <p className="text-xs text-stone-700 leading-relaxed bg-[#FBF7F0]/60 p-3 rounded-2xl border border-stone-100 min-h-[3rem]">
+          <p className="text-xs text-stone-700 dark:text-stone-200 leading-relaxed bg-[#FBF7F0]/60 dark:bg-stone-800 p-3 rounded-2xl border border-stone-100 dark:border-stone-600 min-h-[3rem]">
             {currentProfile.bio?.trim()
               ? currentProfile.bio
               : 'Tap Edit Profile to add a short introduction.'}
@@ -372,13 +372,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             <span className="font-semibold text-stone-900">Education:</span>
             <span className="text-stone-700">{currentProfile.education?.trim() || 'Add your education'}</span>
           </div>
-          <div className="rounded-2xl border border-stone-100 bg-[#FBF7F0]/70 p-3 space-y-2">
-            <p className="font-semibold text-stone-900">🎙️ Voice Introduction</p>
-            <p className="text-[10px] text-stone-500">Let potential matches hear a little about you. 30 seconds maximum. Nothing plays until you tap Play.</p>
+          <div className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2 dark:border-stone-600 dark:bg-stone-800">
+            <p className="font-semibold text-stone-900 dark:text-stone-50">🎙️ Voice Introduction</p>
+            <p className="text-[10px] text-stone-600 dark:text-stone-300">Let potential matches hear a little about you. 30 seconds maximum. Nothing plays until you tap Play.</p>
             {currentProfile.voiceIntroPath ? (
               <VoiceIntroPlayer path={currentProfile.voiceIntroPath} durationMs={currentProfile.voiceIntroDurationMs} />
             ) : (
-              <p className="text-[11px] text-stone-500">No voice introduction yet.</p>
+              <p className="text-[11px] text-stone-600 dark:text-stone-300">No voice introduction yet.</p>
             )}
             {isRecordingIntro ? (
               <div className="flex items-center gap-2">
