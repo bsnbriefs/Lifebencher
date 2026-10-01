@@ -24,7 +24,7 @@ export type DisappearingMode = 'off' | '24h' | '7d' | '30d';
 export type ChatThemeId = 'classic' | 'midnight' | 'blush';
 
 export const CHAT_THEME_OPTIONS: { id: ChatThemeId; label: string; swatch: [string, string, string] }[] = [
-  { id: 'classic', label: 'Classic', swatch: ['#F7F1E8', '#7A1F2B', '#C45C26'] },
+  { id: 'classic', label: 'Classic', swatch: ['#FAF8F5', '#ffffff', '#881337'] },
   { id: 'midnight', label: 'Midnight', swatch: ['#14110F', '#3A2A2C', '#7A1F2B'] },
   { id: 'blush', label: 'Blush', swatch: ['#F8EEEA', '#C9898B', '#7A1F2B'] }
 ];
