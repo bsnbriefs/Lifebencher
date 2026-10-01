@@ -2,12 +2,15 @@ import React from 'react';
 import { X, RotateCcw, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import { RELATIONSHIP_INTENT_OPTIONS } from '../../types';
+
 export interface DiscoverFilters {
   searchTerm: string;
   minAge: number;
   maxAge: number;
   location: string;
   faith: string;
+  relationshipIntents: string[];
 }
 
 interface FilterSheetProps {
@@ -153,6 +156,39 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
                         }`}
                       >
                         {f}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-stone-800 block mb-1.5">
+                  Relationship Intent
+                </label>
+                <p className="text-[10px] text-stone-500 mb-1.5">Optional. Leave empty to see everyone.</p>
+                <div className="space-y-1.5">
+                  {RELATIONSHIP_INTENT_OPTIONS.map((option) => {
+                    const selected = (localFilters.relationshipIntents || []).includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          const current = localFilters.relationshipIntents || [];
+                          setLocalFilters({
+                            ...localFilters,
+                            relationshipIntents: selected
+                              ? current.filter((id) => id !== option.id)
+                              : [...current, option.id]
+                          });
+                        }}
+                        className={`w-full flex items-center gap-2 rounded-xl border px-3 py-2 text-left ${selected ? 'border-rose-800 bg-rose-50 text-rose-950' : 'border-stone-200 bg-white text-stone-700'}`}
+                      >
+                        <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${selected ? 'bg-rose-900 border-rose-900 text-white' : 'border-stone-300'}`}>
+                          {selected ? '✓' : ''}
+                        </span>
+                        <span>{option.emoji} {option.label}</span>
                       </button>
                     );
                   })}
