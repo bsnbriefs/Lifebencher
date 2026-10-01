@@ -18,6 +18,7 @@ import {
   Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { RELATIONSHIP_INTENT_OPTIONS, normalizeRelationshipIntent } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { deleteProfilePhoto, uploadProfilePhoto } from '../../lib/profilePhoto';
@@ -51,6 +52,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
   const [location, setLocation] = useState(currentProfile?.location || '');
   const [bio, setBio] = useState(currentProfile?.bio || '');
   const [relationshipGoal, setRelationshipGoal] = useState(currentProfile?.relationshipGoal || '');
+  const [relationshipIntent, setRelationshipIntent] = useState<string[]>(
+    normalizeRelationshipIntent(currentProfile?.relationshipIntent)
+  );
 
   // Form state for preferences
   const [prefAgeMin, setPrefAgeMin] = useState(preferences?.ageMin || 24);
@@ -74,7 +78,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
       education,
       location,
       bio,
-      relationshipGoal
+      relationshipGoal,
+      relationshipIntent: normalizeRelationshipIntent(relationshipIntent)
     });
     setIsEditingFull(false);
   };
@@ -238,6 +243,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             <span className="font-semibold text-stone-900">Seeking:</span>
             <span className="text-stone-700">{currentProfile.relationshipGoal}</span>
           </div>
+          {normalizeRelationshipIntent(currentProfile.relationshipIntent).length > 0 && (
+            <div className="space-y-1.5">
+              <span className="font-semibold text-stone-900">Relationship Intent</span>
+              <div className="flex flex-wrap gap-1.5">
+                {RELATIONSHIP_INTENT_OPTIONS.filter((option) =>
+                  currentProfile.relationshipIntent?.includes(option.id)
+                ).map((option) => (
+                  <span key={option.id} className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-100 text-rose-900 text-[11px] font-medium">
+                    {option.emoji} {option.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <GraduationCap className="w-4 h-4 text-stone-400" />
             <span className="font-semibold text-stone-900">Education:</span>
@@ -491,6 +510,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
                     onChange={(e) => setEducation(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-white border border-stone-300"
                   />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-stone-700 block mb-1">Relationship Intent</label>
+                  <p className="text-[10px] text-stone-500 mb-2">Select what you’re looking for. You can choose more than one.</p>
+                  <div className="space-y-1.5">
+                    {RELATIONSHIP_INTENT_OPTIONS.map((option) => {
+                      const selected = relationshipIntent.includes(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => {
+                            setRelationshipIntent((current) =>
+                              current.includes(option.id)
+                                ? current.filter((id) => id !== option.id)
+                                : [...current, option.id]
+                            );
+                          }}
+                          className={`w-full flex items-center gap-2 rounded-xl border px-3 py-2 text-left ${selected ? 'border-rose-800 bg-rose-50 text-rose-950' : 'border-stone-200 bg-white text-stone-700'}`}
+                        >
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${selected ? 'bg-rose-900 border-rose-900 text-white' : 'border-stone-300'}`}>
+                            {selected ? '✓' : ''}
+                          </span>
+                          <span>{option.emoji} {option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
