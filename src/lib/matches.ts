@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   limit,
   query,
@@ -17,6 +18,42 @@ const DEFAULT_MATCH_DAYS = 7;
 export function matchIdFor(userA: string, userB: string): string {
   const [a, b] = [userA, userB].sort();
   return `m_${a}_${b}`;
+}
+
+export async function countUserMatches(uid: string): Promise<number> {
+  const [a, b] = await Promise.all([
+    getDocs(query(collection(db, 'matches'), where('user1Id', '==', uid))),
+    getDocs(query(collection(db, 'matches'), where('user2Id', '==', uid)))
+  ]);
+  const ids = new Set<string>();
+  a.docs.forEach((d) => ids.add(d.id));
+  b.docs.forEach((d) => ids.add(d.id));
+  return ids.size;
+}
+
+async function assertMatchAllowance(uid: string): Promise<{ used: number; cap: number }> {
+  const used = await countUserMatches(uid);
+  const snap = await getDoc(doc(db, 'entitlements', uid));
+  const data = snap.exists() ? (snap.data() as Record<string, unknown>) : {};
+  const extra = Number(data.extraMatches || 0);
+  const cap = 3 + Math.max(0, extra);
+  if (used >= cap) {
+    throw new Error('Your 3-match allowance has been used. Existing chats stay open. Buy an extra introduction if you want another match.');
+  }
+  return { used, cap };
+}
+
+async function recordMatchAllowance(uid: string, usedBefore: number, cap: number): Promise<void> {
+  const nextUsed = usedBefore + 1;
+  await setDoc(
+    doc(db, 'entitlements', uid),
+    {
+      matchmakingRemaining: Math.max(0, 3 - nextUsed),
+      extraMatches: Math.max(0, cap - Math.max(nextUsed, 3)),
+      updatedAt: new Date().toISOString()
+    },
+    { merge: true }
+  );
 }
 function mapMatch(id: string, data: Record<string, unknown>, otherProfile?: Profile): Match {
   return {
@@ -52,6 +89,9 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     interests: Array.isArray(d.interests) ? (d.interests as string[]) : [],
     values: Array.isArray(d.values) ? (d.values as string[]) : [],
     relationshipGoal: String(d.relationshipGoal || ''),
+    relationshipIntent: Array.isArray(d.relationshipIntent) ? (d.relationshipIntent as string[]) : [],
+    voiceIntroPath: typeof d.voiceIntroPath === 'string' ? d.voiceIntroPath : '',
+    voiceIntroDurationMs: typeof d.voiceIntroDurationMs === 'number' ? d.voiceIntroDurationMs : 0,
     lifestyle: d.lifestyle && typeof d.lifestyle === 'object' ? (d.lifestyle as Profile['lifestyle']) : {},
     isVerified: Boolean(d.isVerified),
     isVisible: d.isVisible === true,
@@ -150,6 +190,8 @@ export async function createOrGetMatch(otherUserId: string): Promise<string> {
     /* missing docs can deny get; create instead */
   }
 
+  const allowance = await assertMatchAllowance(uid);
+
   const now = new Date().toISOString();
   const payload = {
     id,
@@ -162,6 +204,11 @@ export async function createOrGetMatch(otherUserId: string): Promise<string> {
   };
   try {
     await setDoc(ref, payload);
+    try {
+      await recordMatchAllowance(uid, allowance.used, allowance.cap);
+    } catch {
+      /* entitlements are admin-writable; count remains the source of truth */
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.toLowerCase().includes('permission') || message.toLowerCase().includes('insufficient')) {
