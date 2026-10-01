@@ -21,6 +21,27 @@ import { Message } from '../types';
 import { auth, db, storage, handleFirestoreError, OperationType } from './firebase';
 
 export type DisappearingMode = 'off' | '24h' | '7d' | '30d';
+export type ChatThemeId = 'default' | 'light' | 'dark' | 'rose' | 'lavender' | 'ocean' | 'forest' | 'sunset' | 'midnight';
+
+export const CHAT_THEME_OPTIONS: { id: ChatThemeId; label: string; swatch: [string, string, string] }[] = [
+  { id: 'default', label: 'Default', swatch: ['#faf8f5', '#881337', '#ffffff'] },
+  { id: 'light', label: 'Light', swatch: ['#f4f4f5', '#44403c', '#ffffff'] },
+  { id: 'dark', label: 'Dark', swatch: ['#1c1917', '#44403c', '#292524'] },
+  { id: 'rose', label: 'Rose', swatch: ['#fff1f2', '#9f1239', '#ffe4e6'] },
+  { id: 'lavender', label: 'Lavender', swatch: ['#f5f3ff', '#6d28d9', '#ede9fe'] },
+  { id: 'ocean', label: 'Ocean', swatch: ['#ecfeff', '#0e7490', '#cffafe'] },
+  { id: 'forest', label: 'Forest', swatch: ['#f0fdf4', '#166534', '#dcfce7'] },
+  { id: 'sunset', label: 'Sunset', swatch: ['#fff7ed', '#c2410c', '#ffedd5'] },
+  { id: 'midnight', label: 'Midnight', swatch: ['#0f172a', '#1e293b', '#334155'] }
+];
+
+function themeStorageKey(matchId: string): string {
+  return `lifebencher:chat-theme:${auth.currentUser?.uid || 'anon'}:${matchId}`;
+}
+
+function parseTheme(value: unknown): ChatThemeId {
+  return CHAT_THEME_OPTIONS.some((t) => t.id === value) ? (value as ChatThemeId) : 'default';
+}
 
 async function chatAction(action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const uid = auth.currentUser;
@@ -46,6 +67,27 @@ export async function getDisappearingMessages(matchId: string): Promise<Disappea
 
 export async function setDisappearingMessages(matchId: string, duration: DisappearingMode): Promise<void> {
   await chatAction('disappearing', { matchId, duration });
+}
+
+export async function getChatTheme(matchId: string): Promise<ChatThemeId> {
+  try {
+    const cached = localStorage.getItem(themeStorageKey(matchId));
+    if (cached) return parseTheme(cached);
+  } catch { /* ignore */ }
+  try {
+    const result = await chatAction('disappearing', { matchId, method: 'get' });
+    const theme = parseTheme(result.theme);
+    try { localStorage.setItem(themeStorageKey(matchId), theme); } catch { /* ignore */ }
+    return theme;
+  } catch {
+    return 'default';
+  }
+}
+
+export async function setChatTheme(matchId: string, theme: ChatThemeId): Promise<void> {
+  const next = parseTheme(theme);
+  try { localStorage.setItem(themeStorageKey(matchId), next); } catch { /* ignore */ }
+  await chatAction('disappearing', { matchId, theme: next });
 }
 
 export function listenUnreadCount(
