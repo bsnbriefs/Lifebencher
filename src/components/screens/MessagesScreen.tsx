@@ -26,6 +26,7 @@ import {
   Reply,
   Pencil,
   Smile,
+  Flag,
   Search,
   ArrowDown
 } from 'lucide-react';
@@ -33,7 +34,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, reportMessage, blockUser, isUserBlocked, unblockUser, listBlockedUserIds, listBlockedProfiles, type BlockedProfilePreview } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -755,6 +756,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfilePreview[]>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [disappearingMode, setDisappearingMode] = useState<'off' | '24h' | '7d' | '30d'>('off');
@@ -762,6 +764,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [reportMessageTarget, setReportMessageTarget] = useState<Message | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [blockSubmitting, setBlockSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -1382,8 +1385,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setShowBlockedUsers(true);
     setLoadingBlockedUsers(true);
     try {
-      const ids = await listBlockedUserIds();
-      setBlockedUserIds(ids);
+      const rows = await listBlockedProfiles();
+      setBlockedProfiles(rows);
+      setBlockedUserIds(rows.map((row) => row.userId));
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Unable to load blocked users.');
     } finally {
@@ -1398,6 +1402,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     try {
       await unblockUser(targetUserId);
       setBlockedUserIds((prev) => prev.filter((id) => id !== targetUserId));
+      setBlockedProfiles((prev) => prev.filter((row) => row.userId !== targetUserId));
 
       const restored = Object.values(matchRecords).find(
         (m) => m.status !== 'ended' && (m.user1Id === targetUserId || m.user2Id === targetUserId)
@@ -1434,8 +1439,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!reason) return;
     setReportSubmitting(true);
     try {
-      await reportUser(activeConv.otherUser.userId, reason, activeConv.matchId);
+      if (reportMessageTarget) {
+        await reportMessage(
+          activeConv.otherUser.userId,
+          reason,
+          activeConv.matchId,
+          reportMessageTarget.id,
+          reportMessageTarget.content || reportMessageTarget.kind || 'Message'
+        );
+      } else {
+        await reportUser(activeConv.otherUser.userId, reason, activeConv.matchId);
+      }
       setReportReason('');
+      setReportMessageTarget(null);
       setShowReportModal(false);
       setSendError('Report submitted. Thank you for helping keep Lifebencher safe.');
     } catch (err) {
@@ -1449,7 +1465,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!activeConv?.otherUser?.userId || blockSubmitting) return;
     setBlockSubmitting(true);
     try {
-      await blockUser(activeConv.otherUser.userId);
+      await blockUser(activeConv.otherUser.userId, {
+        displayName: activeConv.otherUser.displayName,
+        photoUrl: activeConv.otherUser.photos?.[0] || ''
+      });
       setConversations((prev) => prev.filter((c) => c.matchId !== activeConv.matchId));
       setActiveConvId(null);
       setShowOptionsModal(false);
@@ -1618,7 +1637,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500 leading-tight mt-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
+                      {otherTyping
+                      ? `${activeConv.otherUser?.displayName || 'Match'} is typing…`
+                      : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)}</span>
@@ -1695,6 +1716,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
                 <p className="text-[11px] text-stone-300">
                   You and {activeConv.otherUser?.displayName} have both mutually agreed to move beyond the platform:
+                </p>
+                <p className="text-[11px] text-amber-200/90">
+                  Only share your contact details when you're comfortable with this person.
                 </p>
 
                 <div className="grid grid-cols-2 gap-2 text-xs pt-1 min-w-0">
@@ -1849,8 +1873,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                           }`}
                         >
                         {m.replyToPreview && (
-                          <button type="button" onClick={(e) => { e.stopPropagation(); if (m.replyToId) scrollToMessage(m.replyToId); }} className={`mb-2 w-full text-left rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
-                            <span className="block opacity-70">Replying to</span>{m.replyToPreview}
+                          <button type="button" onClick={(e) => { e.stopPropagation(); if (m.replyToId && currentMessages.some((item) => item.id === m.replyToId)) scrollToMessage(m.replyToId); }} className={`mb-2 w-full text-left rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
+                            <span className="block opacity-70">Replying to</span>
+                            {m.replyToId && !currentMessages.some((item) => item.id === m.replyToId) ? 'Message unavailable' : m.replyToPreview}
                           </button>
                         )}
                         {m.kind === 'image' ? (
@@ -1886,6 +1911,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                             {isMine && (
                               <button type="button" onClick={(e) => { e.stopPropagation(); setMessageMenuId(null); setUnsendMessageId(m.id); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700 disabled:text-stone-400">
                                 <Trash2 className="w-3.5 h-3.5" /> Delete
+                              </button>
+                            )}
+                            {!isMine && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setReportMessageTarget(m); setShowReportModal(true); setMessageMenuId(null); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700">
+                                <Flag className="w-3.5 h-3.5" /> Report message
                               </button>
                             )}
                           </div>
@@ -2251,12 +2281,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   </div>
                 ) : (
                   blockedUserIds.map((blockedId) => {
+                    const stored = blockedProfiles.find((row) => row.userId === blockedId);
                     const match = Object.values(matchRecords).find(
                       (m) => m.user1Id === blockedId || m.user2Id === blockedId
                     );
                     const profile = match?.otherProfile;
-                    const name = profile?.displayName || 'Blocked user';
-                    const photo = profile?.photos?.[0] || PLACEHOLDER_PHOTO;
+                    const name = stored?.displayName || profile?.displayName || 'Blocked member';
+                    const photo = stored?.photoUrl || profile?.photos?.[0] || PLACEHOLDER_PHOTO;
                     const isUnblocking = unblockingUserId === blockedId;
 
                     return (
@@ -2409,7 +2440,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
             >
               <div>
-                <h3 className="font-serif font-bold text-base">Report {activeConv.otherUser?.displayName}</h3>
+                <h3 className="font-serif font-bold text-base">Report {reportMessageTarget ? 'message' : activeConv.otherUser?.displayName}</h3>
                 <p className="text-xs text-stone-500 mt-1">Tell us what happened. Your report will be reviewed privately.</p>
               </div>
               <textarea
