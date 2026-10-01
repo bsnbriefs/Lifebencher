@@ -22,7 +22,9 @@ export async function blockUser(targetId: string): Promise<void> {
   if (!uid) throw new Error('Not signed in');
   if (uid === targetId) throw new Error('Cannot block yourself');
   await setDoc(doc(db, 'blocks', `${uid}_${targetId}`), {
+    id: `${uid}_${targetId}`,
     blockerId: uid,
+    blockedUserId: targetId,
     targetId,
     createdAt: new Date().toISOString()
   });
@@ -32,7 +34,10 @@ export function listenBlockedIds(uid: string, onChange: (ids: string[]) => void)
   const q = query(collection(db, 'blocks'), where('blockerId', '==', uid));
   return onSnapshot(
     q,
-    (snap) => onChange(snap.docs.map((d) => String((d.data() as { targetId?: string }).targetId || ''))),
+    (snap) => onChange(snap.docs.map((d) => {
+      const data = d.data() as { targetId?: string; blockedUserId?: string };
+      return String(data.blockedUserId || data.targetId || '');
+    }).filter(Boolean)),
     () => onChange([])
   );
 }
