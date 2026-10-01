@@ -61,96 +61,69 @@ interface ConversationWithMeta extends Conversation {
   };
 }
 
-const CHAT_THEME_STYLE: Record<ChatThemeId, { shell: string; header: string; title: string; meta: string; mine: string; theirs: string; composer: string; input: string }> = {
-  default: {
-    shell: '',
-    header: 'border-stone-200',
-    title: 'text-stone-900',
-    meta: 'text-stone-500',
-    mine: 'bg-rose-900 text-white rounded-br-xs',
-    theirs: 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs',
+const CHAT_THEME_STYLE: Record<ChatThemeId, {
+  shell: string;
+  header: string;
+  title: string;
+  meta: string;
+  icon: string;
+  mine: string;
+  theirs: string;
+  stamp: string;
+  dateChip: string;
+  composer: string;
+  input: string;
+  send: string;
+  jump: string;
+  badge: string;
+}> = {
+  classic: {
+    shell: 'bg-[#F7F1E8]',
+    header: 'border-[#E4D5C8]',
+    title: 'text-[#3F2A2C]',
+    meta: 'text-[#8A6F66]',
+    icon: 'text-[#7A1F2B]',
+    mine: 'bg-[#C45C26] text-white rounded-br-xs',
+    theirs: 'bg-[#7A1F2B] text-[#FFF8F1] rounded-bl-xs',
+    stamp: 'text-[#8A6F66]',
+    dateChip: 'bg-[#EFE4D6] border-[#E4D5C8] text-[#6B534C]',
     composer: '',
-    input: 'bg-white border-stone-200 text-stone-800'
-  },
-  light: {
-    shell: 'bg-zinc-100 rounded-2xl px-1',
-    header: 'border-zinc-200',
-    title: 'text-stone-900',
-    meta: 'text-stone-500',
-    mine: 'bg-stone-800 text-white rounded-br-xs',
-    theirs: 'bg-white text-stone-800 border border-stone-200 rounded-bl-xs',
-    composer: '',
-    input: 'bg-white border-stone-200 text-stone-800'
-  },
-  dark: {
-    shell: 'bg-stone-950 text-stone-100 rounded-2xl px-1',
-    header: 'border-stone-800',
-    title: 'text-stone-100',
-    meta: 'text-stone-400',
-    mine: 'bg-stone-700 text-stone-50 rounded-br-xs',
-    theirs: 'bg-stone-800 text-stone-100 border border-stone-700 rounded-bl-xs',
-    composer: 'bg-stone-950',
-    input: 'bg-stone-900 border-stone-700 text-stone-100 placeholder:text-stone-500'
-  },
-  rose: {
-    shell: 'bg-rose-50 rounded-2xl px-1',
-    header: 'border-rose-100',
-    title: 'text-rose-950',
-    meta: 'text-rose-800/70',
-    mine: 'bg-rose-800 text-white rounded-br-xs',
-    theirs: 'bg-white text-rose-950 border border-rose-100 rounded-bl-xs',
-    composer: '',
-    input: 'bg-white border-rose-200 text-rose-950'
-  },
-  lavender: {
-    shell: 'bg-violet-50 rounded-2xl px-1',
-    header: 'border-violet-100',
-    title: 'text-violet-950',
-    meta: 'text-violet-800/70',
-    mine: 'bg-violet-800 text-white rounded-br-xs',
-    theirs: 'bg-white text-violet-950 border border-violet-100 rounded-bl-xs',
-    composer: '',
-    input: 'bg-white border-violet-200 text-violet-950'
-  },
-  ocean: {
-    shell: 'bg-cyan-50 rounded-2xl px-1',
-    header: 'border-cyan-100',
-    title: 'text-cyan-950',
-    meta: 'text-cyan-800/70',
-    mine: 'bg-cyan-800 text-white rounded-br-xs',
-    theirs: 'bg-white text-cyan-950 border border-cyan-100 rounded-bl-xs',
-    composer: '',
-    input: 'bg-white border-cyan-200 text-cyan-950'
-  },
-  forest: {
-    shell: 'bg-emerald-50 rounded-2xl px-1',
-    header: 'border-emerald-100',
-    title: 'text-emerald-950',
-    meta: 'text-emerald-800/70',
-    mine: 'bg-emerald-800 text-white rounded-br-xs',
-    theirs: 'bg-white text-emerald-950 border border-emerald-100 rounded-bl-xs',
-    composer: '',
-    input: 'bg-white border-emerald-200 text-emerald-950'
-  },
-  sunset: {
-    shell: 'bg-orange-50 rounded-2xl px-1',
-    header: 'border-orange-100',
-    title: 'text-orange-950',
-    meta: 'text-orange-800/70',
-    mine: 'bg-orange-800 text-white rounded-br-xs',
-    theirs: 'bg-white text-orange-950 border border-orange-100 rounded-bl-xs',
-    composer: '',
-    input: 'bg-white border-orange-200 text-orange-950'
+    input: 'bg-[#3F2A2C] border-[#3F2A2C] text-[#FFF8F1] placeholder:text-[#D9C4B8]',
+    send: 'bg-[#7A1F2B] text-[#FFF8F1]',
+    jump: 'bg-[#7A1F2B] text-white border-[#FFF8F1]',
+    badge: 'bg-[#F3E0E3] text-[#7A1F2B]'
   },
   midnight: {
-    shell: 'bg-slate-950 text-slate-100 rounded-2xl px-1',
-    header: 'border-slate-800',
-    title: 'text-slate-100',
-    meta: 'text-slate-400',
-    mine: 'bg-indigo-800 text-white rounded-br-xs',
-    theirs: 'bg-slate-800 text-slate-100 border border-slate-700 rounded-bl-xs',
-    composer: 'bg-slate-950',
-    input: 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500'
+    shell: 'bg-[#14110F] text-[#F4EDE6]',
+    header: 'border-[#2A2422]',
+    title: 'text-[#F4EDE6]',
+    meta: 'text-[#B7A59C]',
+    icon: 'text-[#E8B4B8]',
+    mine: 'bg-[#7A1F2B] text-white rounded-br-xs',
+    theirs: 'bg-[#2A2422] text-[#F4EDE6] rounded-bl-xs',
+    stamp: 'text-[#B7A59C]',
+    dateChip: 'bg-[#2A2422] border-[#3A322F] text-[#B7A59C]',
+    composer: 'bg-[#14110F]',
+    input: 'bg-[#2A2422] border-[#3A322F] text-[#F4EDE6] placeholder:text-[#8A7A73]',
+    send: 'bg-[#7A1F2B] text-white',
+    jump: 'bg-[#7A1F2B] text-white border-[#F4EDE6]',
+    badge: 'bg-[#3A2A2C] text-[#E8B4B8]'
+  },
+  blush: {
+    shell: 'bg-[#F8EEEA]',
+    header: 'border-[#EBD3D0]',
+    title: 'text-[#4A2A2E]',
+    meta: 'text-[#9A6F72]',
+    icon: 'text-[#7A1F2B]',
+    mine: 'bg-[#7A1F2B] text-white rounded-br-xs',
+    theirs: 'bg-[#E8C9C6] text-[#3F2428] rounded-bl-xs',
+    stamp: 'text-[#9A6F72]',
+    dateChip: 'bg-[#F3E0DC] border-[#EBD3D0] text-[#7A4A4E]',
+    composer: '',
+    input: 'bg-[#7A1F2B] border-[#7A1F2B] text-white placeholder:text-[#F3D6D8]',
+    send: 'bg-[#C45C26] text-white',
+    jump: 'bg-[#7A1F2B] text-white border-white',
+    badge: 'bg-[#F3E0DC] text-[#7A1F2B]'
   }
 };
 
@@ -854,7 +827,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [disappearingMode, setDisappearingMode] = useState<'off' | '24h' | '7d' | '30d'>('off');
-  const [chatTheme, setChatThemeState] = useState<ChatThemeId>('default');
+  const [chatTheme, setChatThemeState] = useState<ChatThemeId>('classic');
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [savingDisappearing, setSavingDisappearing] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
@@ -962,7 +935,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     if (!activeConvId) {
       setDisappearingMode('off');
-      setChatThemeState('default');
+      setChatThemeState('classic');
       return;
     }
     let cancelled = false;
@@ -971,7 +944,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       .catch(() => { if (!cancelled) setDisappearingMode('off'); });
     void getChatTheme(activeConvId)
       .then((theme) => { if (!cancelled) setChatThemeState(theme); })
-      .catch(() => { if (!cancelled) setChatThemeState('default'); });
+      .catch(() => { if (!cancelled) setChatThemeState('classic'); });
     return () => { cancelled = true; };
   }, [activeConvId]);
 
@@ -1297,7 +1270,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   };
 
   const disappearingLabel = disappearingMode === 'off' ? 'Off' : disappearingMode === '24h' ? '24 hours' : disappearingMode === '7d' ? '7 days' : '30 days';
-  const themeStyle = CHAT_THEME_STYLE[chatTheme] || CHAT_THEME_STYLE.default;
+  const themeStyle = CHAT_THEME_STYLE[chatTheme] || CHAT_THEME_STYLE.classic;
 
   const handleSetChatTheme = async (theme: ChatThemeId) => {
     if (!activeConvId) return;
@@ -1731,7 +1704,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setActiveConvId(null)}
-                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-700 transition cursor-pointer shrink-0"
+                  className={`p-1.5 rounded-full hover:bg-black/5 transition cursor-pointer shrink-0 ${themeStyle.icon}`}
                   aria-label="Back to conversations"
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -1755,7 +1728,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     <span className="text-stone-300">•</span>
                     <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                     {disappearingMode !== 'off' && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 font-semibold whitespace-nowrap">
+                      <span className={`px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${themeStyle.badge}`}>
                         Disappearing {disappearingLabel}
                       </span>
                     )}
@@ -1768,7 +1741,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <button
                   type="button"
                   onClick={() => { setShowMessageSearch((v) => !v); setShowStarredOnly(false); }}
-                  className={`p-1.5 rounded-full transition cursor-pointer ${showMessageSearch ? 'bg-stone-200 text-rose-900' : 'hover:bg-stone-200 text-stone-600'}`}
+                  className={`p-1.5 rounded-full transition cursor-pointer ${showMessageSearch ? 'bg-black/10' : 'hover:bg-black/5'} ${themeStyle.icon}`}
                   aria-label="Search messages"
                   title="Search messages"
                 >
@@ -1777,7 +1750,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <button
                   type="button"
                   onClick={() => { setShowStarredOnly((v) => !v); setShowMessageSearch(false); }}
-                  className={`p-1.5 rounded-full transition cursor-pointer ${showStarredOnly ? 'bg-amber-50 text-amber-600' : 'hover:bg-stone-200 text-stone-600'}`}
+                  className={`p-1.5 rounded-full transition cursor-pointer ${showStarredOnly ? 'bg-black/10' : 'hover:bg-black/5'} ${themeStyle.icon}`}
                   aria-label="Show starred messages"
                   title="Show starred messages"
                 >
@@ -1785,7 +1758,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </button>
                 <button
                   onClick={() => setShowOptionsModal(true)}
-                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer"
+                  className={`p-1.5 rounded-full hover:bg-black/5 transition cursor-pointer ${themeStyle.icon}`}
                   aria-label="Options"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -1952,7 +1925,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <React.Fragment key={`message-group-${m.id}`}>
                   {showDateSeparator && (
                     <div className="flex items-center justify-center py-1">
-                      <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-semibold text-stone-500">
+                      <span className={`px-3 py-1 rounded-full border text-[10px] font-semibold ${themeStyle.dateChip}`}>
                         {dateLabel}
                       </span>
                     </div>
@@ -2042,7 +2015,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       </div>
                       </SwipeToReply>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
+                    <div className={`flex items-center gap-1 text-[10px] mt-1 px-1 ${themeStyle.stamp}`}>
                       <span>{formatMessageTime(m.createdAt)}</span>
                       {(m as Message & { editedAt?: string }).editedAt && <span className="text-stone-400">· edited</span>}
                       {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Read" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
@@ -2066,7 +2039,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     setShowJumpToLatest(false);
                     setNewMessagesWhileAway(0);
                   }}
-                  className="absolute bottom-3 right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full bg-rose-900 text-white border-2 border-white shadow-2xl ring-2 ring-black/15 active:scale-95 pointer-events-auto"
+                      className={`absolute bottom-3 right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 shadow-2xl active:scale-95 pointer-events-auto ${themeStyle.jump}`}
                   aria-label="Jump to latest messages"
                   title="Jump to latest messages"
                 >
@@ -2254,7 +2227,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     type="button"
                     onClick={() => void handleSendMessage()}
                     disabled={!inputVal.trim()}
-                    className="w-8 h-8 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${themeStyle.send}`}
                     aria-label={editingMessageId ? 'Save edited message' : 'Send message'}
                   >
                     {editingMessageId ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
