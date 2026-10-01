@@ -78,20 +78,20 @@ const CHAT_THEME_STYLE: Record<ChatThemeId, {
   badge: string;
 }> = {
   classic: {
-    shell: 'bg-[#F7F1E8]',
-    header: 'border-[#E4D5C8]',
-    title: 'text-[#3F2A2C]',
-    meta: 'text-[#8A6F66]',
-    icon: 'text-[#7A1F2B]',
-    mine: 'bg-[#C45C26] text-white rounded-br-xs',
-    theirs: 'bg-[#7A1F2B] text-[#FFF8F1] rounded-bl-xs',
-    stamp: 'text-[#8A6F66]',
-    dateChip: 'bg-[#EFE4D6] border-[#E4D5C8] text-[#6B534C]',
+    shell: '',
+    header: 'border-stone-200',
+    title: 'text-stone-900',
+    meta: 'text-stone-500',
+    icon: 'text-stone-600',
+    mine: 'bg-rose-900 text-white rounded-br-xs',
+    theirs: 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs',
+    stamp: 'text-stone-400',
+    dateChip: 'bg-stone-100 border-stone-200 text-stone-500',
     composer: '',
-    input: 'bg-[#3F2A2C] border-[#3F2A2C] text-[#FFF8F1] placeholder:text-[#D9C4B8]',
-    send: 'bg-[#7A1F2B] text-[#FFF8F1]',
-    jump: 'bg-[#7A1F2B] text-white border-[#FFF8F1]',
-    badge: 'bg-[#F3E0E3] text-[#7A1F2B]'
+    input: 'bg-white border-stone-300 text-stone-800 placeholder:text-stone-400',
+    send: 'bg-rose-900 text-amber-200',
+    jump: 'bg-rose-900 text-white border-white',
+    badge: 'bg-rose-50 text-rose-800'
   },
   midnight: {
     shell: 'bg-[#14110F] text-[#F4EDE6]',
