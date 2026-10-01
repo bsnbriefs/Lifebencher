@@ -130,6 +130,7 @@ service cloud.firestore {
           'education',
           'bio',
           'relationshipGoal',
+          'relationshipIntent',
           'isVerified',
           'isVisible',
           'createdAt',
@@ -194,6 +195,13 @@ service cloud.firestore {
           || (
             data.values is list
             && data.values.size() <= 12
+          )
+        )
+        && (
+          !data.keys().hasAny(['relationshipIntent'])
+          || (
+            data.relationshipIntent is list
+            && data.relationshipIntent.size() <= 6
           )
         )
         && (
@@ -361,6 +369,8 @@ service cloud.firestore {
               'education',
               'bio',
               'relationshipGoal',
+              'relationshipIntent',
+          'relationshipIntent',
               'updatedAt',
               'photoUrl',
               'photoUrls',
