@@ -1,4 +1,5 @@
- const key = process.env.AI_API_KEY || process.env.XAI_API_KEY || process.env.OPENAI_API_KEY;
+function aiConfig() {
+  const key = process.env.AI_API_KEY || process.env.XAI_API_KEY || process.env.OPENAI_API_KEY;
   if (!key) {
     const err = new Error('unavailable');
     err.status = 503;
@@ -84,4 +85,4 @@ export async function chatJson(system, user, imageUrl) {
     throw err;
   }
   return parseJsonLoose(text);
-          }
+}
