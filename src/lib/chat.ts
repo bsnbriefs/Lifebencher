@@ -10,6 +10,7 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  deleteDoc,
   runTransaction,
   arrayUnion,
   arrayRemove,
@@ -296,16 +297,47 @@ export async function reportUser(targetUserId: string, reason: string, matchId?:
   const reportRef = doc(collection(db, 'reports'));
   await setDoc(reportRef, {
     id: reportRef.id,
+    reportType: 'profile',
     reporterId: uid,
     reportedUserId: targetUserId,
     matchId: matchId || '',
+    messageId: '',
     reason: reason.trim().slice(0, 500),
     status: 'open',
     createdAt: new Date().toISOString()
   });
 }
 
-export async function blockUser(targetUserId: string): Promise<void> {
+export async function reportMessage(
+  targetUserId: string,
+  reason: string,
+  matchId: string,
+  messageId: string,
+  messagePreview?: string
+): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  if (!targetUserId || targetUserId === uid) throw new Error('Invalid report target');
+  if (!matchId || !messageId) throw new Error('Missing message');
+  const reportRef = doc(collection(db, 'reports'));
+  await setDoc(reportRef, {
+    id: reportRef.id,
+    reportType: 'message',
+    reporterId: uid,
+    reportedUserId: targetUserId,
+    matchId,
+    messageId,
+    messagePreview: String(messagePreview || '').slice(0, 240),
+    reason: reason.trim().slice(0, 500),
+    status: 'open',
+    createdAt: new Date().toISOString()
+  });
+}
+
+export async function blockUser(
+  targetUserId: string,
+  snapshot?: { displayName?: string; photoUrl?: string }
+): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   if (!targetUserId || targetUserId === uid) throw new Error('Invalid block target');
@@ -314,6 +346,9 @@ export async function blockUser(targetUserId: string): Promise<void> {
     id: blockId,
     blockerId: uid,
     blockedUserId: targetUserId,
+    targetId: targetUserId,
+    displayName: String(snapshot?.displayName || '').slice(0, 80),
+    photoUrl: String(snapshot?.photoUrl || '').slice(0, 500),
     createdAt: new Date().toISOString()
   });
 }
@@ -324,7 +359,59 @@ export async function isUserBlocked(targetUserId: string): Promise<boolean> {
   const snap = await getDoc(doc(db, 'blocks', `${uid}_${targetUserId}`));
   if (!snap.exists()) return false;
   const data = snap.data() as Record<string, unknown>;
-  return data.blockerId === uid && data.blockedUserId === targetUserId;
+  return data.blockerId === uid && String(data.blockedUserId || data.targetId || '') === targetUserId;
+}
+
+export async function unblockUser(targetUserId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  if (!targetUserId) throw new Error('Invalid unblock target');
+  await deleteDoc(doc(db, 'blocks', `${uid}_${targetUserId}`));
+}
+
+export async function listBlockedUserIds(): Promise<string[]> {
+  const rows = await listBlockedProfiles();
+  return rows.map((row) => row.userId);
+}
+
+export type BlockedProfilePreview = {
+  userId: string;
+  displayName: string;
+  photoUrl: string;
+};
+
+export async function listBlockedProfiles(): Promise<BlockedProfilePreview[]> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  const snap = await getDocs(query(collection(db, 'blocks'), where('blockerId', '==', uid)));
+  const rows: BlockedProfilePreview[] = [];
+  for (const d of snap.docs) {
+    const data = d.data() as Record<string, unknown>;
+    const userId = String(data.blockedUserId || data.targetId || '');
+    if (!userId) continue;
+    let displayName = String(data.displayName || '').trim();
+    let photoUrl = String(data.photoUrl || '').trim();
+    if (!displayName || !photoUrl) {
+      try {
+        const profileSnap = await getDoc(doc(db, 'profiles', userId));
+        if (profileSnap.exists()) {
+          const pd = profileSnap.data() as Record<string, unknown>;
+          if (!displayName) displayName = String(pd.displayName || '').trim();
+          const photos = Array.isArray(pd.photos) ? pd.photos.map(String) : [];
+          const urls = Array.isArray(pd.photoUrls) ? pd.photoUrls.map(String) : [];
+          if (!photoUrl) photoUrl = String(pd.photoUrl || photos[0] || urls[0] || '');
+        }
+      } catch {
+        // Hidden/unreadable profiles still stay identifiable via the block snapshot.
+      }
+    }
+    rows.push({
+      userId,
+      displayName: displayName || 'Blocked member',
+      photoUrl
+    });
+  }
+  return rows;
 }
 
 export async function sendMatchMessage(matchId: string, content: string, replyTo?: { id: string; preview: string }): Promise<void> {
