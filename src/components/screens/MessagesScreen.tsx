@@ -12,6 +12,7 @@ import {
   Mail,
   Copy,
   Check,
+  Palette,
   MoreVertical,
   AlertTriangle,
   Sparkles,
@@ -34,7 +35,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, reportMessage, blockUser, isUserBlocked, unblockUser, listBlockedUserIds, listBlockedProfiles, type BlockedProfilePreview } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, getChatTheme, setChatTheme, CHAT_THEME_OPTIONS, type ChatThemeId, reportUser, reportMessage, blockUser, isUserBlocked, unblockUser, listBlockedUserIds, listBlockedProfiles, type BlockedProfilePreview } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -59,6 +60,99 @@ interface ConversationWithMeta extends Conversation {
     email: string;
   };
 }
+
+const CHAT_THEME_STYLE: Record<ChatThemeId, { shell: string; header: string; title: string; meta: string; mine: string; theirs: string; composer: string; input: string }> = {
+  default: {
+    shell: '',
+    header: 'border-stone-200',
+    title: 'text-stone-900',
+    meta: 'text-stone-500',
+    mine: 'bg-rose-900 text-white rounded-br-xs',
+    theirs: 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs',
+    composer: '',
+    input: 'bg-white border-stone-200 text-stone-800'
+  },
+  light: {
+    shell: 'bg-zinc-100 rounded-2xl px-1',
+    header: 'border-zinc-200',
+    title: 'text-stone-900',
+    meta: 'text-stone-500',
+    mine: 'bg-stone-800 text-white rounded-br-xs',
+    theirs: 'bg-white text-stone-800 border border-stone-200 rounded-bl-xs',
+    composer: '',
+    input: 'bg-white border-stone-200 text-stone-800'
+  },
+  dark: {
+    shell: 'bg-stone-950 text-stone-100 rounded-2xl px-1',
+    header: 'border-stone-800',
+    title: 'text-stone-100',
+    meta: 'text-stone-400',
+    mine: 'bg-stone-700 text-stone-50 rounded-br-xs',
+    theirs: 'bg-stone-800 text-stone-100 border border-stone-700 rounded-bl-xs',
+    composer: 'bg-stone-950',
+    input: 'bg-stone-900 border-stone-700 text-stone-100 placeholder:text-stone-500'
+  },
+  rose: {
+    shell: 'bg-rose-50 rounded-2xl px-1',
+    header: 'border-rose-100',
+    title: 'text-rose-950',
+    meta: 'text-rose-800/70',
+    mine: 'bg-rose-800 text-white rounded-br-xs',
+    theirs: 'bg-white text-rose-950 border border-rose-100 rounded-bl-xs',
+    composer: '',
+    input: 'bg-white border-rose-200 text-rose-950'
+  },
+  lavender: {
+    shell: 'bg-violet-50 rounded-2xl px-1',
+    header: 'border-violet-100',
+    title: 'text-violet-950',
+    meta: 'text-violet-800/70',
+    mine: 'bg-violet-800 text-white rounded-br-xs',
+    theirs: 'bg-white text-violet-950 border border-violet-100 rounded-bl-xs',
+    composer: '',
+    input: 'bg-white border-violet-200 text-violet-950'
+  },
+  ocean: {
+    shell: 'bg-cyan-50 rounded-2xl px-1',
+    header: 'border-cyan-100',
+    title: 'text-cyan-950',
+    meta: 'text-cyan-800/70',
+    mine: 'bg-cyan-800 text-white rounded-br-xs',
+    theirs: 'bg-white text-cyan-950 border border-cyan-100 rounded-bl-xs',
+    composer: '',
+    input: 'bg-white border-cyan-200 text-cyan-950'
+  },
+  forest: {
+    shell: 'bg-emerald-50 rounded-2xl px-1',
+    header: 'border-emerald-100',
+    title: 'text-emerald-950',
+    meta: 'text-emerald-800/70',
+    mine: 'bg-emerald-800 text-white rounded-br-xs',
+    theirs: 'bg-white text-emerald-950 border border-emerald-100 rounded-bl-xs',
+    composer: '',
+    input: 'bg-white border-emerald-200 text-emerald-950'
+  },
+  sunset: {
+    shell: 'bg-orange-50 rounded-2xl px-1',
+    header: 'border-orange-100',
+    title: 'text-orange-950',
+    meta: 'text-orange-800/70',
+    mine: 'bg-orange-800 text-white rounded-br-xs',
+    theirs: 'bg-white text-orange-950 border border-orange-100 rounded-bl-xs',
+    composer: '',
+    input: 'bg-white border-orange-200 text-orange-950'
+  },
+  midnight: {
+    shell: 'bg-slate-950 text-slate-100 rounded-2xl px-1',
+    header: 'border-slate-800',
+    title: 'text-slate-100',
+    meta: 'text-slate-400',
+    mine: 'bg-indigo-800 text-white rounded-br-xs',
+    theirs: 'bg-slate-800 text-slate-100 border border-slate-700 rounded-bl-xs',
+    composer: 'bg-slate-950',
+    input: 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500'
+  }
+};
 
 const PLACEHOLDER_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
@@ -760,6 +854,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [disappearingMode, setDisappearingMode] = useState<'off' | '24h' | '7d' | '30d'>('off');
+  const [chatTheme, setChatThemeState] = useState<ChatThemeId>('default');
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const [savingDisappearing, setSavingDisappearing] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -866,12 +962,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     if (!activeConvId) {
       setDisappearingMode('off');
+      setChatThemeState('default');
       return;
     }
     let cancelled = false;
     void getDisappearingMessages(activeConvId)
       .then((mode) => { if (!cancelled) setDisappearingMode(mode); })
       .catch(() => { if (!cancelled) setDisappearingMode('off'); });
+    void getChatTheme(activeConvId)
+      .then((theme) => { if (!cancelled) setChatThemeState(theme); })
+      .catch(() => { if (!cancelled) setChatThemeState('default'); });
     return () => { cancelled = true; };
   }, [activeConvId]);
 
@@ -1197,6 +1297,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   };
 
   const disappearingLabel = disappearingMode === 'off' ? 'Off' : disappearingMode === '24h' ? '24 hours' : disappearingMode === '7d' ? '7 days' : '30 days';
+  const themeStyle = CHAT_THEME_STYLE[chatTheme] || CHAT_THEME_STYLE.default;
+
+  const handleSetChatTheme = async (theme: ChatThemeId) => {
+    if (!activeConvId) return;
+    setChatThemeState(theme);
+    try {
+      await setChatTheme(activeConvId, theme);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Could not save chat theme.');
+    }
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
@@ -1613,10 +1724,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col min-h-0 h-[calc(100dvh-11rem)] overflow-x-hidden"
+            className={`flex flex-col min-h-0 h-[calc(100dvh-11rem)] overflow-x-hidden ${themeStyle.shell}`}
           >
             {/* Thread Header */}
-            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-200 mb-2">
+            <div className={`flex items-center justify-between gap-2 pb-2.5 border-b mb-2 ${themeStyle.header}`}>
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setActiveConvId(null)}
@@ -1631,10 +1742,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   className="w-9 h-9 rounded-full object-cover shrink-0"
                 />
                 <div className="min-w-0">
-                  <h3 className="font-serif font-bold text-sm text-stone-900 truncate">
+                  <h3 className={`font-serif font-bold text-sm truncate ${themeStyle.title}`}>
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500 leading-tight mt-0.5">
+                  <div className={`flex flex-wrap items-center gap-1.5 text-[9px] leading-tight mt-0.5 ${themeStyle.meta}`}>
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
                       {otherTyping
@@ -1866,10 +1977,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       >
                         <div
                           onClick={() => setMessageMenuId((current) => current === m.id ? null : m.id)}
-                          className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
-                            isMine
-                              ? 'bg-rose-900 text-white rounded-br-xs cursor-pointer'
-                              : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
+                          className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words cursor-pointer ${
+                            isMine ? themeStyle.mine : themeStyle.theirs
                           }`}
                         >
                         {m.replyToPreview && (
@@ -2006,7 +2115,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
+            <div className={`pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0 ${themeStyle.composer}`}>
               {editingMessageId && !isRecording && !recordingPreview && (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
                   <div className="min-w-0">
@@ -2101,7 +2210,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   </div>
                 </div>
               ) : (
-                <div className="flex items-end gap-1.5 bg-white rounded-2xl border border-stone-300 px-2.5 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
+                <div className={`flex items-end gap-1.5 rounded-2xl border px-2.5 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0 ${themeStyle.input}`}>
                   <button
                     type="button"
                     onClick={() => void handleStartRecording()}
@@ -2365,6 +2474,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOptionsModal(false);
+                  setShowThemePicker(true);
+                }}
+                className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+              >
+                <Palette className="w-4 h-4 text-stone-600" />
+                <span>Chat Theme</span>
+              </button>
+
               <div className="space-y-1.5 text-xs">
                 {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
                   <button
@@ -2423,6 +2544,51 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <AlertTriangle className="w-4 h-4 text-rose-800" />
                   <span>End Connection / Unmatch</span>
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showThemePicker && activeConv && (
+          <div className="fixed inset-0 z-[76] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-4" onClick={() => setShowThemePicker(false)}>
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3 max-h-[80dvh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif font-bold text-base">Chat Theme</h3>
+                  <p className="text-[11px] text-stone-500 mt-0.5">Only changes how this conversation looks for you.</p>
+                </div>
+                <button type="button" onClick={() => setShowThemePicker(false)} className="w-8 h-8 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center" aria-label="Close themes">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {CHAT_THEME_OPTIONS.map((option) => {
+                  const selected = chatTheme === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => void handleSetChatTheme(option.id)}
+                      className={`w-full flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left ${selected ? 'border-rose-800 bg-rose-50' : 'border-stone-200 hover:bg-stone-50'}`}
+                    >
+                      <span className="flex h-8 w-12 overflow-hidden rounded-lg border border-black/10 shrink-0">
+                        {option.swatch.map((color) => (
+                          <span key={color} className="flex-1" style={{ background: color }} />
+                        ))}
+                      </span>
+                      <span className="flex-1 text-sm font-semibold text-stone-800">{option.label}</span>
+                      {selected && <Check className="w-4 h-4 text-rose-800" />}
+                    </button>
+                  );
+                })}
               </div>
             </motion.div>
           </div>
