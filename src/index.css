@@ -62,8 +62,11 @@ html.dark body {
 
 html.dark .bg-\[\#FAF8F5\],
 html.dark .bg-\[\#FAF8F5\]\/90,
-html.dark .bg-\[\#FAF8F5\]\/95 {
-  background-color: #161210 !important;
+html.dark .bg-\[\#FAF8F5\]\/95,
+html.dark .bg-\[\#FBF7F0\],
+html.dark .bg-\[\#FBF7F0\]\/60,
+html.dark .bg-\[\#FBF7F0\]\/70 {
+  background-color: #241c1b !important;
 }
 
 html.dark .bg-white {
