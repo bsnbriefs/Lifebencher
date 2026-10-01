@@ -169,7 +169,7 @@ service cloud.firestore {
         && data.updatedAt.size() <= 64
         && (
           !data.keys().hasAny(['matchType'])
-          || data.matchType in ['local', 'international']
+          || data.matchType in ['local', 'international', 'both']
         )
         && (
           !data.keys().hasAny(['isAdminProfile'])
