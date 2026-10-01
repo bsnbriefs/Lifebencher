@@ -65,8 +65,8 @@ export const PRODUCTS: Product[] = [
     priceNgn: 60000,
     priceLabel: '₦60,000',
     cadence: 'one_time',
-    summary: 'Explore both local and international introductions. Up to 3 matches. One-time.',
-    bullets: ['Local matches', 'Foreign matches', 'Up to 3 introductions']
+    summary: 'Meet matches in Nigeria and abroad. Up to 3 matches total.',
+    bullets: ['Nigeria + international pools', 'Up to 3 introductions total']
   },
   {
     id: 'extra_match',
