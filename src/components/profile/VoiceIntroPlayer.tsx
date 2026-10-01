@@ -67,14 +67,14 @@ export const VoiceIntroPlayer: React.FC<{
         {loading ? '…' : playing ? '❚❚ Pause' : '▶ Play'}
       </button>
       <div className="flex-1 min-w-0">
-        <div className="h-1.5 rounded-full bg-stone-200 overflow-hidden">
-          <div className="h-full bg-rose-800" style={{ width: `${Math.round(progress * 100)}%` }} />
+        <div className="h-1.5 rounded-full bg-stone-200 dark:bg-stone-600 overflow-hidden">
+          <div className="h-full bg-rose-800 dark:bg-rose-400" style={{ width: `${Math.round(progress * 100)}%` }} />
         </div>
         {!compact && (
-          <p className="text-[10px] text-stone-500 mt-1">{Math.round(progress * total)}s / {total}s</p>
+          <p className="text-[10px] text-stone-600 dark:text-stone-300 mt-1">{Math.round(progress * total)}s / {total}s</p>
         )}
       </div>
-      {error && <p className="text-[10px] text-rose-800">{error}</p>}
+      {error && <p className="text-[10px] text-rose-800 dark:text-rose-300">{error}</p>}
     </div>
   );
 };
