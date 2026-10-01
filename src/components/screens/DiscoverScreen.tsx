@@ -123,13 +123,13 @@ export const DiscoverScreen: React.FC = () => {
       if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
 
       const myType =
-        entitlements.matchType === 'local' || entitlements.matchType === 'international'
+        entitlements.matchType === 'local' || entitlements.matchType === 'international' || entitlements.matchType === 'both'
           ? entitlements.matchType
-          : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international'
+          : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international' || entitlements.matchmakingPackage === 'both'
             ? entitlements.matchmakingPackage
             : null;
-      const theirType = p.matchType === 'local' || p.matchType === 'international' ? p.matchType : null;
-      if (myType && theirType && theirType !== myType) return false;
+      const theirType = p.matchType === 'local' || p.matchType === 'international' || p.matchType === 'both' ? p.matchType : null;
+      if (myType && myType !== 'both' && theirType && theirType !== 'both' && theirType !== myType) return false;
       return true;
     });
   }, [profiles, filters, blockedIds, entitlements]);
