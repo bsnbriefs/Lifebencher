@@ -39,7 +39,7 @@ export const MatchmakingPaywall: React.FC = () => {
   const pending = txs.find(
     (t) =>
       t.status === 'pending' &&
-      (t.productId === 'matchmaking_local' || t.productId === 'matchmaking_international')
+      (t.productId === 'matchmaking_local' || t.productId === 'matchmaking_international' || t.productId === 'matchmaking_both')
   );
 
   const pay = async (productId: string) => {
@@ -105,7 +105,7 @@ export const MatchmakingPaywall: React.FC = () => {
         <div>
           <h1 className="font-serif text-2xl font-bold text-stone-900">Choose your matchmaking</h1>
           <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-            Your profile is ready. Select Nigeria or Abroad to continue. You will see other members only after this package is confirmed.
+            Your profile is ready. Select Nigeria, Abroad, or Local + Foreign to continue. You will see other members only after this package is confirmed.
           </p>
         </div>
 
@@ -139,6 +139,22 @@ export const MatchmakingPaywall: React.FC = () => {
             <span className="font-bold text-rose-900">₦50,000</span>
           </div>
           <p className="text-[11px] text-stone-500">International introductions. Up to 3 matches. One-time.</p>
+        </button>
+
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => void pay('matchmaking_both')}
+          className="w-full text-left p-4 rounded-3xl border border-stone-200 bg-white space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
+              <Globe2 className="w-4 h-4 text-rose-800" />
+              Local + Foreign
+            </span>
+            <span className="font-bold text-rose-900">₦60,000</span>
+          </div>
+          <p className="text-[11px] text-stone-500">Explore both local and international introductions. Up to 3 matches. One-time.</p>
         </button>
 
         <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4 space-y-3">
@@ -183,6 +199,14 @@ export const MatchmakingPaywall: React.FC = () => {
             className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
           >
             Submit proof — Abroad ₦50,000
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void alreadyPaid('matchmaking_both')}
+            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
+          >
+            Submit proof — Local + Foreign ₦60,000
           </button>
         </div>
 
