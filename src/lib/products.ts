@@ -61,11 +61,11 @@ export const PRODUCTS: Product[] = [
   {
     id: 'matchmaking_both',
     kind: 'matchmaking',
-    name: 'Local + Foreign Matches',
+    name: 'Local + Foreign',
     priceNgn: 60000,
     priceLabel: '₦60,000',
     cadence: 'one_time',
-    summary: 'Access BOTH local and foreign matches in one ₦60,000 package.',
+    summary: 'Explore both local and international introductions. Up to 3 matches. One-time.',
     bullets: ['Local matches', 'Foreign matches', 'Up to 3 introductions']
   },
   {
