@@ -670,8 +670,19 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
 
   return (
     <>
-      <button type="button" onClick={() => void requestOpen()} className="text-left" disabled={consumed}>
-        {consumed ? '✓ Photo viewed' : status === 'loading' ? 'Opening photo...' : '📷 View once photo'}
+      <button
+        type="button"
+        onClick={() => void requestOpen()}
+        disabled={consumed}
+        className="block w-52 max-w-full text-left rounded-2xl overflow-hidden border border-white/20 bg-black/20"
+      >
+        <div className="h-36 w-full bg-stone-900/80 flex flex-col items-center justify-center gap-1 text-white">
+          <span className="text-2xl" aria-hidden="true">📷</span>
+          <span className="text-xs font-semibold">
+            {consumed ? 'Photo viewed' : status === 'loading' ? 'Opening photo…' : 'Tap to view once'}
+          </span>
+          {!consumed && <span className="text-[10px] opacity-80">Disappears after viewing</span>}
+        </div>
       </button>
       {error && !consumed && <p className="text-[10px] mt-1 opacity-80">{error}</p>}
       {open && url && (
@@ -864,6 +875,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [showContactExchange, setShowContactExchange] = useState(false);
   const [resolvedOtherContact, setResolvedOtherContact] = useState<{ phone: string; email: string } | undefined>(undefined);
+  const phoneShown = resolvedOtherContact?.phone || '';
   const [otherOnline, setOtherOnline] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1812,14 +1824,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       <span>Phone / WhatsApp</span>
                     </div>
                     <a
-                      href={`tel:${activeConv.otherUserContact.phone}`}
-                      className="font-bold text-[#f3ece6] text-xs mt-1 truncate"
+                      href={phoneShown ? `tel:${phoneShown}` : undefined}
+                      className="font-bold text-[#f3ece6] text-xs mt-1 break-all"
                     >
-                      {activeConv.otherUserContact.phone}
+                      {phoneShown || activeConv.otherUserContact.phone || 'No phone on file'}
                     </a>
                     <button
-                      onClick={() => handleCopyPhone(activeConv.otherUserContact!.phone)}
-                      className="mt-1 text-[10px] font-semibold text-amber-300 flex items-center gap-1"
+                      onClick={() => phoneShown && handleCopyPhone(phoneShown)}
+                      disabled={!phoneShown}
+                      className="mt-1 text-[10px] font-semibold text-amber-300 flex items-center gap-1 disabled:opacity-40"
                     >
                       {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       <span>{isCopied ? 'Copied' : 'Copy Number'}</span>
