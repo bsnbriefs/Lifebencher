@@ -35,7 +35,15 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             className="flex items-center gap-2.5 text-left cursor-pointer"
             aria-label="Go to Discover"
           >
-            <AppLogo size={52} />
+            <AppLogo size={32} className="rounded-xl shadow-sm" />
+            <div>
+              <span className="font-serif font-bold text-lg tracking-tight text-rose-950 block leading-tight">
+                Lifebencher
+              </span>
+              <span className="text-[10px] tracking-widest text-amber-800 font-semibold uppercase block leading-none">
+                Match
+              </span>
+            </div>
           </button>
 
           <div className="flex items-center gap-2">
