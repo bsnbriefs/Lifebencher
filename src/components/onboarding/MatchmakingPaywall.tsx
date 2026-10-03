@@ -93,7 +93,7 @@ export const MatchmakingPaywall: React.FC = () => {
       className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 p-4"
       style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
     >
-      <header className="max-w-md w-full mx-auto flex items-center justify-between gap-2 pb-3">
+      <header className="paywall-header max-w-md w-full mx-auto flex items-center justify-between gap-2 pb-3 bg-transparent">
         <div className="flex items-center gap-2">
           <AppLogo size={28} className="rounded-lg" />
           <div>
@@ -150,7 +150,7 @@ export const MatchmakingPaywall: React.FC = () => {
           type="button"
           disabled={!!busy}
           onClick={() => void pay('matchmaking_both')}
-          className={`w-full text-left px-4 py-3 rounded-2xl border bg-rose-50/70 space-y-1 ${busy === 'matchmaking_both' ? 'border-rose-400 ring-2 ring-rose-100' : 'border-rose-200'}`}
+          className={`w-full text-left px-4 py-3 rounded-2xl border bg-white space-y-1 opacity-100 ${busy === 'matchmaking_both' ? 'border-rose-400 ring-2 ring-rose-100' : 'border-rose-300'}`}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
@@ -159,10 +159,10 @@ export const MatchmakingPaywall: React.FC = () => {
             </span>
             <span className="font-bold text-rose-900 text-sm">₦60,000</span>
           </div>
-          <p className="text-[11px] text-stone-600">Meet matches in Nigeria and abroad</p>
+          <p className="text-[11px] text-stone-700">Meet matches in Nigeria and abroad</p>
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-stone-400">Up to 3 matches total</p>
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-rose-800 bg-white/80 px-1.5 py-0.5 rounded-full">Both pools</span>
+            <p className="text-[11px] text-stone-600">Up to 3 matches total</p>
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-100 bg-rose-900 px-1.5 py-0.5 rounded-full">Both pools</span>
           </div>
         </button>
 
