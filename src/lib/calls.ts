@@ -8,7 +8,7 @@ import {
 import { auth, db } from './firebase';
 
 export type CallType = 'voice' | 'video';
-export type CallStatus = 'ringing' | 'accepted' | 'ended';
+export type CallStatus = 'initiating' | 'ringing' | 'accepted' | 'connecting' | 'declined' | 'cancelled' | 'missed' | 'ended' | 'failed';
 
 export interface CallState {
   matchId: string;
@@ -40,7 +40,7 @@ export async function startCall(matchId: string, calleeId: string, type: CallTyp
     callerId: uid,
     calleeId,
     type,
-    status: 'ringing',
+    status: 'initiating',
     offer,
     answer: null,
     callerIce: [],
@@ -60,6 +60,19 @@ export async function addIce(matchId: string, role: 'caller' | 'callee', candida
   await updateDoc(doc(db, 'matches', matchId, 'signaling', 'current'), {
     [role === 'caller' ? 'callerIce' : 'calleeIce']: arrayUnion(candidate)
   });
+}
+
+export async function ackRinging(matchId: string) {
+  await updateDoc(doc(db, 'matches', matchId, 'signaling', 'current'), {
+    status: 'ringing',
+    deliveredAt: new Date().toISOString()
+  });
+}
+
+export async function cancelCall(matchId: string) {
+  await updateDoc(doc(db, 'matches', matchId, 'signaling', 'current'), {
+    status: 'cancelled'
+  }).catch(() => undefined);
 }
 
 export async function declineCall(matchId: string) {
