@@ -14,14 +14,14 @@ export const PWAInstallPrompt: React.FC = () => {
         <div className="flex items-start gap-3">
           <AppLogo size={36} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-100">Install Lifebencher Match</p>
+            <p className="text-sm font-semibold text-amber-100">Install Lifebencher</p>
             {isIOS && !isInstallable ? (
               <p className="text-[11px] text-stone-300 mt-0.5 leading-relaxed">
                 Tap Share <Share2 className="w-3 h-3 inline" /> then Add to Home Screen.
               </p>
             ) : (
               <p className="text-[11px] text-stone-300 mt-0.5 leading-relaxed">
-                Install the app for faster access and a better experience.
+                Add Lifebencher to your home screen for faster access.
               </p>
             )}
           </div>
