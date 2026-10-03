@@ -147,6 +147,13 @@ html.dark header:not(.paywall-header),
 html.dark nav {
   background-color: rgba(22, 18, 16, 0.94) !important;
 }
+header.paywall-header,
+html.dark header.paywall-header {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
 
 /* Prefers-reduced-motion accessibility */
 @media (prefers-reduced-motion: reduce) {
