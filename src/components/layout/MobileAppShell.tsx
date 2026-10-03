@@ -35,7 +35,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
             className="flex items-center gap-2.5 text-left cursor-pointer"
             aria-label="Go to Discover"
           >
-            <AppLogo size={36} />
+            <AppLogo size={52} />
           </button>
 
           <div className="flex items-center gap-2">
