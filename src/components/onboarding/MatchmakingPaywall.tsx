@@ -93,7 +93,7 @@ export const MatchmakingPaywall: React.FC = () => {
       className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 p-4"
       style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
     >
-      <header className="paywall-header max-w-md w-full mx-auto flex items-center justify-between gap-2 pb-3 bg-transparent">
+      <header className="paywall-header max-w-md w-full mx-auto flex items-center justify-between gap-2 py-1 mb-1 bg-transparent border-0 shadow-none">
         <div className="flex items-center gap-2">
           <AppLogo size={28} className="rounded-lg" />
           <div>
