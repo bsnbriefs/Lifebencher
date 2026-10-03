@@ -219,7 +219,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsPreviewOpen(true)}
-            className="flex items-center gap-1 text-xs font-semibold text-rose-900 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+            className="flex items-center gap-1 text-xs font-semibold text-violet-700 bg-violet-50 px-3 py-1.5 rounded-full border border-violet-200 hover:bg-violet-100 transition cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
             Preview
@@ -395,7 +395,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
               </div>
             ) : (
               <div className="flex gap-2">
-                <button type="button" onClick={() => void handleStartIntro()} className="flex-1 py-2.5 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold">Record</button>
+                <button type="button" onClick={() => void handleStartIntro()} className="flex-1 py-2.5 rounded-full lb-cta text-white text-xs font-semibold">Record</button>
                 {currentProfile.voiceIntroPath && (
                   <>
                     <button type="button" onClick={() => void handleStartIntro()} className="px-3 py-2 rounded-full border border-stone-300 text-xs font-semibold">Replace</button>
@@ -727,7 +727,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-2xl bg-rose-900 text-amber-100 font-semibold shadow-md hover:bg-rose-950 transition cursor-pointer"
+                  className="w-full py-3.5 rounded-2xl lb-cta font-semibold shadow-md hover:opacity-95 transition cursor-pointer"
                 >
                   Save Profile Changes
                 </button>
@@ -799,7 +799,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-2xl bg-rose-900 text-amber-100 font-semibold shadow-md hover:bg-rose-950 transition cursor-pointer"
+                  className="w-full py-3.5 rounded-2xl lb-cta font-semibold shadow-md hover:opacity-95 transition cursor-pointer"
                 >
                   Update Preferences
                 </button>
