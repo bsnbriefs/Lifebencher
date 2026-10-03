@@ -131,6 +131,8 @@ service cloud.firestore {
           'bio',
           'relationshipGoal',
           'relationshipIntent',
+          'voiceIntroPath',
+          'voiceIntroDurationMs',
           'isVerified',
           'isVisible',
           'createdAt',
@@ -202,6 +204,21 @@ service cloud.firestore {
           || (
             data.relationshipIntent is list
             && data.relationshipIntent.size() <= 6
+          )
+        )
+        && (
+          !data.keys().hasAny(['voiceIntroPath'])
+          || (
+            data.voiceIntroPath is string
+            && data.voiceIntroPath.size() <= 240
+          )
+        )
+        && (
+          !data.keys().hasAny(['voiceIntroDurationMs'])
+          || (
+            data.voiceIntroDurationMs is int
+            && data.voiceIntroDurationMs >= 0
+            && data.voiceIntroDurationMs <= 30000
           )
         )
         && (
@@ -370,7 +387,13 @@ service cloud.firestore {
               'bio',
               'relationshipGoal',
               'relationshipIntent',
+              'voiceIntroPath',
+              'voiceIntroDurationMs',
+          'voiceIntroPath',
+          'voiceIntroDurationMs',
           'relationshipIntent',
+          'voiceIntroPath',
+          'voiceIntroDurationMs',
               'updatedAt',
               'photoUrl',
               'photoUrls',
@@ -739,6 +762,36 @@ service cloud.firestore {
           && incoming().updatedAt is string
           && incoming().updatedAt.size() <= 64;
         allow delete: if isParticipantTyping() && typingUid == request.auth.uid;
+      }
+
+      match /signaling/{signalId} {
+        function isCallParticipant() {
+          return isSignedIn()
+            && exists(/databases/$(database)/documents/matches/$(matchId))
+            && (
+              request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+              || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+            );
+        }
+        allow read: if isCallParticipant() && signalId == 'current';
+        allow create, update: if isCallParticipant()
+          && signalId == 'current'
+          && incoming().callerId is string
+          && incoming().calleeId is string
+          && (incoming().callerId == request.auth.uid || incoming().calleeId == request.auth.uid);
+        allow delete: if isCallParticipant() && signalId == 'current';
+      }
+
+      match /callHistory/{callId} {
+        allow read: if isSignedIn()
+          && exists(/databases/$(database)/documents/matches/$(matchId))
+          && (
+            request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Id
+            || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Id
+          );
+        allow create: if isSignedIn()
+          && request.auth.uid == incoming().callerId;
+        allow update, delete: if false;
       }
 
 
