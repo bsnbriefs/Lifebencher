@@ -29,7 +29,8 @@ import {
   Smile,
   Flag,
   Search,
-  ArrowDown
+  ArrowDown,
+  Video
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
@@ -45,6 +46,7 @@ import {
 } from '../../lib/contactExchange';
 import { ContactExchangeRequest } from '../../types';
 import { db } from '../../lib/firebase';
+import { CallOverlay } from '../chat/CallOverlay';
 
 interface MessagesScreenProps {
   initialConversationId?: string | null;
@@ -1750,6 +1752,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
               {/* Header Action Menu */}
               <div className="flex items-center gap-0.5 shrink-0">
+                {activeConv.otherUser?.id && (
+                  <CallOverlay
+                    matchId={activeConv.matchId || activeConv.id}
+                    myId={myId}
+                    peerId={activeConv.otherUser.id}
+                    peerName={activeConv.otherUser.displayName || 'Match'}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => { setShowMessageSearch((v) => !v); setShowStarredOnly(false); }}
