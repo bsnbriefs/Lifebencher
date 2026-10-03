@@ -95,7 +95,11 @@ export const MatchmakingPaywall: React.FC = () => {
     >
       <header className="max-w-md w-full mx-auto flex items-center justify-between gap-2 pb-3">
         <div className="flex items-center gap-2">
-          <AppLogo variant="lockup" size={44} />
+          <AppLogo size={28} className="rounded-lg" />
+          <div>
+            <p className="font-serif font-bold text-base text-rose-950 leading-tight">Lifebencher</p>
+            <p className="text-[9px] uppercase tracking-[0.18em] text-amber-800 font-semibold">Match</p>
+          </div>
         </div>
         <button type="button" onClick={() => void logout()} className="text-[11px] text-stone-500 font-semibold">
           Sign out
@@ -146,7 +150,7 @@ export const MatchmakingPaywall: React.FC = () => {
           type="button"
           disabled={!!busy}
           onClick={() => void pay('matchmaking_both')}
-          className={`w-full text-left px-4 py-3 rounded-2xl border bg-white space-y-1 ${busy === 'matchmaking_both' ? 'border-fuchsia-400 ring-2 ring-fuchsia-100' : 'border-fuchsia-200'}`}
+          className={`w-full text-left px-4 py-3 rounded-2xl border bg-rose-50/70 space-y-1 ${busy === 'matchmaking_both' ? 'border-rose-400 ring-2 ring-rose-100' : 'border-rose-200'}`}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
