@@ -83,14 +83,14 @@ const CHAT_THEME_STYLE: Record<ChatThemeId, {
     title: 'text-stone-900',
     meta: 'text-stone-500',
     icon: 'text-stone-600',
-    mine: 'bg-violet-700 text-white rounded-br-xs',
+    mine: 'bg-rose-900 text-white rounded-br-xs',
     theirs: 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs',
     stamp: 'text-stone-400',
     dateChip: 'bg-stone-100 border-stone-200 text-stone-500',
     composer: '',
     input: 'bg-white border-stone-300 text-stone-800 placeholder:text-stone-400',
-    send: 'lb-cta text-white',
-    jump: 'bg-violet-700 text-white border-white',
+    send: 'bg-rose-900 text-amber-200',
+    jump: 'bg-rose-900 text-white border-white',
     badge: 'bg-rose-50 text-rose-800'
   },
   midnight: {

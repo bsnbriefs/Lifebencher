@@ -218,7 +218,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
           }`}
         >
           <span>Active Connections</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-violet-700 text-white text-[10px] font-bold">
+          <span className="px-1.5 py-0.2 rounded-full bg-rose-900 text-amber-200 text-[10px] font-bold">
             {activeMatches.length}
           </span>
         </button>
@@ -303,7 +303,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
 
                   <button
                     onClick={() => handleAcceptRequest(req)}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-500 text-white font-bold text-xs shadow-xs hover:opacity-95 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl bg-rose-900 text-amber-100 font-bold text-xs shadow-xs hover:bg-rose-950 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Heart className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
                     <span>Accept Match</span>
@@ -391,7 +391,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                   <div className="pt-2 flex items-center gap-2 border-t border-stone-100">
                     <button
                       onClick={() => onOpenChat(match.id)}
-                      className="flex-1 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-500 text-white text-xs font-bold transition hover:opacity-95 active:scale-98 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      className="flex-1 py-2.5 rounded-2xl bg-rose-900 hover:bg-rose-950 text-amber-100 text-xs font-bold transition active:scale-98 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                     >
                       <MessageCircle className="w-3.5 h-3.5 text-amber-300" />
                       <span>Open Chat</span>
@@ -561,7 +561,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
               <button
                 onClick={handleExecutePayment}
                 disabled={isProcessingPayment}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-500 text-white font-bold text-xs shadow-md hover:opacity-95 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-900 to-rose-800 text-amber-100 font-bold text-xs shadow-md hover:from-rose-950 hover:to-rose-900 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
               >
                 {isProcessingPayment ? (
                   <span>Opening Flutterwave...</span>
@@ -605,7 +605,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                 </button>
                 <button
                   onClick={handleConfirmUnmatch}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-500 text-white text-xs font-semibold cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-rose-900 text-white text-xs font-semibold cursor-pointer"
                 >
                   Confirm
                 </button>

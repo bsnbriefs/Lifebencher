@@ -374,7 +374,7 @@ export const DiscoverScreen: React.FC = () => {
                       className={`flex-1 py-2.5 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer ${
                         hasSent
                           ? 'bg-emerald-600 text-white cursor-default'
-                          : 'bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-500 text-white hover:opacity-95'
+                          : 'bg-gradient-to-r from-rose-900 via-rose-800 to-amber-700 text-white hover:opacity-95'
                       }`}
                     >
                       {isLoading ? (
