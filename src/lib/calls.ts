@@ -62,6 +62,31 @@ export async function addIce(matchId: string, role: 'caller' | 'callee', candida
   });
 }
 
+export async function declineCall(matchId: string) {
+  await updateDoc(doc(db, 'matches', matchId, 'signaling', 'current'), {
+    status: 'declined'
+  }).catch(() => undefined);
+}
+
+export async function markMissed(matchId: string) {
+  await updateDoc(doc(db, 'matches', matchId, 'signaling', 'current'), {
+    status: 'missed'
+  }).catch(() => undefined);
+}
+
+export function iceConfig(): RTCConfiguration {
+  const servers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+  const turnUrl = import.meta.env.VITE_TURN_URL as string | undefined;
+  if (turnUrl) {
+    servers.push({
+      urls: turnUrl,
+      username: import.meta.env.VITE_TURN_USERNAME as string | undefined,
+      credential: import.meta.env.VITE_TURN_CREDENTIAL as string | undefined
+    });
+  }
+  return { iceServers: servers };
+}
+
 export async function endCall(matchId: string) {
   await updateDoc(doc(db, 'matches', matchId, 'signaling', 'current'), {
     status: 'ended',
