@@ -4,11 +4,21 @@
   :root {
     --font-serif: 'Playfair Display', Georgia, serif;
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --lb-primary: #7c3aed;
+    --lb-secondary: #d946ef;
+    --lb-accent: #2563eb;
+    --lb-navy: #14081f;
   }
 
   html.dark {
     color-scheme: dark;
   }
+}
+.lb-cta {
+  background-image: linear-gradient(90deg, #2563eb, #7c3aed, #d946ef);
+  color: #fff;
+}
+@layer base {
 
   html, body, #root {
     max-width: 100%;
