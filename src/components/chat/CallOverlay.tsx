@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { acceptCall, addIce, CallState, endCall, listenCall, startCall } from '../../lib/calls';
+import { acceptCall, addIce, CallState, declineCall, endCall, iceConfig, listenCall, markMissed, startCall } from '../../lib/calls';
 
-const ICE: RTCConfiguration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const ICE: RTCConfiguration = iceConfig();
 
 export const CallOverlay: React.FC<{
   matchId: string;
@@ -94,11 +94,11 @@ export const CallOverlay: React.FC<{
   return (
     <>
       <div className="flex gap-1">
-        <button type="button" className="text-[11px] px-2 py-1 rounded-full border border-stone-300" onClick={() => void begin('voice', peerId)}>
-          Voice
+        <button type="button" className="p-1.5 rounded-full hover:bg-black/5" aria-label="Voice call" onClick={() => void begin('voice', peerId)}>
+          <span className="text-[11px]">Call</span>
         </button>
-        <button type="button" className="text-[11px] px-2 py-1 rounded-full border border-stone-300" onClick={() => void begin('video', peerId)}>
-          Video
+        <button type="button" className="p-1.5 rounded-full hover:bg-black/5" aria-label="Video call" onClick={() => void begin('video', peerId)}>
+          <span className="text-[11px]">Video</span>
         </button>
       </div>
       {error && <p className="text-[11px] text-rose-700">{error}</p>}
@@ -107,9 +107,16 @@ export const CallOverlay: React.FC<{
           <p className="font-serif text-lg">Incoming {call?.type} call</p>
           <p className="text-sm">{peerName}</p>
           <div className="flex gap-2">
-            <button type="button" className="px-4 py-2 rounded-full bg-stone-600" onClick={() => void cleanup()}>Decline</button>
+            <button type="button" className="px-4 py-2 rounded-full bg-stone-600" onClick={() => void declineCall(matchId)}>Decline</button>
             <button type="button" className="px-4 py-2 rounded-full bg-emerald-700" onClick={() => void accept()}>Accept</button>
           </div>
+        </div>
+      )}
+      {active && call?.status === 'ringing' && call.callerId === myId && (
+        <div className="fixed inset-0 z-[90] bg-black/80 text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
+          <p className="font-serif text-lg">Calling {peerName}</p>
+          <p className="text-sm">{call.type === 'video' ? 'Video call' : 'Audio call'}</p>
+          <button type="button" className="px-4 py-2 rounded-full bg-rose-800" onClick={() => void markMissed(matchId).then(() => cleanup())}>Cancel</button>
         </div>
       )}
       {active && call?.status === 'accepted' && (
