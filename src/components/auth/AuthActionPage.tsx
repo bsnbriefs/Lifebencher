@@ -90,8 +90,7 @@ export const AuthActionPage: React.FC<{ mode: string; oobCode: string }> = ({ mo
     <div className="min-h-screen bg-[#FAF8F5] text-stone-900 p-4 flex flex-col items-center justify-center">
       <div className="w-full max-w-md bg-white rounded-3xl border border-stone-200 p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <AppLogo size={32} className="rounded-xl" />
-          <p className="font-serif font-bold text-rose-950">Lifebencher Match</p>
+          <AppLogo variant="lockup" size={40} />
         </div>
         <h1 className="font-serif text-xl font-bold">
           {mode === 'resetPassword' ? 'Choose a new password' : 'Email confirmation'}
