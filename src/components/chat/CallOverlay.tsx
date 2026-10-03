@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { acceptCall, addIce, CallState, declineCall, endCall, iceConfig, listenCall, markMissed, startCall } from '../../lib/calls';
+import { acceptCall, ackRinging, addIce, CallState, cancelCall, declineCall, endCall, iceConfig, listenCall, markMissed, startCall } from '../../lib/calls';
 
 const ICE: RTCConfiguration = iceConfig();
 
@@ -12,7 +12,7 @@ export const CallOverlay: React.FC<{
   const [call, setCall] = useState<CallState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
-  const [camOff, setCamOff] = useState(false);
+  const [connected, setConnected] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localRef = useRef<HTMLVideoElement | null>(null);
   const remoteRef = useRef<HTMLVideoElement | null>(null);
@@ -31,6 +31,9 @@ export const CallOverlay: React.FC<{
   const attachPc = async (video: boolean) => {
     const pc = new RTCPeerConnection(ICE);
     pcRef.current = pc;
+    pc.onconnectionstatechange = () => {
+      setConnected(pc.connectionState === 'connected');
+    };
     pc.ontrack = (ev) => {
       if (remoteRef.current) remoteRef.current.srcObject = ev.streams[0];
     };
@@ -88,8 +91,26 @@ export const CallOverlay: React.FC<{
     });
   }, [call, myId]);
 
-  const incoming = call && call.status === 'ringing' && call.calleeId === myId;
-  const active = call && (call.status === 'ringing' || call.status === 'accepted') && (call.callerId === myId || call.calleeId === myId);
+  useEffect(() => {
+    if (!call || call.calleeId !== myId) return;
+    if (call.status !== 'initiating') return;
+    void ackRinging(matchId);
+    try { navigator.vibrate?.([200, 100, 200]); } catch { /* optional */ }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification('Incoming Lifebencher call', { body: `${peerName} is calling` });
+    }
+  }, [call?.status, call?.calleeId, matchId, myId, peerName]);
+
+  useEffect(() => {
+    if (!call || call.callerId !== myId) return;
+    if (call.status !== 'initiating' && call.status !== 'ringing') return;
+    const timer = window.setTimeout(() => void markMissed(matchId), 45000);
+    return () => window.clearTimeout(timer);
+  }, [call?.status, call?.callerId, matchId, myId]);
+
+  const incoming = call && (call.status === 'initiating' || call.status === 'ringing') && call.calleeId === myId;
+  const outgoing = call && call.callerId === myId && (call.status === 'initiating' || call.status === 'ringing');
+  const callerLabel = call?.status === 'ringing' ? `Ringing ${peerName}…` : `Calling ${peerName}`;
 
   return (
     <>
@@ -104,24 +125,31 @@ export const CallOverlay: React.FC<{
       {error && <p className="text-[11px] text-rose-700">{error}</p>}
       {incoming && (
         <div className="fixed inset-0 z-[90] bg-black/80 text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
-          <p className="font-serif text-lg">Incoming {call?.type} call</p>
-          <p className="text-sm">{peerName}</p>
+          <p className="font-serif text-xl">{peerName} is calling</p>
+          <p className="text-sm">{call?.type === 'video' ? 'Video call' : 'Audio call'}</p>
           <div className="flex gap-2">
             <button type="button" className="px-4 py-2 rounded-full bg-stone-600" onClick={() => void declineCall(matchId)}>Decline</button>
             <button type="button" className="px-4 py-2 rounded-full bg-emerald-700" onClick={() => void accept()}>Accept</button>
           </div>
         </div>
       )}
-      {active && call?.status === 'ringing' && call.callerId === myId && (
-        <div className="fixed inset-0 z-[90] bg-black/80 text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
-          <p className="font-serif text-lg">Calling {peerName}</p>
+      {outgoing && (
+        <div className="fixed inset-0 z-[90] bg-[#2a1218] text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
+          <p className="font-serif text-xl">{callerLabel}</p>
           <p className="text-sm">{call.type === 'video' ? 'Video call' : 'Audio call'}</p>
-          <button type="button" className="px-4 py-2 rounded-full bg-rose-800" onClick={() => void markMissed(matchId).then(() => cleanup())}>Cancel</button>
+          <button type="button" className="px-4 py-2 rounded-full bg-rose-800" onClick={() => void cancelCall(matchId)}>Cancel</button>
         </div>
       )}
-      {active && call?.status === 'accepted' && (
+      {call?.status === 'declined' && call.callerId === myId && (
+        <div className="fixed inset-0 z-[90] bg-[#2a1218] text-[#f3ece6] flex items-center justify-center">Call declined</div>
+      )}
+      {call?.status === 'missed' && call.callerId === myId && (
+        <div className="fixed inset-0 z-[90] bg-[#2a1218] text-[#f3ece6] flex items-center justify-center">No answer</div>
+      )}
+      {call?.status === 'accepted' && (call.callerId === myId || call.calleeId === myId) && (
         <div className="fixed inset-0 z-[90] bg-[#1c1917] text-[#f3ece6] flex flex-col">
           <div className="flex-1 relative">
+            <p className="absolute top-4 left-4 text-xs">{connected ? 'Connected' : 'Connecting…'}</p>
             <video ref={remoteRef} autoPlay playsInline className="w-full h-full object-cover" />
             <video ref={localRef} autoPlay muted playsInline className="absolute bottom-4 right-4 w-24 h-32 object-cover rounded-xl" />
           </div>
