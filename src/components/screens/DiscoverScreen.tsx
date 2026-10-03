@@ -32,7 +32,8 @@ const DEFAULT_FILTERS: DiscoverFilters = {
   minAge: 18,
   maxAge: 99,
   location: 'All Locations',
-  faith: 'All Faiths'
+  faith: 'All Faiths',
+  relationshipIntents: []
 };
 
 export const DiscoverScreen: React.FC = () => {
@@ -120,6 +121,13 @@ export const DiscoverScreen: React.FC = () => {
         }
       }
 
+      if (filters.relationshipIntents?.length) {
+        const theirs = p.relationshipIntent || [];
+        if (!filters.relationshipIntents.some((intent) => theirs.includes(intent))) {
+          return false;
+        }
+      }
+
       if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
 
       const myType =
@@ -141,6 +149,7 @@ export const DiscoverScreen: React.FC = () => {
     if (filters.minAge > 21 || filters.maxAge < 45) count++;
     if (filters.location !== 'All Locations') count++;
     if (filters.faith !== 'All Faiths') count++;
+    if (filters.relationshipIntents?.length) count++;
     return count;
   }, [filters]);
 
@@ -309,6 +318,9 @@ export const DiscoverScreen: React.FC = () => {
                       <MapPin className="w-3 h-3 text-amber-300" />
                       <span>{p.location}</span>
                     </p>
+                    {p.voiceIntroPath && (
+                      <p className="text-[11px] text-amber-200 mt-1">🎙️ Voice intro</p>
+                    )}
                   </div>
                 </div>
 
@@ -362,7 +374,7 @@ export const DiscoverScreen: React.FC = () => {
                       className={`flex-1 py-2.5 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer ${
                         hasSent
                           ? 'bg-emerald-600 text-white cursor-default'
-                          : 'bg-gradient-to-r from-rose-900 via-rose-800 to-amber-700 text-white hover:opacity-95'
+                          : 'bg-gradient-to-r from-blue-600 via-violet-600 to-fuchsia-500 text-white hover:opacity-95'
                       }`}
                     >
                       {isLoading ? (
