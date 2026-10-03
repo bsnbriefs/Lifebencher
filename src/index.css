@@ -143,7 +143,7 @@ html.dark .ring-\[\#FAF8F5\] {
   --tw-ring-color: #161210;
 }
 
-html.dark header,
+html.dark header:not(.paywall-header),
 html.dark nav {
   background-color: rgba(22, 18, 16, 0.94) !important;
 }
