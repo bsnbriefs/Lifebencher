@@ -378,15 +378,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
       {/* Top Brand Header */}
       <header className="max-w-md w-full mx-auto pt-2 pb-4 flex items-center justify-between border-b border-stone-200/70">
         <div className="flex items-center gap-2.5">
-          <AppLogo size={32} className="rounded-xl shadow-xs" />
-          <div>
-            <h1 className="font-serif font-bold text-lg text-rose-950 leading-tight">
-              Lifebencher
-            </h1>
-            <span className="text-[10px] uppercase font-semibold text-amber-800 tracking-widest block leading-none">
-              Match
-            </span>
-          </div>
+          <AppLogo size={36} />
         </div>
 
         <div className="flex items-center gap-2">
