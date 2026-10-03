@@ -21,7 +21,8 @@ export function entitlementPatch(productId, uid, existing = {}) {
 
   } else if (
     product?.id === 'matchmaking_local' ||
-    product?.id === 'matchmaking_international'
+    product?.id === 'matchmaking_international' ||
+    product?.id === 'matchmaking_both'
   ) {
     const matchType = matchTypeFromProductId(product.id);
     patch.matchmakingPackage = matchType;
@@ -78,7 +79,8 @@ export async function grantVerifiedTransaction(txSnap) {
 
     if (
       pid === 'matchmaking_local' ||
-      pid === 'matchmaking_international'
+      pid === 'matchmaking_international' ||
+      pid === 'matchmaking_both'
     ) {
       const pref = db.collection('profiles').doc(data.userId);
       const psnap = await t.get(pref);
