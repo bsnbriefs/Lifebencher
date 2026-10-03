@@ -55,7 +55,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               {isActive && (
                 <motion.div
                   layoutId="bottomNavActiveIndicator"
-                  className="absolute -top-0.5 w-10 h-1 bg-gradient-to-r from-rose-700 via-rose-800 to-amber-600 rounded-full"
+                  className="absolute -top-0.5 w-10 h-1 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-cyan-400 rounded-full"
                   transition={{ type: 'spring', stiffness: 450, damping: 32 }}
                 />
               )}
@@ -63,7 +63,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <div className="relative">
                 <Icon
                   className={`w-5 h-5 transition-colors duration-200 ${
-                    isActive ? 'text-rose-900 stroke-[2.3]' : 'text-stone-400 stroke-[1.8]'
+                    isActive ? 'text-fuchsia-700 stroke-[2.3]' : 'text-stone-400 stroke-[1.8]'
                   }`}
                 />
 
@@ -76,7 +76,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
               <span
                 className={`text-[11px] font-medium tracking-tight mt-1 transition-colors ${
-                  isActive ? 'text-rose-900 font-semibold' : 'text-stone-500'
+                  isActive ? 'text-fuchsia-700 font-semibold' : 'text-stone-500'
                 }`}
               >
                 {item.label}
