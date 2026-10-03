@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, doc, getDoc, setDoc, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   ImagePlus,
   Send,
@@ -12,6 +12,7 @@ import {
   Mail,
   Copy,
   Check,
+  Palette,
   MoreVertical,
   AlertTriangle,
   Sparkles,
@@ -26,6 +27,7 @@ import {
   Reply,
   Pencil,
   Smile,
+  Flag,
   Search,
   ArrowDown
 } from 'lucide-react';
@@ -33,7 +35,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Conversation, Message, Match } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, reportUser, blockUser, isUserBlocked } from '../../lib/chat';
+import { formatMessageTime, listenLatestMessage, listenMatchMessages, markMatchMessagesRead, resolveChatMediaUrl, sendMatchAudio, sendMatchImage, sendMatchMessage, unsendMatchMessage, toggleMessageReaction, toggleMessageStar, setChatPresence, listenChatPresence, setChatTyping, listenChatTyping, getDisappearingMessages, setDisappearingMessages, getChatTheme, setChatTheme, CHAT_THEME_OPTIONS, type ChatThemeId, reportUser, reportMessage, blockUser, isUserBlocked, unblockUser, listBlockedUserIds, listBlockedProfiles, type BlockedProfilePreview } from '../../lib/chat';
 import { RecordingSession, startAudioRecording } from '../../lib/audioRecorder';
 import {
   declineContactExchange,
@@ -58,6 +60,72 @@ interface ConversationWithMeta extends Conversation {
     email: string;
   };
 }
+
+const CHAT_THEME_STYLE: Record<ChatThemeId, {
+  shell: string;
+  header: string;
+  title: string;
+  meta: string;
+  icon: string;
+  mine: string;
+  theirs: string;
+  stamp: string;
+  dateChip: string;
+  composer: string;
+  input: string;
+  send: string;
+  jump: string;
+  badge: string;
+}> = {
+  classic: {
+    shell: '',
+    header: 'border-stone-200',
+    title: 'text-stone-900',
+    meta: 'text-stone-500',
+    icon: 'text-stone-600',
+    mine: 'bg-rose-900 text-white rounded-br-xs',
+    theirs: 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs',
+    stamp: 'text-stone-400',
+    dateChip: 'bg-stone-100 border-stone-200 text-stone-500',
+    composer: '',
+    input: 'bg-white border-stone-300 text-stone-800 placeholder:text-stone-400',
+    send: 'bg-rose-900 text-amber-200',
+    jump: 'bg-rose-900 text-white border-white',
+    badge: 'bg-rose-50 text-rose-800'
+  },
+  midnight: {
+    shell: 'bg-[#14110F] text-[#F4EDE6]',
+    header: 'border-[#2A2422]',
+    title: 'text-[#F4EDE6]',
+    meta: 'text-[#B7A59C]',
+    icon: 'text-[#E8B4B8]',
+    mine: 'bg-[#7A1F2B] text-white rounded-br-xs',
+    theirs: 'bg-[#2A2422] text-[#F4EDE6] rounded-bl-xs',
+    stamp: 'text-[#B7A59C]',
+    dateChip: 'bg-[#2A2422] border-[#3A322F] text-[#B7A59C]',
+    composer: 'bg-[#14110F]',
+    input: 'bg-[#2A2422] border-[#3A322F] text-[#F4EDE6] placeholder:text-[#8A7A73]',
+    send: 'bg-[#7A1F2B] text-white',
+    jump: 'bg-[#7A1F2B] text-white border-[#F4EDE6]',
+    badge: 'bg-[#3A2A2C] text-[#E8B4B8]'
+  },
+  blush: {
+    shell: 'bg-[#F8EEEA]',
+    header: 'border-[#EBD3D0]',
+    title: 'text-[#4A2A2E]',
+    meta: 'text-[#9A6F72]',
+    icon: 'text-[#7A1F2B]',
+    mine: 'bg-[#7A1F2B] text-white rounded-br-xs',
+    theirs: 'bg-[#E8C9C6] text-[#3F2428] rounded-bl-xs',
+    stamp: 'text-[#9A6F72]',
+    dateChip: 'bg-[#F3E0DC] border-[#EBD3D0] text-[#7A4A4E]',
+    composer: '',
+    input: 'bg-[#7A1F2B] border-[#7A1F2B] text-white placeholder:text-[#F3D6D8]',
+    send: 'bg-[#C45C26] text-white',
+    jump: 'bg-[#7A1F2B] text-white border-white',
+    badge: 'bg-[#F3E0DC] text-[#7A1F2B]'
+  }
+};
 
 const PLACEHOLDER_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
@@ -747,19 +815,25 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
+  const prevMessageCountRef = useRef(0);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfilePreview[]>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const [disappearingMode, setDisappearingMode] = useState<'off' | '24h' | '7d' | '30d'>('off');
+  const [chatTheme, setChatThemeState] = useState<ChatThemeId>('classic');
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const [savingDisappearing, setSavingDisappearing] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState();
+  const [reportReason, setReportReason] = useState('');
+  const [reportMessageTarget, setReportMessageTarget] = useState<Message | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [blockSubmitting, setBlockSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -861,61 +935,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   useEffect(() => {
     if (!activeConvId) {
       setDisappearingMode('off');
+      setChatThemeState('classic');
       return;
     }
     let cancelled = false;
     void getDisappearingMessages(activeConvId)
       .then((mode) => { if (!cancelled) setDisappearingMode(mode); })
       .catch(() => { if (!cancelled) setDisappearingMode('off'); });
+    void getChatTheme(activeConvId)
+      .then((theme) => { if (!cancelled) setChatThemeState(theme); })
+      .catch(() => { if (!cancelled) setChatThemeState('classic'); });
     return () => { cancelled = true; };
   }, [activeConvId]);
-
-  // Keep conversation previews and unread counts live. Unread means a received
-  // message that does not yet have a readAt timestamp. The count is derived
-  // from Firestore so it survives navigation/reloads instead of living only in
-  // local React state. The active conversation is cleared by markMatchMessagesRead.
-  useEffect(() => {
-    if (!myId) return;
-    const unsubs = conversations.map((c) => {
-      const latestQuery = query(
-        collection(db, 'matches', c.matchId, 'messages'),
-        orderBy('createdAt', 'desc'),
-        limit(200)
-      );
-
-      return onSnapshot(latestQuery, (snap) => {
-        const now = Date.now();
-        let unreadCount = 0;
-
-        snap.docs.forEach((messageDoc) => {
-          const data = messageDoc.data() as Record<string, unknown>;
-          const senderId = String(data.senderId || '');
-          if (!senderId || senderId === myId || data.readAt) return;
-
-          const expiresAt = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : 0;
-          if (expiresAt > 0 && expiresAt <= now) return;
-          unreadCount += 1;
-        });
-
-        // Opening the conversation means its received messages are read.
-        // Never show an unread badge while that conversation is currently open.
-        if (activeConvId === c.matchId) unreadCount = 0;
-
-        setConversations((prev) =>
-          prev.map((item) =>
-            item.matchId === c.matchId
-              ? { ...item, unreadCount }
-              : item
-          )
-        );
-      }, () => {
-        // Keep the existing conversation state if an unread-count listener
-        // temporarily fails. The chat itself remains unaffected.
-      });
-    });
-
-    return () => unsubs.forEach((unsubscribe) => unsubscribe());
-  }, [myId, conversations.map((c) => c.matchId).join('|'), activeConvId]);
 
   useEffect(() => {
     const unsubs = conversations.map((c) =>
@@ -943,6 +974,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setInputVal('');
       setHasLoadedDraft(false);
       setShowJumpToLatest(false);
+      setNewMessagesWhileAway(0);
+      prevMessageCountRef.current = 0;
       setOtherOnline(false);
       setOtherTyping(false);
       return;
@@ -1024,7 +1057,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!container) return;
     const onScroll = () => {
       const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-      setShowJumpToLatest(distance > 220);
+      const away = distance > 140;
+      setShowJumpToLatest(away);
+      if (!away) setNewMessagesWhileAway(0);
     };
     onScroll();
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -1033,10 +1068,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
 
   useEffect(() => {
     const container = messagesContainerRef.current;
+    const prevCount = prevMessageCountRef.current;
+    const nextCount = currentMessages.length;
+    prevMessageCountRef.current = nextCount;
     if (!container) return;
     const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (distance < 220) {
-      messagesEndRef.current?.scrollIntoView({ behavior: currentMessages.length > 1 ? 'smooth' : 'auto' });
+    const nearBottom = distance < 140;
+    if (nearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: nextCount > 1 ? 'smooth' : 'auto' });
+      setShowJumpToLatest(false);
+      setNewMessagesWhileAway(0);
+    } else if (nextCount > prevCount) {
+      setShowJumpToLatest(true);
+      setNewMessagesWhileAway((n) => n + (nextCount - prevCount));
     }
   }, [currentMessages, activeConvId]);
 
@@ -1141,7 +1185,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       setUnsendMessageId(null);
       setMessageMenuId(null);
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Unable to unsend this message.');
+      setSendError(err instanceof Error ? err.message : 'Unable to delete this message.');
     } finally {
       setUnsending(false);
     }
@@ -1226,6 +1270,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   };
 
   const disappearingLabel = disappearingMode === 'off' ? 'Off' : disappearingMode === '24h' ? '24 hours' : disappearingMode === '7d' ? '7 days' : '30 days';
+  const themeStyle = CHAT_THEME_STYLE[chatTheme] || CHAT_THEME_STYLE.classic;
+
+  const handleSetChatTheme = async (theme: ChatThemeId) => {
+    if (!activeConvId) return;
+    setChatThemeState(theme);
+    try {
+      await setChatTheme(activeConvId, theme);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Could not save chat theme.');
+    }
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputVal).trim();
@@ -1414,8 +1469,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     setShowBlockedUsers(true);
     setLoadingBlockedUsers(true);
     try {
-      const ids = await listBlockedUserIds();
-      setBlockedUserIds(ids);
+      const rows = await listBlockedProfiles();
+      setBlockedProfiles(rows);
+      setBlockedUserIds(rows.map((row) => row.userId));
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Unable to load blocked users.');
     } finally {
@@ -1430,6 +1486,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     try {
       await unblockUser(targetUserId);
       setBlockedUserIds((prev) => prev.filter((id) => id !== targetUserId));
+      setBlockedProfiles((prev) => prev.filter((row) => row.userId !== targetUserId));
 
       const restored = Object.values(matchRecords).find(
         (m) => m.status !== 'ended' && (m.user1Id === targetUserId || m.user2Id === targetUserId)
@@ -1466,8 +1523,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!reason) return;
     setReportSubmitting(true);
     try {
-      await reportUser(activeConv.otherUser.userId, reason, activeConv.matchId);
+      if (reportMessageTarget) {
+        await reportMessage(
+          activeConv.otherUser.userId,
+          reason,
+          activeConv.matchId,
+          reportMessageTarget.id,
+          reportMessageTarget.content || reportMessageTarget.kind || 'Message'
+        );
+      } else {
+        await reportUser(activeConv.otherUser.userId, reason, activeConv.matchId);
+      }
       setReportReason('');
+      setReportMessageTarget(null);
       setShowReportModal(false);
       setSendError('Report submitted. Thank you for helping keep Lifebencher safe.');
     } catch (err) {
@@ -1481,7 +1549,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (!activeConv?.otherUser?.userId || blockSubmitting) return;
     setBlockSubmitting(true);
     try {
-      await blockUser(activeConv.otherUser.userId);
+      await blockUser(activeConv.otherUser.userId, {
+        displayName: activeConv.otherUser.displayName,
+        photoUrl: activeConv.otherUser.photos?.[0] || ''
+      });
       setConversations((prev) => prev.filter((c) => c.matchId !== activeConv.matchId));
       setActiveConvId(null);
       setShowOptionsModal(false);
@@ -1626,14 +1697,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="flex flex-col min-h-0 h-[calc(100dvh-11rem)] overflow-x-hidden"
+            className={`flex flex-col min-h-0 h-[calc(100dvh-11rem)] overflow-x-hidden ${themeStyle.shell}`}
           >
             {/* Thread Header */}
-            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-200 mb-2">
+            <div className={`flex items-center justify-between gap-2 pb-2.5 border-b mb-2 ${themeStyle.header}`}>
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setActiveConvId(null)}
-                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-700 transition cursor-pointer shrink-0"
+                  className={`p-1.5 rounded-full hover:bg-black/5 transition cursor-pointer shrink-0 ${themeStyle.icon}`}
                   aria-label="Back to conversations"
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -1644,18 +1715,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   className="w-9 h-9 rounded-full object-cover shrink-0"
                 />
                 <div className="min-w-0">
-                  <h3 className="font-serif font-bold text-sm text-stone-900 truncate">
+                  <h3 className={`font-serif font-bold text-sm truncate ${themeStyle.title}`}>
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500 leading-tight mt-0.5">
+                  <div className={`flex flex-wrap items-center gap-1.5 text-[9px] leading-tight mt-0.5 ${themeStyle.meta}`}>
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
                     <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Offline'}
+                      {otherTyping
+                      ? `${activeConv.otherUser?.displayName || 'Match'} is typing…`
+                      : otherOnline ? 'Active now' : 'Offline'}
                     </span>
                     <span className="text-stone-300">•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)} left</span>
+                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
                     {disappearingMode !== 'off' && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 font-semibold whitespace-nowrap">
+                      <span className={`px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${themeStyle.badge}`}>
                         Disappearing {disappearingLabel}
                       </span>
                     )}
@@ -1668,7 +1741,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <button
                   type="button"
                   onClick={() => { setShowMessageSearch((v) => !v); setShowStarredOnly(false); }}
-                  className={`p-1.5 rounded-full transition cursor-pointer ${showMessageSearch ? 'bg-stone-200 text-rose-900' : 'hover:bg-stone-200 text-stone-600'}`}
+                  className={`p-1.5 rounded-full transition cursor-pointer ${showMessageSearch ? 'bg-black/10' : 'hover:bg-black/5'} ${themeStyle.icon}`}
                   aria-label="Search messages"
                   title="Search messages"
                 >
@@ -1677,7 +1750,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 <button
                   type="button"
                   onClick={() => { setShowStarredOnly((v) => !v); setShowMessageSearch(false); }}
-                  className={`p-1.5 rounded-full transition cursor-pointer ${showStarredOnly ? 'bg-amber-50 text-amber-600' : 'hover:bg-stone-200 text-stone-600'}`}
+                  className={`p-1.5 rounded-full transition cursor-pointer ${showStarredOnly ? 'bg-black/10' : 'hover:bg-black/5'} ${themeStyle.icon}`}
                   aria-label="Show starred messages"
                   title="Show starred messages"
                 >
@@ -1685,7 +1758,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </button>
                 <button
                   onClick={() => setShowOptionsModal(true)}
-                  className="p-1.5 rounded-full hover:bg-stone-200 text-stone-600 transition cursor-pointer"
+                  className={`p-1.5 rounded-full hover:bg-black/5 transition cursor-pointer ${themeStyle.icon}`}
                   aria-label="Options"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -1727,6 +1800,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
                 <p className="text-[11px] text-stone-300">
                   You and {activeConv.otherUser?.displayName} have both mutually agreed to move beyond the platform:
+                </p>
+                <p className="text-[11px] text-amber-200/90">
+                  Only share your contact details when you're comfortable with this person.
                 </p>
 
                 <div className="grid grid-cols-2 gap-2 text-xs pt-1 min-w-0">
@@ -1831,7 +1907,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
             )}
 
             {/* Message Stream */}
-            <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto space-y-3 pr-1 py-1">
+            <div className="relative flex-1 min-h-0">
+            <div ref={messagesContainerRef} className="h-full overflow-y-auto space-y-3 pr-1 py-1">
               {visibleMessages.map((m, index) => {
                 const isMine = m.senderId === myId;
                 const previous = currentMessages[index - 1];
@@ -1844,12 +1921,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   month: 'short',
                   day: 'numeric'
                 });
-                const canUnsend = isMine;
                 return (
                   <React.Fragment key={`message-group-${m.id}`}>
                   {showDateSeparator && (
                     <div className="flex items-center justify-center py-1">
-                      <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-semibold text-stone-500">
+                      <span className={`px-3 py-1 rounded-full border text-[10px] font-semibold ${themeStyle.dateChip}`}>
                         {dateLabel}
                       </span>
                     </div>
@@ -1874,15 +1950,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       >
                         <div
                           onClick={() => setMessageMenuId((current) => current === m.id ? null : m.id)}
-                          className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words ${
-                            isMine
-                              ? 'bg-rose-900 text-white rounded-br-xs cursor-pointer'
-                              : 'bg-white text-stone-800 border border-stone-200/90 rounded-bl-xs shadow-2xs'
+                          className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words cursor-pointer ${
+                            isMine ? themeStyle.mine : themeStyle.theirs
                           }`}
                         >
                         {m.replyToPreview && (
-                          <button type="button" onClick={(e) => { e.stopPropagation(); if (m.replyToId) scrollToMessage(m.replyToId); }} className={`mb-2 w-full text-left rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
-                            <span className="block opacity-70">Replying to</span>{m.replyToPreview}
+                          <button type="button" onClick={(e) => { e.stopPropagation(); if (m.replyToId && currentMessages.some((item) => item.id === m.replyToId)) scrollToMessage(m.replyToId); }} className={`mb-2 w-full text-left rounded-lg border-l-2 px-2 py-1 text-[10px] ${isMine ? 'border-amber-300 bg-white/10 text-white/80' : 'border-rose-300 bg-stone-100 text-stone-500'}`}>
+                            <span className="block opacity-70">Replying to</span>
+                            {m.replyToId && !currentMessages.some((item) => item.id === m.replyToId) ? 'Message unavailable' : m.replyToPreview}
                           </button>
                         )}
                         {m.kind === 'image' ? (
@@ -1920,6 +1995,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                                 <Trash2 className="w-3.5 h-3.5" /> Delete
                               </button>
                             )}
+                            {!isMine && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setReportMessageTarget(m); setShowReportModal(true); setMessageMenuId(null); }} className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-200 shadow-sm px-3 py-2 text-[11px] font-bold text-rose-700">
+                                <Flag className="w-3.5 h-3.5" /> Report message
+                              </button>
+                            )}
                           </div>
                         )}
                         {reactionMenuId === m.id && (
@@ -1935,7 +2015,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       </div>
                       </SwipeToReply>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1 px-1">
+                    <div className={`flex items-center gap-1 text-[10px] mt-1 px-1 ${themeStyle.stamp}`}>
                       <span>{formatMessageTime(m.createdAt)}</span>
                       {(m as Message & { editedAt?: string }).editedAt && <span className="text-stone-400">· edited</span>}
                       {isMine && (m.readAt ? <CheckCheck className="w-3 h-3 text-sky-600" aria-label="Read" /> : <Check className="w-3 h-3 text-stone-400" aria-label="Sent" />)}
@@ -1950,15 +2030,25 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               )}
               <div ref={messagesEndRef} />
+            </div>
               {showJumpToLatest && (
                 <button
                   type="button"
-                  onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
-                  className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-rose-900 text-white border border-white/20 shadow-2xl ring-2 ring-black/10 active:scale-95"
+                  onClick={() => {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    setShowJumpToLatest(false);
+                    setNewMessagesWhileAway(0);
+                  }}
+                      className={`absolute bottom-3 right-3 z-[80] flex h-12 w-12 items-center justify-center rounded-full border-2 shadow-2xl active:scale-95 pointer-events-auto ${themeStyle.jump}`}
                   aria-label="Jump to latest messages"
                   title="Jump to latest messages"
                 >
-                  <ArrowDown className="h-5 w-5" strokeWidth={2.5} />
+                  <ArrowDown className="h-6 w-6" strokeWidth={3} />
+                  {newMessagesWhileAway > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-white text-rose-900 text-[10px] font-bold flex items-center justify-center border border-rose-900">
+                      {newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -1998,7 +2088,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </div>
             )}
 
-            <div className="pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0">
+            <div className={`pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0 ${themeStyle.composer}`}>
               {editingMessageId && !isRecording && !recordingPreview && (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
                   <div className="min-w-0">
@@ -2093,7 +2183,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   </div>
                 </div>
               ) : (
-                <div className="flex items-end gap-1.5 bg-white rounded-2xl border border-stone-300 px-2.5 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0">
+                <div className={`flex items-end gap-1.5 rounded-2xl border px-2.5 py-1.5 shadow-xs focus-within:border-rose-800 min-w-0 ${themeStyle.input}`}>
                   <button
                     type="button"
                     onClick={() => void handleStartRecording()}
@@ -2137,7 +2227,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     type="button"
                     onClick={() => void handleSendMessage()}
                     disabled={!inputVal.trim()}
-                    className="w-8 h-8 rounded-full bg-rose-900 hover:bg-rose-950 text-amber-200 flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${themeStyle.send}`}
                     aria-label={editingMessageId ? 'Save edited message' : 'Send message'}
                   >
                     {editingMessageId ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
@@ -2273,12 +2363,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   </div>
                 ) : (
                   blockedUserIds.map((blockedId) => {
+                    const stored = blockedProfiles.find((row) => row.userId === blockedId);
                     const match = Object.values(matchRecords).find(
                       (m) => m.user1Id === blockedId || m.user2Id === blockedId
                     );
                     const profile = match?.otherProfile;
-                    const name = profile?.displayName || 'Blocked user';
-                    const photo = profile?.photos?.[0] || PLACEHOLDER_PHOTO;
+                    const name = stored?.displayName || profile?.displayName || 'Blocked member';
+                    const photo = stored?.photoUrl || profile?.photos?.[0] || PLACEHOLDER_PHOTO;
                     const isUnblocking = unblockingUserId === blockedId;
 
                     return (
@@ -2356,6 +2447,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOptionsModal(false);
+                  setShowThemePicker(true);
+                }}
+                className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left flex items-center gap-3 transition cursor-pointer text-stone-800 font-medium"
+              >
+                <Palette className="w-4 h-4 text-stone-600" />
+                <span>Chat Theme</span>
+              </button>
+
               <div className="space-y-1.5 text-xs">
                 {activeConv.exchangeState === 'unlocked' && activeConv.otherUserContact && (
                   <button
@@ -2420,6 +2523,51 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showThemePicker && activeConv && (
+          <div className="fixed inset-0 z-[76] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-4" onClick={() => setShowThemePicker(false)}>
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3 max-h-[80dvh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif font-bold text-base">Chat Theme</h3>
+                  <p className="text-[11px] text-stone-500 mt-0.5">Only changes how this conversation looks for you.</p>
+                </div>
+                <button type="button" onClick={() => setShowThemePicker(false)} className="w-8 h-8 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center" aria-label="Close themes">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {CHAT_THEME_OPTIONS.map((option) => {
+                  const selected = chatTheme === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => void handleSetChatTheme(option.id)}
+                      className={`w-full flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left ${selected ? 'border-rose-800 bg-rose-50' : 'border-stone-200 hover:bg-stone-50'}`}
+                    >
+                      <span className="flex h-8 w-12 overflow-hidden rounded-lg border border-black/10 shrink-0">
+                        {option.swatch.map((color) => (
+                          <span key={color} className="flex-1" style={{ background: color }} />
+                        ))}
+                      </span>
+                      <span className="flex-1 text-sm font-semibold text-stone-800">{option.label}</span>
+                      {selected && <Check className="w-4 h-4 text-rose-800" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* REPORT MODAL */}
       <AnimatePresence>
         {showReportModal && activeConv && (
@@ -2431,7 +2579,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
             >
               <div>
-                <h3 className="font-serif font-bold text-base">Report {activeConv.otherUser?.displayName}</h3>
+                <h3 className="font-serif font-bold text-base">Report {reportMessageTarget ? 'message' : activeConv.otherUser?.displayName}</h3>
                 <p className="text-xs text-stone-500 mt-1">Tell us what happened. Your report will be reviewed privately.</p>
               </div>
               <textarea
