@@ -9,7 +9,9 @@ import {
 async function init(req, res) {
   const user = await requireUser(req);
   const body = await readBody(req);
-  const product = productById(body.productId);
+  const product = productById(body.productId) || (body.productId === 'matchmaking_both'
+    ? { id: 'matchmaking_both', name: 'Local + Foreign', priceNgn: 60000 }
+    : null);
 
   if (!product) return json(res, 400, { error: 'Unknown product' });
 
