@@ -67,7 +67,7 @@ export function usePWAInstall() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    const timer = window.setTimeout(() => setReady(true), 1200);
+    const timer = window.setTimeout(() => setReady(true), 400);
 
     return () => {
       window.clearTimeout(timer);
