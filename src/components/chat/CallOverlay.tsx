@@ -4,7 +4,7 @@ import { acceptCall, ackRinging, addIce, CallState, cancelCall, declineCall, end
 import { sendMatchMessage } from '../../lib/chat';
 import { fetchProfileSafe } from '../../lib/matches';
 
-const ICE: RTCConfiguration = iceConfig();
+const ICE = iceConfig;
 
 function formatDuration(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -109,7 +109,7 @@ export const CallOverlay: React.FC<{
   }, [connected]);
 
   const attachPc = async (video: boolean) => {
-    const pc = new RTCPeerConnection(ICE);
+    const pc = new RTCPeerConnection(await ICE());
     pcRef.current = pc;
     pc.onconnectionstatechange = () => {
       const ok = pc.connectionState === 'connected';
