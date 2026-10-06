@@ -1,4 +1,4 @@
-import { collection, doc, limit, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 export type AppNotification = {
@@ -12,9 +12,9 @@ export type AppNotification = {
 };
 
 export function listenNotifications(uid: string, onChange: (items: AppNotification[]) => void): () => void {
-  const q = query(collection(db, 'notifications'), where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(30));
+  const q = query(collection(db, 'notifications'), where('userId', '==', uid), limit(30));
   return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => {
+    const items = snap.docs.map((d) => {
       const data = d.data() as Record<string, unknown>;
       return {
         id: d.id,
@@ -24,8 +24,10 @@ export function listenNotifications(uid: string, onChange: (items: AppNotificati
         href: data.href === 'messages' || data.href === 'matches' ? data.href : 'discover',
         read: data.read === true,
         createdAt: String(data.createdAt || '')
-      };
-    }));
+      } as AppNotification;
+    });
+    items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    onChange(items);
   }, () => onChange([]));
 }
 
