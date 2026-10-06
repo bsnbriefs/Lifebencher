@@ -340,7 +340,7 @@ export const DiscoverScreen: React.FC = () => {
                       <span>{p.location}</span>
                     </p>
                     {p.voiceIntroPath && (
-                      <p className="text-[11px] text-amber-200 mt-1">🎙️ Voice intro</p>
+                      <p className="text-[11px] text-stone-500 mt-1">{p.location}</p>
                     )}
                   </div>
                 </div>

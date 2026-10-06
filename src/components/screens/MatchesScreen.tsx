@@ -282,12 +282,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                     </p>
                     {currentProfile && req.senderProfile && (
                       <p className="text-[11px] text-stone-500 mt-0.5">
-                        {whyMatchedLines(calculateCompatibility(currentProfile, req.senderProfile)).slice(0, 2).join(' · ')}
-                      </p>
-                    )}
-                    {currentProfile && req.senderProfile && (
-                      <p className="text-[11px] text-stone-500 mt-0.5">
-                        {whyMatchedLines(calculateCompatibility(currentProfile, req.senderProfile)).slice(0, 2).join(' · ')}
+                        {[...new Set(whyMatchedLines(calculateCompatibility(currentProfile, req.senderProfile)))].slice(0, 2).join(' · ')}
                       </p>
                     )}
                   </div>
@@ -306,7 +301,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                     className="flex-1 py-2.5 rounded-xl bg-rose-900 text-amber-100 font-bold text-xs shadow-xs hover:bg-rose-950 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Heart className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                    <span>Accept Match</span>
+                    <span>Accept Connection</span>
                   </button>
                 </div>
               </motion.div>
