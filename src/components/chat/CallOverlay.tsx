@@ -74,7 +74,10 @@ export const CallOverlay: React.FC<{
     streamRef.current = null;
     pcRef.current?.close();
     pcRef.current = null;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
+    }
     if (remoteRef.current) remoteRef.current.srcObject = null;
     if (localRef.current) localRef.current.srcObject = null;
     setConnected(false);
@@ -109,6 +112,10 @@ export const CallOverlay: React.FC<{
   }, [connected]);
 
   const attachPc = async (video: boolean) => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
     const pc = new RTCPeerConnection(await ICE());
     pcRef.current = pc;
     pc.onconnectionstatechange = () => {
@@ -117,20 +124,25 @@ export const CallOverlay: React.FC<{
       if (ok && !connectedAtRef.current) connectedAtRef.current = Date.now();
     };
     pc.ontrack = (ev) => {
-      const stream = ev.streams[0];
-      if (remoteRef.current) remoteRef.current.srcObject = stream;
+      const localIds = new Set(streamRef.current?.getTracks().map((t) => t.id));
+      if (localIds.has(ev.track.id)) return;
+      const remote = new MediaStream([ev.track]);
       if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = stream;
+        remoteAudioRef.current.srcObject = remote;
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.volume = 1;
         void remoteAudioRef.current.play().catch(() => undefined);
       }
     };
     pc.onicecandidate = (ev) => {
       if (ev.candidate) void addIce(matchId, roleRef.current, ev.candidate.toJSON());
     };
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false
+    });
     streamRef.current = stream;
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-    if (localRef.current) localRef.current.srcObject = stream;
     return pc;
   };
 
@@ -147,7 +159,7 @@ export const CallOverlay: React.FC<{
     } catch {
       stopRing();
       stopMedia();
-      setNotice('Microphone permission is required for voice calls.');
+      setNotice('Allow microphone access to make voice calls.');
     }
   };
 
@@ -166,7 +178,7 @@ export const CallOverlay: React.FC<{
     } catch {
       stopRing();
       stopMedia();
-      setNotice('Unable to connect. Please try again.');
+      setNotice('Connection failed');
     }
   };
 
@@ -227,8 +239,7 @@ export const CallOverlay: React.FC<{
           <Phone className="w-4 h-4" />
         </button>
       </div>
-      <audio ref={remoteAudioRef} autoPlay />
-      {notice && <p className="sr-only">{notice}</p>}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
       {notice && (
         <div className="fixed inset-0 z-[90] bg-[#2a1218]/90 text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
           <p className="text-sm text-center">{notice}</p>
