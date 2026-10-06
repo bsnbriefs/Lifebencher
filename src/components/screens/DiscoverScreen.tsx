@@ -53,6 +53,7 @@ export const DiscoverScreen: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const approvedRef = useRef<Profile[]>([]);
 
   useEffect(() => {
