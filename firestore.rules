@@ -468,18 +468,7 @@ service cloud.firestore {
         );
       }
 
-      allow create: if isAdmin()
-        ||
-        (
-          isSignedIn()
-          && isValidId(matchId)
-          && isValidMatch(incoming())
-          && (
-            request.auth.uid == incoming().user1Id
-            || request.auth.uid == incoming().user2Id
-          )
-          && pairRequestMatched()
-        );
+      allow create: if isAdmin();
 
       allow update: if isSignedIn()
         && isValidId(matchId)
