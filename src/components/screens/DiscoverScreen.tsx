@@ -115,7 +115,7 @@ export const DiscoverScreen: React.FC = () => {
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
       if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
-      if (approvedIds.includes(p.id) || approvedIds.includes(p.userId)) return true;
+      if (approvedIds.includes(p.id) || approvedIds.includes(p.userId) || p.isVerified || p.isVisible) return true;
       // Keyword search in name or profession
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
