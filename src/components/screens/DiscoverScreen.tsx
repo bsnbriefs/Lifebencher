@@ -19,7 +19,7 @@ import { calculateCompatibility, CompatibilityResult } from '../../lib/compatibi
 import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
-import { listenVisibleProfiles } from '../../lib/matches';
+import { listenUserMatches, listenVisibleProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
@@ -52,7 +52,8 @@ export const DiscoverScreen: React.FC = () => {
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
-  const [blockedIds, setBlockedIds] = useState<string[]>([]);
+  const [approvedIds, setApprovedIds] = useState<string[]>([]);
+  const approvedRef = useRef<Profile[]>([]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -61,8 +62,24 @@ export const DiscoverScreen: React.FC = () => {
       return;
     }
     setIsLoadingProfiles(true);
+    const unsubMatches = listenUserMatches(user.id, (matches) => {
+      const partners = matches
+        .filter((m) => m.status !== 'ended' && m.otherProfile)
+        .map((m) => m.otherProfile as Profile);
+      setApprovedIds(partners.map((p) => p.id));
+      approvedRef.current = partners;
+      setProfiles((current) => {
+        const seen = new Set(partners.map((p) => p.id));
+        return [...partners, ...current.filter((p) => !seen.has(p.id))];
+      });
+      setIsLoadingProfiles(false);
+    });
     const unsubProfiles = listenVisibleProfiles(user.id, (list) => {
-      setProfiles(list);
+      setProfiles((current) => {
+        const approved = approvedRef.current;
+        const seen = new Set(approved.map((p) => p.id));
+        return [...approved, ...list.filter((p) => !seen.has(p.id))];
+      });
       setIsLoadingProfiles(false);
     });
     const unsubEnt = listenEntitlements(user.id, setEntitlements);
@@ -76,6 +93,7 @@ export const DiscoverScreen: React.FC = () => {
     });
     return () => {
       unsubProfiles();
+      unsubMatches();
       unsubOutgoing();
       unsubEnt();
       unsubBlocks();
@@ -95,6 +113,8 @@ export const DiscoverScreen: React.FC = () => {
   // Filtered profiles
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
+      if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
+      if (approvedIds.includes(p.id) || approvedIds.includes(p.userId)) return true;
       // Keyword search in name or profession
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
@@ -140,7 +160,7 @@ export const DiscoverScreen: React.FC = () => {
       if (myType && myType !== 'both' && theirType && theirType !== 'both' && theirType !== myType) return false;
       return true;
     });
-  }, [profiles, filters, blockedIds, entitlements]);
+  }, [profiles, filters, blockedIds, entitlements, approvedIds]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
