@@ -118,18 +118,29 @@ export function listenVisibleProfiles(
   currentUid: string,
   onChange: (profiles: Profile[]) => void
 ): () => void {
-  const q = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(200));
-  return onSnapshot(
-    q,
-    (snap) => {
-      onChange(
-        snap.docs
-          .map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>))
-          .filter((p) => p.id !== currentUid && p.userId !== currentUid && p.isAdminProfile !== true)
-      );
-    },
-    (error) => handleFirestoreError(error, OperationType.LIST, '/profiles')
-  );
+  const visibleQ = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(200));
+  const verifiedQ = query(collection(db, 'profiles'), where('isVerified', '==', true), limit(200));
+  let visible: Profile[] = [];
+  let verified: Profile[] = [];
+  const publish = () => {
+    const merged = new Map<string, Profile>();
+    [...visible, ...verified].forEach((p) => {
+      if (p.id !== currentUid && p.userId !== currentUid && p.isAdminProfile !== true) merged.set(p.id, p);
+    });
+    onChange(Array.from(merged.values()));
+  };
+  const unsubVisible = onSnapshot(visibleQ, (snap) => {
+    visible = snap.docs.map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>));
+    publish();
+  }, (error) => handleFirestoreError(error, OperationType.LIST, '/profiles'));
+  const unsubVerified = onSnapshot(verifiedQ, (snap) => {
+    verified = snap.docs.map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>));
+    publish();
+  }, (error) => handleFirestoreError(error, OperationType.LIST, '/profiles'));
+  return () => {
+    unsubVisible();
+    unsubVerified();
+  };
 }
 export function listenUserMatches(
   uid: string,
