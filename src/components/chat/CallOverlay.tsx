@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Phone } from 'lucide-react';
 import { acceptCall, ackRinging, addIce, CallState, cancelCall, declineCall, endCall, iceConfig, listenCall, markMissed, startCall } from '../../lib/calls';
 import { sendMatchMessage } from '../../lib/chat';
+import { fetchProfileSafe } from '../../lib/matches';
 
 const ICE: RTCConfiguration = iceConfig();
 
@@ -79,7 +80,26 @@ export const CallOverlay: React.FC<{
     setConnected(false);
   };
 
+  const [photo, setPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchProfileSafe(peerId).then((profile) => {
+      if (!cancelled) setPhoto(profile?.photos?.[0] || null);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [peerId]);
+
   useEffect(() => listenCall(matchId, setCall), [matchId]);
+
+  const portrait = (
+    <div className="flex flex-col items-center px-6 pt-[max(24px,env(safe-area-inset-top))]">
+      <div className="w-28 h-28 rounded-full overflow-hidden bg-stone-700 border border-white/10">
+        {photo ? <img src={photo} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">{peerName.slice(0, 1)}</div>}
+      </div>
+      <p className="mt-4 font-serif text-2xl text-center">{peerName}</p>
+    </div>
+  );
   useEffect(() => {
     if (!connected) return;
     const timer = window.setInterval(() => {
@@ -216,33 +236,35 @@ export const CallOverlay: React.FC<{
         </div>
       )}
       {incoming && (
-        <div className="fixed inset-0 z-[90] bg-[#2a1218] text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
-          <p className="text-xs uppercase tracking-wide">Incoming voice call</p>
-          <p className="font-serif text-xl">{peerName} is calling</p>
-          <div className="flex gap-2">
-            <button type="button" className="px-4 py-2 rounded-full bg-stone-600" onClick={() => { stopRing(); void declineCall(matchId); }}>Decline</button>
-            <button type="button" className="px-4 py-2 rounded-full bg-emerald-700" onClick={() => void accept()}>Answer</button>
+        <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
+          {portrait}
+          <p className="mt-2 text-center text-sm text-white/70">Incoming voice call</p>
+          <div className="mt-auto pb-[max(24px,env(safe-area-inset-bottom))] flex justify-center gap-8">
+            <button type="button" className="w-16 h-16 rounded-full bg-stone-600" onClick={() => { stopRing(); void declineCall(matchId); }} aria-label="Decline">Decline</button>
+            <button type="button" className="w-16 h-16 rounded-full bg-emerald-700" onClick={() => void accept()} aria-label="Answer">Answer</button>
           </div>
         </div>
       )}
       {outgoing && (
-        <div className="fixed inset-0 z-[90] bg-[#2a1218] text-[#f3ece6] flex flex-col items-center justify-center gap-3 p-6">
-          <p className="font-serif text-xl">{call?.status === 'ringing' ? `Ringing ${peerName}…` : `Calling ${peerName}…`}</p>
-          <button type="button" className="px-4 py-2 rounded-full bg-rose-800" onClick={() => { stopRing(); void cancelCall(matchId); }}>Cancel</button>
+        <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
+          {portrait}
+          <p className="mt-2 text-center text-sm text-white/70">{call?.status === 'ringing' ? 'Ringing...' : 'Calling...'}</p>
+          <div className="mt-auto pb-[max(24px,env(safe-area-inset-bottom))] flex justify-center">
+            <button type="button" className="w-16 h-16 rounded-full bg-rose-800" onClick={() => { stopRing(); void cancelCall(matchId); }} aria-label="Cancel">Cancel</button>
+          </div>
         </div>
       )}
       {call?.status === 'accepted' && (call.callerId === myId || call.calleeId === myId) && (
-        <div className="fixed inset-0 z-[90] bg-[#1c1917] text-[#f3ece6] flex flex-col">
-          <div className="flex-1 relative">
-            <p className="absolute top-4 left-4 text-xs">{connected ? `Connected ${formatDuration(elapsed)}` : 'Connecting…'}</p>
-            <p className="m-auto font-serif text-xl">{peerName}</p>
-          </div>
-          <div className="p-3 flex justify-center gap-2">
-            <button type="button" className="px-3 py-2 rounded-full bg-white/10 text-xs" onClick={() => {
+        <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
+          {portrait}
+          <p className="mt-2 text-center text-sm text-white/70">{connected ? 'Voice call' : 'Connecting...'}</p>
+          <p className="mt-1 text-center text-lg tabular-nums">{connected ? formatDuration(elapsed) : ''}</p>
+          <div className="mt-auto pb-[max(24px,env(safe-area-inset-bottom))] flex justify-center gap-8">
+            <button type="button" className="w-16 h-16 rounded-full bg-white/10 text-xs" onClick={() => {
               setMuted((m) => !m);
               streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
-            }}>{muted ? 'Unmute' : 'Mute'}</button>
-            <button type="button" className="px-3 py-2 rounded-full bg-rose-800 text-xs" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }}>End</button>
+            }} aria-label={muted ? 'Unmute' : 'Mute'}>{muted ? 'Unmute' : 'Mute'}</button>
+            <button type="button" className="w-16 h-16 rounded-full bg-rose-800 text-xs" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }} aria-label="End">End</button>
           </div>
         </div>
       )}
