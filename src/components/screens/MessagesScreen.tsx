@@ -606,20 +606,24 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
     setUrl(null);
   };
 
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+
   useEffect(() => {
-    const hide = () => {
-      if (open) {
-        setOpen(false);
-        clearUrl();
-      }
+    if (!open) return;
+    const onPop = () => {
+      setOpen(false);
+      setUrl(null);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
     };
-    document.addEventListener('visibilitychange', hide);
-    window.addEventListener('pagehide', hide);
-    window.addEventListener('blur', hide);
+    window.history.pushState({ viewOnce: true }, '');
+    window.addEventListener('popstate', onPop);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('visibilitychange', hide);
-      window.removeEventListener('pagehide', hide);
-      window.removeEventListener('blur', hide);
+      window.removeEventListener('popstate', onPop);
+      document.body.style.overflow = prev;
     };
   }, [open]);
 
@@ -627,6 +631,7 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
     if (consumed) return;
     setStatus('loading');
     setError(null);
+    setOpen(true);
     try {
       const { auth } = await import('../../lib/firebase');
       const token = await auth.currentUser?.getIdToken();
@@ -638,7 +643,7 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
       const body = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !body.url) {
         setStatus('error');
-        setError(res.status === 410 ? '✓ Photo viewed' : 'Unable to load this photo. Please try again.');
+        setError(res.status === 410 ? 'Photo viewed' : body.error || 'Unable to load this photo. Please try again.');
         return;
       }
       setUrl(body.url);
@@ -667,46 +672,45 @@ const ViewOnceButton: React.FC<{ message: Message; matchId: string; mine: boolea
 
   const close = () => {
     setOpen(false);
-    clearUrl();
+    setUrl(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => void requestOpen()}
+        onClick={(e) => { e.stopPropagation(); void requestOpen(); }}
         disabled={consumed}
-        className="block w-52 max-w-full text-left rounded-2xl overflow-hidden border border-white/20 bg-black/20"
+        className="block text-left"
       >
-        <div className="h-36 w-full bg-stone-900/80 flex flex-col items-center justify-center gap-1 text-white">
-          <span className="text-2xl" aria-hidden="true">📷</span>
-          <span className="text-xs font-semibold">
-            {consumed ? 'Photo viewed' : status === 'loading' ? 'Opening photo…' : 'Tap to view once'}
-          </span>
-          {!consumed && <span className="text-[10px] opacity-80">Disappears after viewing</span>}
-        </div>
+        <span className="inline-flex items-center gap-2 text-xs font-semibold">
+          <span aria-hidden="true">📷</span>
+          {consumed ? 'Photo viewed' : status === 'loading' ? 'Opening photo…' : 'View once photo'}
+        </span>
       </button>
-      {error && !consumed && <p className="text-[10px] mt-1 opacity-80">{error}</p>}
-      {open && url && (
-        <div className="fixed inset-0 z-[80] bg-black/90 flex flex-col items-center justify-center p-4 overflow-hidden">
-          <button type="button" onClick={close} className="absolute top-4 right-4 text-[#f3ece6] text-xs font-semibold">
-            Close
+      {error && !open && <p className="text-[10px] mt-1 opacity-80">{error}</p>}
+      {open && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center" role="dialog" aria-modal="true" aria-label="View once photo">
+          <button type="button" onClick={close} className="absolute top-[max(12px,env(safe-area-inset-top))] left-4 z-20 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center" aria-label="Close photo">
+            <X className="w-6 h-6" />
           </button>
-          <img
-            src={url}
-            alt=""
-            draggable={false}
-            onContextMenu={(e) => e.preventDefault()}
-            onLoad={() => void onLoaded()}
-            onError={() => {
-              setOpen(false);
-              setUrl(null);
-              setStatus('error');
-              setError('Unable to load this photo. Please try again.');
-            }}
-            className="max-w-full max-h-[80dvh] object-contain rounded-xl select-none"
-          />
-        </div>
+          <p className="absolute top-[max(20px,env(safe-area-inset-top))] right-4 text-[11px] text-white/70">View once</p>
+          {!url && <p className="text-white text-sm">{error || 'Opening photo…'}</p>}
+          {url && (
+            <img
+              src={url}
+              alt=""
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              onLoad={() => void onLoaded()}
+              onError={() => { setStatus('error'); setError('Unable to load this photo. Please try again.'); setUrl(null); }}
+              className="max-w-full max-h-[100dvh] w-auto h-auto object-contain"
+            />
+          )}
+        </div>,
+        document.body
       )}
     </>
   );
@@ -1983,12 +1987,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                             {m.replyToId && !currentMessages.some((item) => item.id === m.replyToId) ? 'Message unavailable' : m.replyToPreview}
                           </button>
                         )}
-                        {m.kind === 'image' ? (
+                        {m.kind === 'viewOnce' || m.viewOnce ? (
+                          <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
+                        ) : m.kind === 'image' ? (
                           <ImageMessageBubble message={m} matchId={activeConvId || ''} />
                         ) : m.kind === 'audio' ? (
                           <VoiceMessageBubble message={m} matchId={activeConvId || ''} mine={isMine} />
-                        ) : m.kind === 'viewOnce' || m.viewOnce ? (
-                          <ViewOnceButton message={m} matchId={activeConvId || ''} mine={isMine} />
                         ) : (
                           m.content
                         )}
