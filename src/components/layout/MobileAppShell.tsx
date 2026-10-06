@@ -127,8 +127,9 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
                       onSelectTab(item.href);
                     }}
                   >
-                    <span className="block font-semibold text-stone-900">{item.title}</span>
+                    <span className={`block font-semibold ${item.read ? 'text-stone-500' : 'text-stone-900'}`}>{item.title}</span>
                     <span className="block text-stone-500">{item.body}</span>
+                    <span className="block text-[10px] text-stone-400">{item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</span>
                   </button>
                 ))}
               </div>
