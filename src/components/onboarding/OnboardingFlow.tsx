@@ -522,7 +522,28 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
               </div>
             </div>
 
-            <p className="text-center text-[11px] text-stone-500">Email and password is the sign-in method. Google stays off until it is enabled in Firebase Authentication.</p>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                setErrorMessage(null);
+                try {
+                  await loginWithGoogle();
+                  if (onCompleted) onCompleted();
+                  sessionStorage.setItem('lifebencher_onboarding_step', '2');
+                  setAuthMode('register');
+                  setCurrentStep(2);
+                } catch (err) {
+                  setErrorMessage(formatAuthError(err, 'google'));
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="w-full py-3 rounded-2xl border border-stone-300 bg-white text-stone-800 font-semibold text-xs hover:bg-stone-50 transition cursor-pointer"
+            >
+              Continue with Google
+            </button>
 
             <button
               type="button"
