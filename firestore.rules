@@ -280,6 +280,15 @@ service cloud.firestore {
     // USERS
     // ============================================================
 
+    match /notifications/{notificationId} {
+      allow get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if isAdmin();
+      allow delete: if false;
+    }
+
     match /users/{userId} {
 
       allow get: if isSignedIn()
