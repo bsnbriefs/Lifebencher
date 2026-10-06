@@ -408,7 +408,7 @@ export const DiscoverScreen: React.FC = () => {
                       ) : (
                         <>
                           <Heart className="w-3.5 h-3.5 fill-white/20" />
-                          <span>Explore Match</span>
+                          <span>Connect</span>
                         </>
                       )}
                     </button>
