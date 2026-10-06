@@ -15,6 +15,17 @@ interface MobileAppShellProps {
   children: React.ReactNode;
 }
 
+function ago(value: string): string {
+  const then = Date.parse(value);
+  if (!Number.isFinite(then)) return '';
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return `${Math.round(hours / 24)} d ago`;
+}
+
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   activeTab,
   onSelectTab,
@@ -129,7 +140,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
                   >
                     <span className={`block font-semibold ${item.read ? 'text-stone-500' : 'text-stone-900'}`}>{item.title}</span>
                     <span className="block text-stone-500">{item.body}</span>
-                    <span className="block text-[10px] text-stone-400">{item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</span>
+                    <span className="block text-[10px] text-stone-400">{ago(item.createdAt)}</span>
                   </button>
                 ))}
               </div>
