@@ -87,17 +87,19 @@ export async function markMissed(matchId: string) {
   }).catch(() => undefined);
 }
 
-export function iceConfig(): RTCConfiguration {
-  const servers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
-  const turnUrl = import.meta.env.VITE_TURN_URL as string | undefined;
-  if (turnUrl) {
-    servers.push({
-      urls: turnUrl,
-      username: import.meta.env.VITE_TURN_USERNAME as string | undefined,
-      credential: import.meta.env.VITE_TURN_CREDENTIAL as string | undefined
-    });
+export async function iceConfig(): Promise<RTCConfiguration> {
+  const fallback: RTCIceServer[] = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ];
+  try {
+    const res = await fetch('/api/calls/ice');
+    const body = await res.json() as { iceServers?: RTCIceServer[] };
+    if (res.ok && body.iceServers?.length) return { iceServers: body.iceServers };
+  } catch {
+    /* same-network calls can still use STUN */
   }
-  return { iceServers: servers };
+  return { iceServers: fallback };
 }
 
 export async function endCall(matchId: string) {
