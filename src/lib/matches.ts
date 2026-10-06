@@ -118,7 +118,7 @@ export function listenVisibleProfiles(
   currentUid: string,
   onChange: (profiles: Profile[]) => void
 ): () => void {
-  const q = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(80));
+  const q = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(200));
   return onSnapshot(
     q,
     (snap) => {
