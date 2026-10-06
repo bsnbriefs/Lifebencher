@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bell, X, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavigationTab } from '../../types';
@@ -6,6 +6,8 @@ import { BottomNav } from './BottomNav';
 import { PWAInstallPrompt } from '../common/PWAInstallPrompt';
 import { AppLogo } from '../common/AppLogo';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+import { AppNotification, listenNotifications, markNotificationRead } from '../../lib/notifications';
 
 interface MobileAppShellProps {
   activeTab: NavigationTab;
@@ -19,7 +21,18 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   children
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [items, setItems] = useState<AppNotification[]>([]);
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  const unread = items.filter((item) => !item.read).length;
+
+  useEffect(() => {
+    if (!user?.id) {
+      setItems([]);
+      return;
+    }
+    return listenNotifications(user.id, setItems);
+  }, [user?.id]);
 
   return (
     <div className="h-[100dvh] max-h-[100dvh] bg-[#FAF8F5] text-stone-900 flex flex-col font-sans selection:bg-rose-100 selection:text-rose-900 overflow-hidden">
@@ -60,6 +73,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
               aria-label="View notifications"
             >
               <Bell className="w-4 h-4 text-stone-700" />
+              {unread > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-800 text-white text-[9px] flex items-center justify-center">{unread > 99 ? '99+' : unread}</span>}
             </button>
           </div>
         </div>
@@ -100,10 +114,23 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
                 </button>
               </div>
 
-              <div className="space-y-2 text-xs">
-                <p className="p-4 text-center text-stone-500">
-                  No activity yet. Matches, expirations, and verification updates will appear here.
-                </p>
+              <div className="space-y-2 text-xs max-h-80 overflow-y-auto">
+                {items.length === 0 && <p className="p-4 text-center text-stone-500">No activity yet. Matches, messages, and verification updates will appear here.</p>}
+                {items.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="w-full text-left p-3 rounded-2xl bg-stone-50 border border-stone-100"
+                    onClick={() => {
+                      void markNotificationRead(item.id);
+                      setShowNotifications(false);
+                      onSelectTab(item.href);
+                    }}
+                  >
+                    <span className="block font-semibold text-stone-900">{item.title}</span>
+                    <span className="block text-stone-500">{item.body}</span>
+                  </button>
+                ))}
               </div>
             </motion.div>
           </div>
