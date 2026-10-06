@@ -338,7 +338,7 @@ service cloud.firestore {
         && (
           isAdmin()
           || (
-            resource.data.isVisible == true
+            (resource.data.isVisible == true || resource.data.isVerified == true)
             && resource.data.isAdminProfile != true
           )
           || resource.data.userId == request.auth.uid
@@ -348,7 +348,7 @@ service cloud.firestore {
         && (
           isAdmin()
           || (
-            resource.data.isVisible == true
+            (resource.data.isVisible == true || resource.data.isVerified == true)
             && resource.data.isAdminProfile != true
           )
           || resource.data.userId == request.auth.uid
