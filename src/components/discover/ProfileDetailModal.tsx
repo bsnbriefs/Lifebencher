@@ -12,10 +12,11 @@ import {
   Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Profile } from '../../types';
+import { Profile, RELATIONSHIP_INTENT_OPTIONS, normalizeRelationshipIntent } from '../../types';
 import { CompatibilityResult } from '../../lib/compatibility';
 import { whyMatchedLines } from '../../lib/whyMatched';
 import { CONVERSATION_STARTERS } from '../../data/guides';
+import { VoiceIntroPlayer } from '../profile/VoiceIntroPlayer';
 
 interface ProfileDetailModalProps {
   profile: Profile | null;
@@ -189,6 +190,13 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
               </p>
             </div>
 
+            {profile.voiceIntroPath && (
+              <div className="p-3.5 rounded-2xl bg-[#241c1b] border border-amber-200/25 space-y-2">
+                <span className="font-semibold text-xs text-[#f3ece6] block">🎙️ Voice Introduction</span>
+                <VoiceIntroPlayer path={profile.voiceIntroPath} durationMs={profile.voiceIntroDurationMs} />
+              </div>
+            )}
+
             <div className="p-3.5 rounded-2xl bg-[#241c1b] border border-amber-200/25 flex items-start gap-2.5">
               <Heart className="w-4 h-4 text-amber-200/80 shrink-0 mt-0.5" />
               <div>
@@ -200,6 +208,19 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                 </span>
               </div>
             </div>
+
+            {normalizeRelationshipIntent(profile.relationshipIntent).length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-[#241c1b] border border-amber-200/25 space-y-2">
+                <span className="font-semibold text-xs text-[#f3ece6] block">Relationship Intent</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {RELATIONSHIP_INTENT_OPTIONS.filter((option) => profile.relationshipIntent?.includes(option.id)).map((option) => (
+                    <span key={option.id} className="px-2.5 py-1 rounded-full bg-[#2a2422] border border-white/15 text-[11px] text-[#f3ece6]">
+                      {option.emoji} {option.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="bg-[#241c1b] p-4 rounded-2xl border border-white/10 space-y-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500">
@@ -300,7 +321,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
               ) : (
                 <>
                   <Heart className="w-4 h-4 fill-white/30" />
-                  <span>❤️ Explore Match with {profile.displayName}</span>
+                  <span>Connect with {profile.displayName}</span>
                 </>
               )}
             </button>
