@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { Profile } from '../types';
 import { auth, db } from './firebase';
 import { mapProfileDoc } from './matches';
@@ -59,6 +59,14 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
     ...(matchType ? { matchType } : {})
   });
   if (isVerified && profile.isAdminProfile !== true) {
+    await setDoc(doc(db, 'notifications', `approved-${id}`), {
+      userId: id,
+      title: 'Profile approved',
+      body: 'Your profile is approved. Open Discover to see your matches.',
+      href: 'discover',
+      read: false,
+      createdAt: new Date().toISOString()
+    });
     await grantPendingMatchmakingForUser(id);
   }
 }
