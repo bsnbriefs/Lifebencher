@@ -333,12 +333,19 @@ service cloud.firestore {
 
     match /profiles/{profileId} {
 
+      function matchedWith(profileId) {
+        let left = request.auth.uid < profileId ? request.auth.uid : profileId;
+        let right = request.auth.uid < profileId ? profileId : request.auth.uid;
+        return exists(/databases/$(database)/documents/matches/$('m_' + left + '_' + right));
+      }
+
       allow get: if isSignedIn()
         && isValidId(profileId)
         && (
           isAdmin()
+          || matchedWith(profileId)
           || (
-            (resource.data.isVisible == true || resource.data.isVerified == true)
+            resource.data.isVisible == true
             && resource.data.isAdminProfile != true
           )
           || resource.data.userId == request.auth.uid
@@ -348,7 +355,7 @@ service cloud.firestore {
         && (
           isAdmin()
           || (
-            (resource.data.isVisible == true || resource.data.isVerified == true)
+            resource.data.isVisible == true
             && resource.data.isAdminProfile != true
           )
           || resource.data.userId == request.auth.uid
