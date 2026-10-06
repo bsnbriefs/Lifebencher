@@ -23,6 +23,7 @@ export const CallOverlay: React.FC<{
   const [call, setCall] = useState<CallState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  const [connected, setConnected] = useState(false);
   const connectedAtRef = useRef<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -33,6 +34,7 @@ export const CallOverlay: React.FC<{
   const audioCtxRef = useRef<AudioContext | null>(null);
   const oscRef = useRef<OscillatorNode | null>(null);
   const loggedRef = useRef<string | null>(null);
+  const vibrateRef = useRef<number | null>(null);
   const roleRef = useRef<'caller' | 'callee'>('caller');
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
 
