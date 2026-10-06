@@ -191,32 +191,16 @@ export async function createOrGetMatch(otherUserId: string): Promise<string> {
   }
 
   const allowance = await assertMatchAllowance(uid);
-
-  const now = new Date().toISOString();
-  const payload = {
-    id,
-    user1Id: uid,
-    user2Id: otherUserId,
-    status: 'active',
-    startedAt: now,
-    expiresAt: new Date(Date.now() + DEFAULT_MATCH_DAYS * 86400000).toISOString(),
-    extendedCount: 0
-  };
-  try {
-    await setDoc(ref, payload);
-    try {
-      await recordMatchAllowance(uid, allowance.used, allowance.cap);
-    } catch {
-      /* entitlements are admin-writable; count remains the source of truth */
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.toLowerCase().includes('permission') || message.toLowerCase().includes('insufficient')) {
-      throw new Error('Could not open the 7-day connection. Publish the latest firestore.rules and try again.');
-    }
-    throw new Error(message);
-  }
-  return id;
+  const token = await auth.currentUser?.getIdToken();
+  const res = await fetch('/api/matches/create', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ otherUserId })
+  });
+  const body = await res.json().catch(() => ({})) as { id?: string; error?: string };
+  if (!res.ok || !body.id) throw new Error(body.error || 'Could not open the match.');
+  void allowance;
+  return body.id;
 }
 export async function endMatch(matchId: string, current: Match): Promise<void> {
   try {
