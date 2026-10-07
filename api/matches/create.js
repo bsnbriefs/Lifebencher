@@ -47,6 +47,23 @@ export default async function handler(req, res) {
       matchmakingRemaining: Math.max(0, cap - (ids.size + 1)),
       updatedAt: now
     }, { merge: true });
+    await db.collection('notifications').doc(`match-${id}`).set({
+      userId: otherUserId,
+      title: 'New connection',
+      body: 'Someone is interested in connecting with you.',
+      href: 'matches',
+      read: false,
+      createdAt: now
+    });
+    const { pushToUser } = await import('../../server/_lib/push.js');
+    void pushToUser(otherUserId, {
+      type: 'notification',
+      notificationType: 'new_match',
+      title: 'You have a new connection',
+      body: 'Someone is interested in connecting with you.',
+      url: '/#matches',
+      tag: `lifebencher-match-${id}`
+    }).catch(() => undefined);
     return json(res, 200, { id });
   } catch (err) {
     return json(res, err.status || 500, { error: err.message || 'Could not open match' });
