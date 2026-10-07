@@ -1577,9 +1577,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   };
 
   // Helper for remaining window text
-  const formatRemainingTime = (expiresAtStr: string) => {
+  const formatRemainingTime = (expiresAtStr?: string) => {
+    if (!expiresAtStr) return 'Connection open';
     const diff = new Date(expiresAtStr).getTime() - Date.now();
-    if (diff <= 0) return 'Expired';
+    if (!Number.isFinite(diff) || diff <= 0) return 'Expired';
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'} left to get to know each other ❤️`;
