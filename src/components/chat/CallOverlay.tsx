@@ -139,16 +139,26 @@ export const CallOverlay: React.FC<{
     pc.ontrack = (ev) => {
       const localIds = new Set(streamRef.current?.getTracks().map((t) => t.id));
       if (localIds.has(ev.track.id)) return;
-      if (!remoteStreamRef.current.getTracks().some((t) => t.id === ev.track.id)) remoteStreamRef.current.addTrack(ev.track);
+      const incoming = ev.streams[0];
+      if (incoming) {
+        incoming.getTracks().forEach((track) => {
+          if (!remoteStreamRef.current.getTracks().some((t) => t.id === track.id)) remoteStreamRef.current.addTrack(track);
+        });
+      } else if (!remoteStreamRef.current.getTracks().some((t) => t.id === ev.track.id)) {
+        remoteStreamRef.current.addTrack(ev.track);
+      }
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStreamRef.current;
         remoteAudioRef.current.muted = false;
         void remoteAudioRef.current.play().catch(() => undefined);
       }
-      if (ev.track.kind === 'video') setHasRemoteVideo(true);
-      if (remoteRef.current) {
-        remoteRef.current.srcObject = remoteStreamRef.current;
-        void remoteRef.current.play().catch(() => undefined);
+      if (ev.track.kind === 'video') {
+        ev.track.enabled = true;
+        setHasRemoteVideo(true);
+        if (remoteRef.current) {
+          remoteRef.current.srcObject = remoteStreamRef.current;
+          void remoteRef.current.play().catch(() => undefined);
+        }
       }
     };
     pc.onicecandidate = (ev) => {
@@ -301,8 +311,8 @@ export const CallOverlay: React.FC<{
       )}
       {call?.status === 'accepted' && hasMedia && (call.callerId === myId || call.calleeId === myId) && (
         <div className="fixed inset-0 z-[90] h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-black text-white">
-          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover pointer-events-none" />}
-          {call.type === 'video' && !hasRemoteVideo && <div className="absolute inset-0 flex items-center justify-center pointer-events-none">{portrait}</div>}
+          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline onLoadedData={() => { if ((remoteRef.current?.videoWidth || 0) > 0) setHasRemoteVideo(true); }} className="absolute inset-0 z-0 h-full w-full object-cover pointer-events-none" />}
+          {call.type === 'video' && !hasRemoteVideo && <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">{portrait}</div>}
           {call.type === 'video' && cameraOn && <video ref={localRef} autoPlay muted playsInline className="absolute right-3 z-20 h-36 w-24 rounded-2xl object-cover pointer-events-none" style={{ top: 'max(4.5rem, env(safe-area-inset-top))' }} />}
           <div className="absolute left-4 z-20" style={{ top: 'max(1rem, env(safe-area-inset-top))' }}>
             <p className="font-semibold">{peerName}</p>
@@ -320,26 +330,32 @@ export const CallOverlay: React.FC<{
                 const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
                 const currentId = old?.getSettings().deviceId;
                 try {
-                  const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && d.deviceId);
-                  const other = devices.find((d) => d.deviceId !== currentId) || devices[0];
-                  let nextStream: MediaStream | null = null;
-                  if (other && other.deviceId !== currentId) {
-                    try { nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: other.deviceId } } }); } catch { nextStream = null; }
-                  }
-                  if (!nextStream) {
-                    const next = facing === 'user' ? 'environment' : 'user';
-                    nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: next } } });
-                  }
-                  const nextTrack = nextStream.getVideoTracks()[0];
-                  if (!sender || !nextTrack) throw new Error('no sender');
-                  await sender.replaceTrack(nextTrack);
-                  if (streamRef.current) {
-                    streamRef.current.getVideoTracks().forEach((track) => streamRef.current?.removeTrack(track));
-                    streamRef.current.addTrack(nextTrack);
-                  }
-                  if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
-                  old?.stop();
-                  setFacing(facing === 'user' ? 'environment' : 'user');
+                  const nextFacing = facing === 'user' ? 'environment' : 'user';
+                const openCamera = async () => {
+                  try {
+                    return await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } });
+                  } catch { /* try the other camera device */ }
+                  const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && d.deviceId && d.deviceId !== currentId);
+                  if (!devices[0]) throw new Error('no other camera');
+                  return navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: devices[0].deviceId } } });
+                };
+                let nextStream: MediaStream;
+                try {
+                  nextStream = await openCamera();
+                } catch {
+                  old.enabled = false;
+                  nextStream = await openCamera();
+                }
+                const nextTrack = nextStream.getVideoTracks()[0];
+                if (!sender || !nextTrack) throw new Error('no sender');
+                await sender.replaceTrack(nextTrack);
+                if (streamRef.current) {
+                  streamRef.current.getVideoTracks().forEach((track) => streamRef.current?.removeTrack(track));
+                  streamRef.current.addTrack(nextTrack);
+                }
+                if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
+                old?.stop();
+                setFacing(nextFacing);
                 } catch {
                   setCameraNote('Unable to switch camera');
                 } finally {
