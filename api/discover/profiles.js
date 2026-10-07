@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const snap = await getAdmin().firestore().collection('profiles').limit(200).get();
     const profiles = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((p) => p.id !== user.uid && p.userId !== user.uid && p.isAdminProfile !== true)
+      .filter((p) => p.id !== user.uid && p.userId !== user.uid && p.isAdminProfile !== true && p.accountStatus !== 'removed')
       .filter((p) => p.isVerified === true || p.isVisible === true)
       .map((p) => ({
         id: p.id,
