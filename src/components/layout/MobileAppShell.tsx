@@ -37,7 +37,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   const [items, setItems] = useState<AppNotification[]>([]);
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
+  const [askPush, setAskPush] = useState(false);
   const unread = items.filter((item) => !item.read).length;
+  useEffect(() => {
+    if (!user?.id || !('Notification' in window)) return;
+    if (Notification.permission === 'default' && localStorage.getItem('lb-push-asked') !== '1') setAskPush(true);
+  }, [user?.id]);
   const [incomingMatches, setIncomingMatches] = useState<{ id: string; peerId: string; peerName: string }[]>([]);
 
   useEffect(() => {
@@ -113,7 +118,15 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
       </main>
 
       {/* Persistent Bottom Mobile Navigation Bar */}
-      <BottomNav activeTab={activeTab} onSelectTab={onSelectTab} />
+      {askPush && (
+        <div className="mx-4 mt-2 rounded-2xl border border-stone-200 bg-white p-3 text-xs text-stone-700">
+          <p>Allow notifications so Lifebencher can alert you when someone calls you, even when the app isn't open.</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className="px-3 py-1.5 rounded-full bg-rose-900 text-white" onClick={() => { localStorage.setItem('lb-push-asked', '1'); setAskPush(false); void Notification.requestPermission(); }}>Allow</button>
+            <button type="button" className="px-3 py-1.5 rounded-full border" onClick={() => { localStorage.setItem('lb-push-asked', '1'); setAskPush(false); }}>Not now</button>
+          </div>
+        </div>
+      )}
       {user?.id && incomingMatches.map((m) => (
         <CallOverlay key={m.id} headless matchId={m.id} myId={user.id} peerId={m.peerId} peerName={m.peerName} />
       ))}
