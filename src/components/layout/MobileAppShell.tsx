@@ -127,6 +127,7 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
           </div>
         </div>
       )}
+      <BottomNav activeTab={activeTab} onSelectTab={onSelectTab} />
       {user?.id && incomingMatches.map((m) => (
         <CallOverlay key={m.id} headless matchId={m.id} myId={user.id} peerId={m.peerId} peerName={m.peerName} />
       ))}
