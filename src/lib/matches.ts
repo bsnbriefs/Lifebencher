@@ -115,6 +115,14 @@ export async function fetchProfileSafe(profileId: string): Promise<Profile | und
     return undefined;
   }
 }
+export async function fetchApprovedDiscoverProfiles(): Promise<Profile[]> {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) return [];
+  const res = await fetch('/api/discover/profiles', { headers: { Authorization: `Bearer ${token}` } });
+  const body = (await res.json()) as { profiles?: Record<string, unknown>[] };
+  if (!res.ok) return [];
+  return (body.profiles || []).map((d) => mapProfileDoc(String(d.id), d));
+}
 export function listenVisibleProfiles(
   currentUid: string,
   onChange: (profiles: Profile[]) => void
