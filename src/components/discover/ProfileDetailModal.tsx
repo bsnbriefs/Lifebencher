@@ -190,13 +190,6 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
               </p>
             </div>
 
-            {profile.voiceIntroPath && (
-              <div className="p-3.5 rounded-2xl bg-[#241c1b] border border-amber-200/25 space-y-2">
-                <span className="font-semibold text-xs text-[#f3ece6] block">🎙️ Voice Introduction</span>
-                <VoiceIntroPlayer path={profile.voiceIntroPath} durationMs={profile.voiceIntroDurationMs} />
-              </div>
-            )}
-
             <div className="p-3.5 rounded-2xl bg-[#241c1b] border border-amber-200/25 flex items-start gap-2.5">
               <Heart className="w-4 h-4 text-amber-200/80 shrink-0 mt-0.5" />
               <div>
