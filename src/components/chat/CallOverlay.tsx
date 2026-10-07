@@ -42,6 +42,8 @@ export const CallOverlay: React.FC<{
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const [hasMedia, setHasMedia] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
+  const [cameraNote, setCameraNote] = useState<string | null>(null);
 
   const stopRing = () => {
     try { oscRef.current?.stop(); } catch { /* already stopped */ }
@@ -141,6 +143,7 @@ export const CallOverlay: React.FC<{
         remoteAudioRef.current.muted = false;
         void remoteAudioRef.current.play().catch(() => undefined);
       }
+      if (ev.track.kind === 'video') setHasRemoteVideo(true);
       if (remoteRef.current) {
         remoteRef.current.srcObject = remoteStreamRef.current;
         void remoteRef.current.play().catch(() => undefined);
@@ -295,26 +298,19 @@ export const CallOverlay: React.FC<{
         </div>
       )}
       {call?.status === 'accepted' && hasMedia && (call.callerId === myId || call.calleeId === myId) && (
-        <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col overflow-x-hidden max-w-[100vw]">
-          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black pointer-events-none" />}
-          {call.type === 'video' && cameraOn && <video ref={localRef} autoPlay muted playsInline className="absolute top-[max(4.5rem,env(safe-area-inset-top))] right-3 z-10 w-24 h-32 rounded-2xl object-cover bg-black/40 pointer-events-none" />}
-          <div className="relative z-20 px-4 pt-[max(1rem,env(safe-area-inset-top))] pointer-events-none">
-            <p className="font-serif text-xl">{peerName}</p>
-            <p className="text-sm text-white/70">{connected ? (call.type === 'video' ? 'Video call' : 'Voice call') : 'Connecting...'}</p>
-            <p className="text-lg tabular-nums">{connected ? formatDuration(elapsed) : ''}</p>
+        <div className="fixed inset-0 z-[90] h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-black text-white">
+          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover pointer-events-none" />}
+          {call.type === 'video' && !hasRemoteVideo && <div className="absolute inset-0 flex items-center justify-center pointer-events-none">{portrait}</div>}
+          {call.type === 'video' && cameraOn && <video ref={localRef} autoPlay muted playsInline className="absolute right-3 z-20 h-36 w-24 rounded-2xl object-cover pointer-events-none" style={{ top: 'max(4.5rem, env(safe-area-inset-top))' }} />}
+          <div className="absolute left-4 z-20" style={{ top: 'max(1rem, env(safe-area-inset-top))' }}>
+            <p className="font-semibold">{peerName}</p>
+            <p className="text-sm text-white/80">{hasRemoteVideo || connected ? formatDuration(elapsed) : 'Connecting...'}</p>
           </div>
-          <div className="mt-auto relative z-30 w-full max-w-full box-border px-3 grid grid-cols-4 gap-2" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
-            <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-white/15 text-xs" onClick={() => {
-              setMuted((m) => !m);
-              streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
-            }}>{muted ? 'Unmute' : 'Mute'}</button>
-            {call.type === 'video' ? <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-white/15 text-xs" onClick={() => {
-              const next = !cameraOn;
-              setCameraOn(next);
-              streamRef.current?.getAudioTracks();
-              streamRef.current?.getVideoTracks().forEach((t) => { t.enabled = next; });
-            }}>{cameraOn ? 'Camera' : 'Cam off'}</button> : <span />}
-            {call.type === 'video' ? <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-white/15 text-xs" onClick={() => {
+          {cameraNote && <p className="absolute inset-x-0 z-20 text-center text-xs" style={{ bottom: 'calc(6.5rem + env(safe-area-inset-bottom))' }}>{cameraNote}</p>}
+          <div className="absolute inset-x-0 z-30 grid grid-cols-4 px-3" style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+            <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" onClick={() => { setMuted((m) => !m); streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; }); }}>{muted ? 'Unmute' : 'Mute'}</button>
+            {call.type === 'video' ? <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" onClick={() => { const next = !cameraOn; setCameraOn(next); streamRef.current?.getVideoTracks().forEach((t) => { t.enabled = next; }); }}>{cameraOn ? 'Camera' : 'Off'}</button> : <span />}
+            {call.type === 'video' ? <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" onClick={() => {
               const track = streamRef.current?.getVideoTracks()[0];
               const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
               const mode = track?.getSettings().facingMode === 'environment' ? 'user' : 'environment';
@@ -327,9 +323,9 @@ export const CallOverlay: React.FC<{
                   streamRef.current.addTrack(nextTrack);
                 }
                 if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
-              }).catch(() => setNotice('This phone cannot switch cameras.'));
+              }).catch(() => setCameraNote('Camera stays on this side.'));
             }}>Flip</button> : <span />}
-            <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-rose-800 text-xs" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }}>End</button>
+            <button type="button" className="mx-auto h-14 w-14 rounded-full bg-rose-700 text-[11px]" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }}>End</button>
           </div>
         </div>
       )}
