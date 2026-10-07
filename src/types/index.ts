@@ -30,6 +30,8 @@ export interface Profile {
   values: string[];
   relationshipGoal: string;
   relationshipIntent?: string[];
+  voiceIntroPath?: string;
+  voiceIntroDurationMs?: number;
   lifestyle: {
     faith?: string;
     smoking?: 'no' | 'occasionally' | 'yes';
@@ -43,6 +45,7 @@ export interface Profile {
   compatibilityReason?: string;
   createdAt: string;
   updatedAt: string;
+  lastActiveAt?: string;
 }
 
 export const RELATIONSHIP_INTENT_OPTIONS = [
