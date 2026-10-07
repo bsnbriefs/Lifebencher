@@ -372,40 +372,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
             <span className="font-semibold text-stone-900">Education:</span>
             <span className="text-stone-700">{currentProfile.education?.trim() || 'Add your education'}</span>
           </div>
-          <div className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2 dark:border-stone-600 dark:bg-stone-800">
-            <p className="font-semibold text-stone-900 dark:text-stone-50">🎙️ Voice Introduction</p>
-            <p className="text-[10px] text-stone-600 dark:text-stone-300">Let potential matches hear a little about you. 30 seconds maximum. Nothing plays until you tap Play.</p>
-            {currentProfile.voiceIntroPath ? (
-              <VoiceIntroPlayer path={currentProfile.voiceIntroPath} durationMs={currentProfile.voiceIntroDurationMs} />
-            ) : (
-              <p className="text-[11px] text-stone-600 dark:text-stone-300">No voice introduction yet.</p>
-            )}
-            {isRecordingIntro ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-rose-900">{formatIntroTime(recordMs)} / 00:30</span>
-                <button type="button" onClick={handleStopIntro} className="px-3 py-2 rounded-full bg-rose-900 text-white text-xs font-semibold">Stop</button>
-              </div>
-            ) : previewUrl ? (
-              <div className="space-y-2">
-                <audio src={previewUrl} controls className="w-full" />
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => void handleSaveIntro()} disabled={voiceBusy} className="flex-1 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold disabled:opacity-50">{voiceBusy ? 'Saving…' : 'Save'}</button>
-                  <button type="button" onClick={handleDiscardPreview} className="px-3 py-2 rounded-full border border-stone-300 text-xs font-semibold">Discard</button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <button type="button" onClick={() => void handleStartIntro()} className="flex-1 py-2.5 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold">Record</button>
-                {currentProfile.voiceIntroPath && (
-                  <>
-                    <button type="button" onClick={() => void handleStartIntro()} className="px-3 py-2 rounded-full border border-stone-300 text-xs font-semibold">Replace</button>
-                    <button type="button" onClick={() => void handleDeleteIntro()} className="px-3 py-2 rounded-full border border-rose-200 text-rose-800 text-xs font-semibold">Delete</button>
-                  </>
-                )}
-              </div>
-            )}
-            {voiceError && <p className="text-[11px] text-rose-800">{voiceError}</p>}
-          </div>
         </div>
       </div>
 

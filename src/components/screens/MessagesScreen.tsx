@@ -134,22 +134,10 @@ const PLACEHOLDER_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
 
 function getSmartIcebreakers(profile?: ConversationWithMeta['otherUser']): string[] {
-  if (!profile) return [
-    'What is something you are genuinely excited about these days?',
-    'What does a really good weekend look like for you?',
-    'What are you hoping to build with the right person?'
-  ];
-  const prompts: string[] = [];
-  const interests = profile.interests || [];
-  const values = profile.values || [];
-  if (interests[0]) prompts.push(`I noticed you are into ${interests[0]}. How did you get into it?`);
-  if (profile.profession) prompts.push(`What do you enjoy most about working in ${profile.profession}?`);
-  if (profile.location) prompts.push(`What is one place in ${profile.location} you would happily recommend?`);
-  if (values[0]) prompts.push(`You listed ${values[0]} as a value. What does that look like in everyday life for you?`);
-  if (profile.relationshipGoal) prompts.push(`What would a healthy ${profile.relationshipGoal.toLowerCase()} look like for you?`);
-  if (profile.lifestyle?.kids) prompts.push(`How do you picture family life around the question of children?`);
-  prompts.push('What is something you are genuinely excited about these days?');
-  return [...new Set(prompts)].slice(0, 3);
+  const prompts = ['Travel & exploration', "What's your dream trip?", 'Tell me something interesting'];
+  if (profile?.interests?.[0]) prompts[0] = profile.interests[0];
+  if (profile?.profession) prompts[1] = `Life in ${profile.profession}`;
+  return prompts.slice(0, 3);
 }
 
 // Keep voice playback exclusive: only one voice note can play at a time.
@@ -1735,24 +1723,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   className="w-9 h-9 rounded-full object-cover shrink-0"
                 />
                 <div className="min-w-0">
-                  <h3 className={`font-serif font-bold text-sm truncate ${themeStyle.title}`}>
+                  <h3 className={`font-serif font-bold text-base truncate ${themeStyle.title}`}>
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <div className={`flex flex-wrap items-center gap-1.5 text-[9px] leading-tight mt-0.5 ${themeStyle.meta}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${otherOnline ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
-                    <span className={otherTyping ? 'text-rose-700 font-semibold' : otherOnline ? 'text-emerald-700' : 'text-stone-500'}>
-                      {otherTyping
-                      ? `${activeConv.otherUser?.displayName || 'Match'} is typing…`
-                      : otherOnline ? 'Active now' : 'Offline'}
-                    </span>
-                    <span className="text-stone-300">•</span>
-                    <span>{formatRemainingTime(activeConv.expiresAt)}</span>
-                    {disappearingMode !== 'off' && (
-                      <span className={`px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap ${themeStyle.badge}`}>
-                        Disappearing {disappearingLabel}
-                      </span>
-                    )}
-                  </div>
+                  <p className={`text-[11px] ${themeStyle.meta}`}>{otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Active recently'}</p>
+                  <p className={`text-[11px] ${themeStyle.meta}`}>{formatRemainingTime(activeConv.expiresAt)}</p>
                 </div>
               </div>
 
@@ -1766,24 +1741,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                     peerName={activeConv.otherUser.displayName || 'Match'}
                   />
                 )}
-                <button
-                  type="button"
-                  onClick={() => { setShowMessageSearch((v) => !v); setShowStarredOnly(false); }}
-                  className={`p-1.5 rounded-full transition cursor-pointer ${showMessageSearch ? 'bg-black/10' : 'hover:bg-black/5'} ${themeStyle.icon}`}
-                  aria-label="Search messages"
-                  title="Search messages"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowStarredOnly((v) => !v); setShowMessageSearch(false); }}
-                  className={`p-1.5 rounded-full transition cursor-pointer ${showStarredOnly ? 'bg-black/10' : 'hover:bg-black/5'} ${themeStyle.icon}`}
-                  aria-label="Show starred messages"
-                  title="Show starred messages"
-                >
-                  <Star className={`w-4 h-4 ${showStarredOnly ? 'fill-amber-400' : ''}`} />
-                </button>
                 <button
                   onClick={() => setShowOptionsModal(true)}
                   className={`p-1.5 rounded-full hover:bg-black/5 transition cursor-pointer ${themeStyle.icon}`}
@@ -2448,6 +2405,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                 </button>
               </div>
 
+              <button
+                type="button"
+                onClick={() => { setShowOptionsModal(false); setShowMessageSearch(true); setShowStarredOnly(false); }}
+                className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left text-sm text-stone-800"
+              >
+                Search messages
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowOptionsModal(false); setShowStarredOnly(true); setShowMessageSearch(false); }}
+                className="w-full p-3 rounded-2xl hover:bg-stone-50 text-left text-sm text-stone-800"
+              >
+                Starred messages
+              </button>
               <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>

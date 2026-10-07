@@ -336,82 +336,25 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                     remaining.isUrgent ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200/90'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3.5">
-                      <img
-                        src={match.otherProfile?.photos[0]}
-                        alt={match.otherProfile?.displayName}
-                        className="w-14 h-14 rounded-2xl object-cover border border-stone-200 shadow-2xs"
-                      />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-serif font-bold text-lg text-stone-900">
-                            {match.otherProfile?.displayName}, {match.otherProfile?.age}
-                          </h3>
-                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        </div>
-                        <p className="text-xs text-stone-600">
-                          {match.otherProfile?.profession}
-                        </p>
-                        <p className="text-[11px] text-stone-400">
-                          {match.otherProfile?.location}
-                        </p>
-                      </div>
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={match.otherProfile?.photos[0]}
+                      alt={match.otherProfile?.displayName}
+                      className="w-14 h-14 rounded-2xl object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-serif font-bold text-lg text-stone-900">{match.otherProfile?.displayName}, {match.otherProfile?.age}</h3>
+                      <p className="text-xs text-stone-600">{match.otherProfile?.profession}</p>
+                      <p className="text-[11px] text-stone-400">{match.otherProfile?.location}</p>
+                      <p className="text-[11px] text-emerald-700 mt-1">Verified</p>
+                      <p className="text-[11px] text-stone-500 mt-1">{remaining.text}</p>
+                      {remaining.reminder && <p className="text-[11px] text-stone-400">Your connection is still waiting for a response.</p>}
                     </div>
-
-                    {/* Expiration badge */}
-                    <div
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 ${
-                        remaining.isUrgent
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                          : 'bg-stone-100 text-stone-700'
-                      }`}
-                    >
-                      {remaining.isUrgent ? (
-                        <Flame className="w-3.5 h-3.5 text-amber-600" />
-                      ) : (
-                        <Clock className="w-3.5 h-3.5 text-stone-500" />
-                      )}
-                      <span>{remaining.text}</span>
-                    </div>
-                    {remaining.reminder && (
-                      <p className="text-[11px] text-stone-500">Your connection is still waiting for a response.</p>
-                    )}
                   </div>
-
-                  {/* Extension notice if already extended */}
-                  {match.extendedCount > 0 && (
-                    <div className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      <span>Connection extended ({match.extendedCount}x)</span>
-                    </div>
-                  )}
-
-                  {/* Match Action Bar */}
-                  <div className="pt-2 flex items-center gap-2 border-t border-stone-100">
-                    <button
-                      onClick={() => onOpenChat(match.id)}
-                      className="flex-1 py-2.5 rounded-2xl bg-rose-900 hover:bg-rose-950 text-amber-100 text-xs font-bold transition active:scale-98 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5 text-amber-300" />
-                      <span>Open Chat</span>
-                    </button>
-
-                    <button
-                      onClick={() => setShowExtendSheet(match)}
-                      className="py-2.5 px-3.5 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-semibold transition active:scale-98 flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Extend</span>
-                      <ChevronRight className="w-3 h-3 text-amber-700" />
-                    </button>
-
-                    <button
-                      onClick={() => setUnmatchTarget(match)}
-                      className="p-2.5 rounded-2xl hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition cursor-pointer"
-                      title="End match"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onOpenChat(match.id)} className="flex-1 py-2.5 rounded-2xl bg-rose-900 text-amber-100 text-xs font-bold">Open Chat</button>
+                    <button onClick={() => setShowExtendSheet(match)} className="px-3 py-2.5 rounded-2xl border border-stone-200 text-xs text-stone-700">Extend</button>
+                    <button onClick={() => setUnmatchTarget(match)} className="text-[11px] text-stone-400 px-1" title="End match">End</button>
                   </div>
                 </div>
               );
