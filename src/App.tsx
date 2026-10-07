@@ -16,6 +16,8 @@ const AdminDashboard = lazy(() =>
 );
 import { WifiOff } from 'lucide-react';
 import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
+import { db } from './lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { AuthActionPage, firebaseActionFromLocation } from './components/auth/AuthActionPage';
 
 const TABS: NavigationTab[] = ['discover', 'matches', 'messages', 'profile'];
@@ -42,6 +44,15 @@ function AppContent() {
       window.history.pushState({ tab }, '', next);
     }
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const key = `lb-active-${user.id}`;
+    if (sessionStorage.getItem(key) === day) return;
+    sessionStorage.setItem(key, day);
+    void updateDoc(doc(db, 'profiles', user.id), { lastActiveAt: new Date().toISOString() }).catch(() => undefined);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -160,7 +171,11 @@ function AppContent() {
           >
             {activeTab === 'discover' && <DiscoverScreen />}
             {activeTab === 'matches' && <MatchesScreen onOpenChat={handleOpenChat} />}
-            {activeTab === 'messages' && <MessagesScreen initialConversationId={targetChatMatchId} />}
+            {activeTab === 'messages' && (
+              <MessagesErrorBoundary>
+                <MessagesScreen initialConversationId={targetChatMatchId} />
+              </MessagesErrorBoundary>
+            )}
             {activeTab === 'profile' && (
               <ProfileScreen onOpenAdmin={isAdmin ? () => setIsAdminMode(true) : undefined} />
             )}
@@ -169,6 +184,27 @@ function AppContent() {
       </MobileAppShell>
     </div>
   );
+}
+
+class MessagesErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || 'Messages failed to load' };
+  }
+  componentDidCatch(error: Error) {
+    console.error('Messages screen failed', error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-6 text-center space-y-3">
+          <p className="text-sm font-semibold text-stone-800">Something went wrong loading this conversation.</p>
+          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default function App() {
