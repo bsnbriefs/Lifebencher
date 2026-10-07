@@ -315,30 +315,30 @@ export const CallOverlay: React.FC<{
               void (async () => {
                 setFlipping(true);
                 setCameraNote(null);
-                const next = facing === 'user' ? 'environment' : 'user';
-                const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
                 const old = streamRef.current?.getVideoTracks()[0];
+                const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
+                const currentId = old?.getSettings().deviceId;
                 try {
+                  const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && d.deviceId);
+                  const other = devices.find((d) => d.deviceId !== currentId) || devices[0];
                   let nextStream: MediaStream | null = null;
-                  try {
-                    nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: next } } });
-                  } catch { nextStream = null; }
-                  if (!nextStream) {
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videos = devices.filter((d) => d.kind === 'videoinput');
-                    const other = videos.find((d) => d.deviceId && d.deviceId !== old?.getSettings().deviceId);
-                    if (other) nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: other.deviceId } } });
+                  if (other && other.deviceId !== currentId) {
+                    try { nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: other.deviceId } } }); } catch { nextStream = null; }
                   }
-                  const nextTrack = nextStream?.getVideoTracks()[0];
+                  if (!nextStream) {
+                    const next = facing === 'user' ? 'environment' : 'user';
+                    nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: next } } });
+                  }
+                  const nextTrack = nextStream.getVideoTracks()[0];
                   if (!sender || !nextTrack) throw new Error('no sender');
                   await sender.replaceTrack(nextTrack);
-                  old?.stop();
                   if (streamRef.current) {
                     streamRef.current.getVideoTracks().forEach((track) => streamRef.current?.removeTrack(track));
                     streamRef.current.addTrack(nextTrack);
                   }
                   if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
-                  setFacing(next);
+                  old?.stop();
+                  setFacing(facing === 'user' ? 'environment' : 'user');
                 } catch {
                   setCameraNote('Unable to switch camera');
                 } finally {
