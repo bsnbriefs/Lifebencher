@@ -5,7 +5,7 @@ self.addEventListener('push', (event) => {
   let data = { title: 'Incoming call', body: 'Incoming voice call', url: '/#messages' };
   try { data = { ...data, ...(event.data ? event.data.json() : {}) }; } catch { /* keep default */ }
   const title = data.type === 'incoming_call' ? data.title || 'Incoming voice call' : data.title;
-  const body = data.type === 'incoming_call' ? 'Incoming voice call' : data.body;
+  const body = data.type === 'incoming_call' ? (data.callType === 'video' ? 'Incoming video call' : 'Incoming voice call') : data.body;
   event.waitUntil(self.registration.showNotification(title, {
     body,
     tag: data.callId ? `call-${data.callId}` : 'lifebencher',
