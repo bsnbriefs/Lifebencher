@@ -27,6 +27,14 @@ import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/
 const FALLBACK_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
 
+function activityLabel(value?: string): string {
+  if (!value) return '';
+  const then = Date.parse(value);
+  if (!Number.isFinite(then)) return '';
+  if (Date.now() - then > 14 * 24 * 60 * 60 * 1000) return '';
+  return new Date(then).toDateString() === new Date().toDateString() ? 'Active today' : 'Active recently';
+}
+
 const DEFAULT_FILTERS: DiscoverFilters = {
   searchTerm: '',
   minAge: 18,
@@ -339,6 +347,9 @@ export const DiscoverScreen: React.FC = () => {
                       <MapPin className="w-3 h-3 text-amber-300" />
                       <span>{p.location}</span>
                     </p>
+                    {activityLabel(p.lastActiveAt) && (
+                      <p className="text-[11px] text-emerald-200 mt-1">{activityLabel(p.lastActiveAt)}</p>
+                    )}
                     {p.voiceIntroPath && (
                       <p className="text-[11px] text-stone-500 mt-1">{p.location}</p>
                     )}

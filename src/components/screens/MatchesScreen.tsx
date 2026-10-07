@@ -94,7 +94,7 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
   const calculateRemaining = (expiresAtStr: string) => {
     const diff = new Date(expiresAtStr).getTime() - Date.now();
     if (diff <= 0) {
-      return { text: 'Connection Expired', isExpired: true, isUrgent: true };
+      return { text: 'Connection Expired', isExpired: true, isUrgent: true, reminder: false };
     }
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -102,15 +102,17 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
 
     if (days > 0) {
       return {
-        text: `${days}d ${hours}h remaining`,
+        text: `${days} ${days === 1 ? 'day' : 'days'} left to get to know each other ❤️`,
         isExpired: false,
-        isUrgent: days <= 1
+        isUrgent: days <= 2,
+        reminder: diff <= 48 * 60 * 60 * 1000
       };
     }
     return {
-      text: `${hours}h ${minutes}m remaining`,
+      text: `${hours}h ${minutes}m left to get to know each other ❤️`,
       isExpired: false,
-      isUrgent: true
+      isUrgent: true,
+      reminder: true
     };
   };
 
@@ -372,6 +374,9 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
                       )}
                       <span>{remaining.text}</span>
                     </div>
+                    {remaining.reminder && (
+                      <p className="text-[11px] text-stone-500">Your connection is still waiting for a response.</p>
+                    )}
                   </div>
 
                   {/* Extension notice if already extended */}
