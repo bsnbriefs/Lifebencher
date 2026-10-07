@@ -8,6 +8,8 @@ import { AppLogo } from '../common/AppLogo';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { AppNotification, listenNotifications, markNotificationRead } from '../../lib/notifications';
+import { CallOverlay } from '../chat/CallOverlay';
+import { listenUserMatches } from '../../lib/matches';
 
 interface MobileAppShellProps {
   activeTab: NavigationTab;
@@ -36,6 +38,18 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
   const unread = items.filter((item) => !item.read).length;
+  const [incomingMatches, setIncomingMatches] = useState<{ id: string; peerId: string; peerName: string }[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    return listenUserMatches(user.id, (matches) => {
+      setIncomingMatches(matches.filter((m) => m.status !== 'ended').map((m) => ({
+        id: m.id,
+        peerId: m.user1Id === user.id ? m.user2Id : m.user1Id,
+        peerName: m.otherProfile?.displayName || 'Member'
+      })));
+    });
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -100,6 +114,9 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({
 
       {/* Persistent Bottom Mobile Navigation Bar */}
       <BottomNav activeTab={activeTab} onSelectTab={onSelectTab} />
+      {user?.id && incomingMatches.map((m) => (
+        <CallOverlay key={m.id} headless matchId={m.id} myId={user.id} peerId={m.peerId} peerName={m.peerName} />
+      ))}
 
       {/* In-App Notifications Bottom Sheet */}
       <AnimatePresence>
