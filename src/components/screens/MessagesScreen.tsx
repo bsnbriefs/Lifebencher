@@ -57,6 +57,7 @@ type ContactExchangeState = 'none' | 'pending_me' | 'pending_them' | 'unlocked';
 interface ConversationWithMeta extends Conversation {
   expiresAt: string;
   exchangeState: ContactExchangeState;
+  yourTurn?: boolean;
   otherUserContact?: {
     phone: string;
     email: string;
@@ -976,7 +977,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               ? {
                   ...item,
                   lastMessageText: preview.text,
-                  lastMessageAt: formatMessageTime(preview.at)
+                  lastMessageAt: formatMessageTime(preview.at),
+                  yourTurn: preview.senderId !== myId && !preview.text.startsWith('Voice call')
                 }
               : item
           )
@@ -1595,8 +1597,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
     if (diff <= 0) return 'Expired';
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    if (days > 0) return `${days}d ${hours}h left`;
-    return `${hours}h left`;
+    if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'} left to get to know each other ❤️`;
+    return `${hours}h left to get to know each other ❤️`;
   };
 
   return (
@@ -1674,7 +1676,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                       </div>
 
                       <p className="text-xs text-stone-600 truncate mt-0.5">
-                        {c.lastMessageText}
+                        {c.yourTurn ? 'Your turn 💬' : c.lastMessageText}
                       </p>
 
                       <div className="flex items-center gap-2 mt-1">
