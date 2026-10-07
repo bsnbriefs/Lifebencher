@@ -127,8 +127,8 @@ export const DiscoverScreen: React.FC = () => {
       // Keyword search in name or profession
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
-        const matchesName = p.displayName.toLowerCase().includes(query);
-        const matchesProf = p.profession.toLowerCase().includes(query);
+        const matchesName = (p.displayName || '').toLowerCase().includes(query);
+        const matchesProf = (p.profession || '').toLowerCase().includes(query);
         if (!matchesName && !matchesProf) return false;
       }
 
@@ -139,7 +139,7 @@ export const DiscoverScreen: React.FC = () => {
 
       // Location filter
       if (filters.location !== 'All Locations') {
-        if (!p.location.toLowerCase().includes(filters.location.toLowerCase())) {
+        if (!(p.location || '').toLowerCase().includes(filters.location.toLowerCase())) {
           return false;
         }
       }
