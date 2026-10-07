@@ -132,11 +132,13 @@ export const CallOverlay: React.FC<{
       const localIds = new Set(streamRef.current?.getTracks().map((t) => t.id));
       if (localIds.has(ev.track.id)) return;
       const remote = new MediaStream([ev.track]);
-      if (remoteAudioRef.current) {
+      if (remoteAudioRef.current && ev.track.kind === 'audio') {
         remoteAudioRef.current.srcObject = remote;
         remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.volume = 1;
         void remoteAudioRef.current.play().catch(() => undefined);
+      }
+      if (remoteRef.current && ev.track.kind === 'video') {
+        remoteRef.current.srcObject = remote;
       }
     };
     pc.onicecandidate = (ev) => {
@@ -144,27 +146,28 @@ export const CallOverlay: React.FC<{
     };
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: false
+      video: video ? { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 } } : false
     });
     streamRef.current = stream;
+    if (localRef.current) localRef.current.srcObject = stream;
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
     return pc;
   };
 
-  const begin = async () => {
+  const begin = async (video = false) => {
     setNotice(null);
     stopRing();
     try {
       roleRef.current = 'caller';
       startRing(false);
-      const pc = await attachPc(false);
+      const pc = await attachPc(video);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await startCall(matchId, peerId, 'voice', offer);
+      await startCall(matchId, peerId, video ? 'video' : 'voice', offer);
     } catch {
       stopRing();
       stopMedia();
-      setNotice('Allow microphone access to make voice calls.');
+      setNotice(video ? 'Camera and microphone access are required for a video call.' : 'Allow microphone access to make voice calls.');
     }
   };
 
@@ -173,7 +176,7 @@ export const CallOverlay: React.FC<{
     stopRing();
     try {
       roleRef.current = 'callee';
-      const pc = await attachPc(false);
+      const pc = await attachPc(call.type === 'video');
       await pc.setRemoteDescription(call.offer);
       for (const c of pendingIce.current) await pc.addIceCandidate(c).catch(() => undefined);
       pendingIce.current = [];
@@ -222,7 +225,7 @@ export const CallOverlay: React.FC<{
     if (loggedRef.current === logKey || sessionStorage.getItem(logKey) === '1') return;
     loggedRef.current = logKey;
     sessionStorage.setItem(logKey, '1');
-    const label = 'Voice call';
+    const label = call.type === 'video' ? 'Video call' : 'Voice call';
     const outcome = call.status === 'missed' ? 'No answer' : call.status === 'declined' ? 'Declined' : call.status === 'cancelled' ? 'Cancelled' : (connectedAtRef.current ? formatDuration(Date.now() - connectedAtRef.current) : 'Ended');
     void sendMatchMessage(matchId, `${label}\n${outcome}`).catch(() => undefined);
     const timer = window.setTimeout(() => setCall(null), 1200);
@@ -242,9 +245,10 @@ export const CallOverlay: React.FC<{
   return (
     <>
       <div className="flex gap-1">
-        {!headless && <button type="button" className="p-1.5 rounded-full hover:bg-black/5" aria-label="Voice call" title="Voice call" onClick={() => void begin()}>
+        {!headless && <button type="button" className="p-1.5 rounded-full hover:bg-black/5" aria-label="Voice call" title="Voice call" onClick={() => void begin(false)}>
           <Phone className="w-4 h-4" />
         </button>}
+        {!headless && <button type="button" className="p-1.5 rounded-full hover:bg-black/5 text-[10px] font-semibold" aria-label="Video call" title="Video call" onClick={() => void begin(true)}>Video</button>}
       </div>
       <audio ref={remoteAudioRef} autoPlay playsInline />
       {notice && (
@@ -256,7 +260,7 @@ export const CallOverlay: React.FC<{
       {incoming && (
         <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
           {portrait}
-          <p className="mt-2 text-center text-sm text-white/70">Incoming voice call</p>
+          <p className="mt-2 text-center text-sm text-white/70">{call?.type === 'video' ? 'Incoming video call' : 'Incoming voice call'}</p>
           <div className="mt-auto px-6 pt-4 flex justify-center gap-8" style={{ paddingBottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}>
             <button type="button" className="min-w-16 min-h-12 px-4 rounded-full bg-stone-600 text-sm" onClick={() => { stopRing(); void declineCall(matchId); }} aria-label="Decline">Decline</button>
             <button type="button" className="min-w-16 min-h-12 px-4 rounded-full bg-emerald-700 text-sm" onClick={() => void accept()} aria-label="Answer">Answer</button>
@@ -274,14 +278,22 @@ export const CallOverlay: React.FC<{
       )}
       {call?.status === 'accepted' && (call.callerId === myId || call.calleeId === myId) && (
         <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
+          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />}
+          {call.type === 'video' && <video ref={localRef} autoPlay muted playsInline className="absolute top-16 right-4 w-24 h-36 rounded-2xl object-cover bg-black/40" />}
           {portrait}
-          <p className="mt-2 text-center text-sm text-white/70">{connected ? 'Voice call' : 'Connecting...'}</p>
+          <p className="mt-2 text-center text-sm text-white/70">{connected ? (call.type === 'video' ? 'Video call' : 'Voice call') : 'Connecting...'}</p>
           <p className="mt-1 text-center text-lg tabular-nums">{connected ? formatDuration(elapsed) : ''}</p>
           <div className="mt-auto px-6 pt-4 flex justify-center gap-4" style={{ paddingBottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}>
             <button type="button" className="min-w-24 min-h-12 px-4 rounded-full bg-white/10 text-sm" onClick={() => {
               setMuted((m) => !m);
               streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
             }} aria-label={muted ? 'Unmute' : 'Mute'}>{muted ? 'Unmute' : 'Mute'}</button>
+            {call.type === 'video' && <button type="button" className="min-w-24 min-h-12 px-4 rounded-full bg-white/10 text-sm" onClick={() => streamRef.current?.getVideoTracks().forEach((t) => { t.enabled = !t.enabled; })}>Camera</button>}
+            {call.type === 'video' && <button type="button" className="min-w-24 min-h-12 px-4 rounded-full bg-white/10 text-sm" onClick={() => {
+              const track = streamRef.current?.getVideoTracks()[0];
+              const mode = track?.getSettings().facingMode === 'environment' ? 'user' : 'environment';
+              void track?.applyConstraints({ facingMode: mode }).catch(() => setNotice('This phone cannot switch cameras.'));
+            }}>Flip</button>}
             <button type="button" className="min-w-28 min-h-12 px-4 rounded-full bg-rose-800 text-sm" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }} aria-label="End">End call</button>
           </div>
         </div>
