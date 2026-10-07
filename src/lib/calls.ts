@@ -50,7 +50,7 @@ export async function startCall(matchId: string, calleeId: string, type: CallTyp
   void fetch('/api/calls/notify', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ matchId, calleeId })
+    body: JSON.stringify({ matchId, calleeId, callType: type })
   }).catch(() => undefined);
 }
 
