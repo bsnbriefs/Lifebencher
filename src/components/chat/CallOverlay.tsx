@@ -43,7 +43,8 @@ export const CallOverlay: React.FC<{
   const [hasMedia, setHasMedia] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
-  const [cameraNote, setCameraNote] = useState<string | null>(null);
+  const [facing, setFacing] = useState<'user' | 'environment'>('user');
+  const [flipping, setFlipping] = useState(false);
 
   const stopRing = () => {
     try { oscRef.current?.stop(); } catch { /* already stopped */ }
@@ -310,21 +311,41 @@ export const CallOverlay: React.FC<{
           <div className="absolute inset-x-0 z-30 grid grid-cols-4 px-3" style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" onClick={() => { setMuted((m) => !m); streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; }); }}>{muted ? 'Unmute' : 'Mute'}</button>
             {call.type === 'video' ? <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" onClick={() => { const next = !cameraOn; setCameraOn(next); streamRef.current?.getVideoTracks().forEach((t) => { t.enabled = next; }); }}>{cameraOn ? 'Camera' : 'Off'}</button> : <span />}
-            {call.type === 'video' ? <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" onClick={() => {
-              const track = streamRef.current?.getVideoTracks()[0];
-              const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
-              const mode = track?.getSettings().facingMode === 'environment' ? 'user' : 'environment';
-              void navigator.mediaDevices.getUserMedia({ video: { facingMode: mode }, audio: false }).then((next) => {
-                const nextTrack = next.getVideoTracks()[0];
-                void sender?.replaceTrack(nextTrack);
-                track?.stop();
-                if (streamRef.current && nextTrack) {
-                  streamRef.current.getVideoTracks().forEach((old) => streamRef.current?.removeTrack(old));
-                  streamRef.current.addTrack(nextTrack);
+            {call.type === 'video' ? <button type="button" className="mx-auto h-14 w-14 rounded-full bg-white/20 text-[11px]" disabled={flipping} onClick={() => {
+              void (async () => {
+                setFlipping(true);
+                setCameraNote(null);
+                const next = facing === 'user' ? 'environment' : 'user';
+                const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
+                const old = streamRef.current?.getVideoTracks()[0];
+                try {
+                  let nextStream: MediaStream | null = null;
+                  try {
+                    nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: next } } });
+                  } catch { nextStream = null; }
+                  if (!nextStream) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videos = devices.filter((d) => d.kind === 'videoinput');
+                    const other = videos.find((d) => d.deviceId && d.deviceId !== old?.getSettings().deviceId);
+                    if (other) nextStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: other.deviceId } } });
+                  }
+                  const nextTrack = nextStream?.getVideoTracks()[0];
+                  if (!sender || !nextTrack) throw new Error('no sender');
+                  await sender.replaceTrack(nextTrack);
+                  old?.stop();
+                  if (streamRef.current) {
+                    streamRef.current.getVideoTracks().forEach((track) => streamRef.current?.removeTrack(track));
+                    streamRef.current.addTrack(nextTrack);
+                  }
+                  if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
+                  setFacing(next);
+                } catch {
+                  setCameraNote('Unable to switch camera');
+                } finally {
+                  setFlipping(false);
                 }
-                if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
-              }).catch(() => setCameraNote('Camera stays on this side.'));
-            }}>Flip</button> : <span />}
+              })();
+            }}>{flipping ? '...' : 'Flip'}</button> : <span />}
             <button type="button" className="mx-auto h-14 w-14 rounded-full bg-rose-700 text-[11px]" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }}>End</button>
           </div>
         </div>
