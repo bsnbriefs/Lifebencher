@@ -31,6 +31,7 @@ function activityLabel(value?: string): string {
   if (!value) return '';
   const then = Date.parse(value);
   if (!Number.isFinite(then)) return '';
+  if (Date.now() - then < 2 * 60 * 1000) return 'Active now';
   if (Date.now() - then > 14 * 24 * 60 * 60 * 1000) return '';
   return new Date(then).toDateString() === new Date().toDateString() ? 'Active today' : 'Active recently';
 }
@@ -357,7 +358,7 @@ export const DiscoverScreen: React.FC = () => {
                       <span>{p.location}</span>
                     </p>
                     {activityLabel(p.lastActiveAt) && (
-                      <p className="text-[11px] text-emerald-200 mt-1">{activityLabel(p.lastActiveAt)}</p>
+                      <p className={`text-[11px] mt-1 ${activityLabel(p.lastActiveAt) === 'Active now' ? 'text-emerald-300' : 'text-emerald-200'}`}>{activityLabel(p.lastActiveAt) === 'Active now' ? '● Active now' : activityLabel(p.lastActiveAt)}</p>
                     )}
                     {p.voiceIntroPath && (
                       <p className="text-[11px] text-stone-500 mt-1">{p.location}</p>

@@ -1308,10 +1308,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
+    if (e.key === 'Enter') return;
   };
 
   const handleStartRecording = async () => {
@@ -1726,7 +1723,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
                   <h3 className={`font-serif font-bold text-base truncate ${themeStyle.title}`}>
                     {activeConv.otherUser?.displayName}
                   </h3>
-                  <p className={`text-[11px] ${themeStyle.meta}`}>{otherTyping ? 'Typing…' : otherOnline ? 'Active now' : 'Active recently'}</p>
+                  <p className={`text-[11px] ${otherOnline ? 'text-emerald-600' : themeStyle.meta}`}>{otherTyping ? 'Typing…' : otherOnline ? '● Active now' : 'Active recently'}</p>
                   <p className={`text-[11px] ${themeStyle.meta}`}>{formatRemainingTime(activeConv.expiresAt)}</p>
                 </div>
               </div>
