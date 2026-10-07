@@ -143,7 +143,8 @@ service cloud.firestore {
           'values',
           'lifestyle',
           'matchType',
-          'isAdminProfile'
+          'isAdminProfile',
+          'lastActiveAt'
         ])
         && isValidId(data.id)
         && isValidId(data.userId)
@@ -224,6 +225,13 @@ service cloud.firestore {
         && (
           !data.keys().hasAny(['lifestyle'])
           || data.lifestyle is map
+        )
+        && (
+          !data.keys().hasAny(['lastActiveAt'])
+          || (
+            data.lastActiveAt is string
+            && data.lastActiveAt.size() <= 64
+          )
         )
         && (
           !data.keys().hasAny(['photoUrl'])
@@ -415,7 +423,8 @@ service cloud.firestore {
               'photoUrls',
               'interests',
               'values',
-              'lifestyle'
+              'lifestyle',
+              'lastActiveAt'
             ])
           )
         );
