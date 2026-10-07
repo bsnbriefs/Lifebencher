@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   try {
     const user = await requireUser(req);
-    const { matchId, calleeId } = await readBody(req);
+    const { matchId, calleeId, callType } = await readBody(req);
     if (!matchId || !calleeId || calleeId === user.uid) return json(res, 400, { error: 'Invalid call' });
     const db = getAdmin().firestore();
     const match = await db.doc(`matches/${matchId}`).get();
@@ -17,10 +17,11 @@ export default async function handler(req, res) {
     if (data.user1Id !== user.uid && data.user2Id !== user.uid) return json(res, 403, { error: 'Forbidden' });
     const caller = await db.doc(`profiles/${user.uid}`).get();
     const name = caller.data()?.displayName || 'Someone';
+    const kind = callType === 'video' ? 'video' : 'voice';
     await db.collection('notifications').doc(`call-${matchId}`).set({
       userId: calleeId,
       title: `${name} is calling you`,
-      body: 'Incoming voice call',
+      body: `Incoming ${kind} call`,
       href: 'messages',
       callId: matchId,
       read: false,
@@ -34,9 +35,9 @@ export default async function handler(req, res) {
       callId: matchId,
       callerId: user.uid,
       callerName: name,
-      callType: 'voice',
+      callType: kind,
       title: `${name} is calling you`,
-      body: 'Incoming voice call',
+      body: `Incoming ${kind} call`,
       url: `/#messages?callId=${matchId}`
     });
     let sent = 0;
