@@ -56,6 +56,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [profileError, setProfileError] = useState<string | null>(null);
   const [poolFilter, setPoolFilter] = useState<'all' | 'local' | 'international'>('all');
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
+  const [removeReason, setRemoveReason] = useState('');
   const reviewProfile = liveProfiles.find((p) => p.id === reviewId) || null;
 
   useEffect(() => {
@@ -462,6 +464,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <div className="flex gap-2">
                 <button type="button" className="flex-1 py-2 rounded-xl border text-xs" onClick={() => { handleReject(reviewProfile.id); setReviewId(null); }}>Decline</button>
                 <button type="button" className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold" onClick={() => { handleApprove(reviewProfile.id); setReviewId(null); }}>Approve</button>
+              </div>
+              <button type="button" className="w-full py-2 rounded-xl border border-rose-300 text-rose-800 text-xs font-semibold" onClick={() => { setRemoveTarget(reviewProfile); setRemoveReason(''); }}>Remove Account</button>
+            </div>
+          </div>
+        )}
+
+        {removeTarget && (
+          <div className="fixed inset-0 z-[60] bg-black/70 p-4 flex items-end" onClick={() => setRemoveTarget(null)}>
+            <div className="w-full max-w-md mx-auto bg-white rounded-3xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-serif font-bold">Remove Account?</h3>
+              <p className="text-xs text-stone-600">This will permanently disable this user's Lifebencher access. Use only for serious rule violations. Reports stay on file.</p>
+              <textarea value={removeReason} onChange={(e) => setRemoveReason(e.target.value)} placeholder="Reason, for example harassment or a fraudulent profile" className="w-full h-20 rounded-2xl border border-stone-200 p-3 text-xs" />
+              <div className="flex gap-2">
+                <button type="button" className="flex-1 py-2 rounded-xl border text-xs" onClick={() => setRemoveTarget(null)}>Cancel</button>
+                <button type="button" className="flex-1 py-2 rounded-xl bg-rose-800 text-white text-xs font-semibold" onClick={() => {
+                  const token = user?.id;
+                  void (async () => {
+                    const authToken = await import('../../lib/firebase').then((m) => m.auth.currentUser?.getIdToken());
+                    const res = await fetch('/api/admin/remove-account', { method: 'POST', headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: removeTarget.userId || removeTarget.id, reason: removeReason }) });
+                    const body = await res.json().catch(() => ({}));
+                    setNotification(res.ok ? 'Account removed successfully.' : (body.error || 'Could not remove account.'));
+                    setRemoveTarget(null);
+                    setReviewId(null);
+                    setTimeout(() => setNotification(null), 4000);
+                  })();
+                  void token;
+                }}>Remove Account</button>
               </div>
             </div>
           </div>
