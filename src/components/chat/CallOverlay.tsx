@@ -51,23 +51,27 @@ export const CallOverlay: React.FC<{
   };
 
   const startRing = (incoming: boolean) => {
-    if (oscRef.current) return;
+    if (oscRef.current || audioCtxRef.current) return;
     const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = incoming ? 480 : 440;
-    gain.gain.value = 0.03;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
     audioCtxRef.current = ctx;
-    oscRef.current = osc;
-    if (incoming) {
-      vibrateRef.current = window.setInterval(() => {
-        try { navigator.vibrate?.(180); } catch { /* ignore */ }
-      }, 1400);
-    }
+    const burst = () => {
+      if (!audioCtxRef.current) return;
+      const osc = audioCtxRef.current.createOscillator();
+      const gain = audioCtxRef.current.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = incoming ? 480 : 440;
+      gain.gain.value = 0.04;
+      osc.connect(gain);
+      gain.connect(audioCtxRef.current.destination);
+      osc.start();
+      osc.stop(audioCtxRef.current.currentTime + 0.45);
+    };
+    burst();
+    oscRef.current = { stop() {} } as OscillatorNode;
+    vibrateRef.current = window.setInterval(() => {
+      burst();
+      try { navigator.vibrate?.([500, 300, 500, 1000]); } catch { /* ignore */ }
+    }, 1800);
   };
 
   const stopMedia = () => {
@@ -212,10 +216,12 @@ export const CallOverlay: React.FC<{
   useEffect(() => {
     if (!call) return;
     if (['accepted', 'declined', 'cancelled', 'missed', 'ended', 'failed'].includes(call.status)) stopRing();
-    if (call.callerId !== myId) return;
+    if (call.callerId !== myId || !headless) return;
     if (!['declined', 'cancelled', 'missed', 'ended'].includes(call.status)) return;
-    if (loggedRef.current === call.status) return;
-    loggedRef.current = call.status;
+    const logKey = `call-log-${matchId}-${call.status}`;
+    if (loggedRef.current === logKey || sessionStorage.getItem(logKey) === '1') return;
+    loggedRef.current = logKey;
+    sessionStorage.setItem(logKey, '1');
     const label = 'Voice call';
     const outcome = call.status === 'missed' ? 'No answer' : call.status === 'declined' ? 'Declined' : call.status === 'cancelled' ? 'Cancelled' : (connectedAtRef.current ? formatDuration(Date.now() - connectedAtRef.current) : 'Ended');
     void sendMatchMessage(matchId, `${label}\n${outcome}`).catch(() => undefined);
