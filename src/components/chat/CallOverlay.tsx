@@ -45,6 +45,7 @@ export const CallOverlay: React.FC<{
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
   const [flipping, setFlipping] = useState(false);
+  const [cameraNote, setCameraNote] = useState<string | null>(null);
 
   const stopRing = () => {
     try { oscRef.current?.stop(); } catch { /* already stopped */ }
