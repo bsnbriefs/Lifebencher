@@ -331,30 +331,36 @@ export const CallOverlay: React.FC<{
                 const currentId = old?.getSettings().deviceId;
                 try {
                   const nextFacing = facing === 'user' ? 'environment' : 'user';
-                const openCamera = async () => {
+                const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
+                const old = streamRef.current?.getVideoTracks()[0];
+                if (!sender || !old) throw new Error('no sender');
+                const previousFacing = facing;
+                old.stop();
+                const open = async (mode: 'user' | 'environment') => {
                   try {
-                    return await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } });
-                  } catch { /* try the other camera device */ }
-                  const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && d.deviceId && d.deviceId !== currentId);
-                  if (!devices[0]) throw new Error('no other camera');
-                  return navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: devices[0].deviceId } } });
+                    return await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: mode } });
+                  } catch {
+                    const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && d.deviceId);
+                    const target = devices.find((d) => d.deviceId !== old.getSettings().deviceId) || devices[0];
+                    if (!target) throw new Error('no camera');
+                    return navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: target.deviceId } } });
+                  }
                 };
                 let nextStream: MediaStream;
                 try {
-                  nextStream = await openCamera();
+                  nextStream = await open(nextFacing);
                 } catch {
-                  old.enabled = false;
-                  nextStream = await openCamera();
+                  nextStream = await open(previousFacing);
+                  throw new Error('switch failed');
                 }
                 const nextTrack = nextStream.getVideoTracks()[0];
-                if (!sender || !nextTrack) throw new Error('no sender');
+                if (!nextTrack) throw new Error('no track');
                 await sender.replaceTrack(nextTrack);
                 if (streamRef.current) {
                   streamRef.current.getVideoTracks().forEach((track) => streamRef.current?.removeTrack(track));
                   streamRef.current.addTrack(nextTrack);
                 }
-                if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
-                old?.stop();
+                if (localRef.current) localRef.current.srcObject = new MediaStream([nextTrack]);
                 setFacing(nextFacing);
                 } catch {
                   setCameraNote('Unable to switch camera');
