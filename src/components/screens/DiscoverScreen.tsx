@@ -19,7 +19,7 @@ import { calculateCompatibility, CompatibilityResult } from '../../lib/compatibi
 import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
-import { listenUserMatches, listenVisibleProfiles } from '../../lib/matches';
+import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
@@ -91,6 +91,15 @@ export const DiscoverScreen: React.FC = () => {
       });
       setIsLoadingProfiles(false);
     });
+    void fetchApprovedDiscoverProfiles().then((list) => {
+      approvedRef.current = [...approvedRef.current, ...list.filter((p) => !approvedRef.current.some((a) => a.id === p.id))];
+      setApprovedIds(approvedRef.current.map((p) => p.id));
+      setProfiles((current) => {
+        const seen = new Set(approvedRef.current.map((p) => p.id));
+        return [...approvedRef.current, ...current.filter((p) => !seen.has(p.id))];
+      });
+      setIsLoadingProfiles(false);
+    }).catch(() => setIsLoadingProfiles(false));
     const unsubEnt = listenEntitlements(user.id, setEntitlements);
     const unsubBlocks = listenBlockedIds(user.id, setBlockedIds);
     const unsubOutgoing = listenOutgoingInterestIds(user.id, (ids) => {
