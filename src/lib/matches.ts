@@ -98,7 +98,8 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     isAdminProfile: d.isAdminProfile === true,
     matchType: d.matchType === 'local' || d.matchType === 'international' || d.matchType === 'both' ? d.matchType : null,
     createdAt: String(d.createdAt || ''),
-    updatedAt: String(d.updatedAt || '')
+    updatedAt: String(d.updatedAt || ''),
+    lastActiveAt: typeof d.lastActiveAt === 'string' ? d.lastActiveAt : ''
   };
 }
 export async function fetchProfileSafe(profileId: string): Promise<Profile | undefined> {
@@ -132,11 +133,11 @@ export function listenVisibleProfiles(
   const unsubVisible = onSnapshot(visibleQ, (snap) => {
     visible = snap.docs.map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>));
     publish();
-  }, (error) => handleFirestoreError(error, OperationType.LIST, '/profiles'));
+  }, () => publish());
   const unsubVerified = onSnapshot(verifiedQ, (snap) => {
     verified = snap.docs.map((d) => mapProfileDoc(d.id, d.data() as Record<string, unknown>));
     publish();
-  }, (error) => handleFirestoreError(error, OperationType.LIST, '/profiles'));
+  }, () => publish());
   return () => {
     unsubVisible();
     unsubVerified();
