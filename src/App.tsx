@@ -58,8 +58,9 @@ function AppContent() {
     const vapid = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
     if (vapid && 'serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
       void navigator.serviceWorker.ready.then(async (reg) => {
+        const pad = (value: string) => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
         const existing = await reg.pushManager.getSubscription();
-        const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapid });
+        const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pad(vapid) });
         const token = await import('./lib/firebase').then((m) => m.auth.currentUser?.getIdToken());
         await fetch('/api/calls/subscribe', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) });
       }).catch(() => undefined);
