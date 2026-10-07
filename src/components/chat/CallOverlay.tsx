@@ -295,25 +295,26 @@ export const CallOverlay: React.FC<{
         </div>
       )}
       {call?.status === 'accepted' && hasMedia && (call.callerId === myId || call.calleeId === myId) && (
-        <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col overflow-hidden max-w-[100vw]">
-          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black" />}
-          {call.type === 'video' && cameraOn && <video ref={localRef} autoPlay muted playsInline className="absolute top-[max(4.5rem,env(safe-area-inset-top))] right-3 z-10 w-24 h-32 rounded-2xl object-cover bg-black/40" />}
-          <div className="relative z-10 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col overflow-x-hidden max-w-[100vw]">
+          {call.type === 'video' && <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black pointer-events-none" />}
+          {call.type === 'video' && cameraOn && <video ref={localRef} autoPlay muted playsInline className="absolute top-[max(4.5rem,env(safe-area-inset-top))] right-3 z-10 w-24 h-32 rounded-2xl object-cover bg-black/40 pointer-events-none" />}
+          <div className="relative z-20 px-4 pt-[max(1rem,env(safe-area-inset-top))] pointer-events-none">
             <p className="font-serif text-xl">{peerName}</p>
             <p className="text-sm text-white/70">{connected ? (call.type === 'video' ? 'Video call' : 'Voice call') : 'Connecting...'}</p>
             <p className="text-lg tabular-nums">{connected ? formatDuration(elapsed) : ''}</p>
           </div>
-          <div className="mt-auto relative z-10 w-full max-w-full px-3 flex flex-wrap justify-center gap-2" style={{ paddingBottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' }}>
-            <button type="button" className="min-h-11 px-3 rounded-full bg-white/15 text-sm" onClick={() => {
+          <div className="mt-auto relative z-30 w-full max-w-full box-border px-3 grid grid-cols-4 gap-2" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-white/15 text-xs" onClick={() => {
               setMuted((m) => !m);
               streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
             }}>{muted ? 'Unmute' : 'Mute'}</button>
-            {call.type === 'video' && <button type="button" className="min-h-11 px-3 rounded-full bg-white/15 text-sm" onClick={() => {
+            {call.type === 'video' ? <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-white/15 text-xs" onClick={() => {
               const next = !cameraOn;
               setCameraOn(next);
+              streamRef.current?.getAudioTracks();
               streamRef.current?.getVideoTracks().forEach((t) => { t.enabled = next; });
-            }}>{cameraOn ? 'Camera off' : 'Camera on'}</button>}
-            {call.type === 'video' && <button type="button" className="min-h-11 px-3 rounded-full bg-white/15 text-sm" onClick={() => {
+            }}>{cameraOn ? 'Camera' : 'Cam off'}</button> : <span />}
+            {call.type === 'video' ? <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-white/15 text-xs" onClick={() => {
               const track = streamRef.current?.getVideoTracks()[0];
               const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === 'video');
               const mode = track?.getSettings().facingMode === 'environment' ? 'user' : 'environment';
@@ -327,8 +328,8 @@ export const CallOverlay: React.FC<{
                 }
                 if (localRef.current && streamRef.current) localRef.current.srcObject = streamRef.current;
               }).catch(() => setNotice('This phone cannot switch cameras.'));
-            }}>Flip</button>}
-            <button type="button" className="min-h-11 px-4 rounded-full bg-rose-800 text-sm" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }}>End call</button>
+            }}>Flip</button> : <span />}
+            <button type="button" className="min-w-0 w-full min-h-11 px-1 rounded-full bg-rose-800 text-xs" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }}>End</button>
           </div>
         </div>
       )}
