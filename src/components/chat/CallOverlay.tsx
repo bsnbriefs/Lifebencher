@@ -20,7 +20,8 @@ export const CallOverlay: React.FC<{
   myId: string;
   peerId: string;
   peerName: string;
-}> = ({ matchId, myId, peerId, peerName }) => {
+  headless?: boolean;
+}> = ({ matchId, myId, peerId, peerName, headless }) => {
   const [call, setCall] = useState<CallState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
@@ -235,9 +236,9 @@ export const CallOverlay: React.FC<{
   return (
     <>
       <div className="flex gap-1">
-        <button type="button" className="p-1.5 rounded-full hover:bg-black/5" aria-label="Voice call" title="Voice call" onClick={() => void begin()}>
+        {!headless && <button type="button" className="p-1.5 rounded-full hover:bg-black/5" aria-label="Voice call" title="Voice call" onClick={() => void begin()}>
           <Phone className="w-4 h-4" />
-        </button>
+        </button>}
       </div>
       <audio ref={remoteAudioRef} autoPlay playsInline />
       {notice && (
@@ -250,9 +251,9 @@ export const CallOverlay: React.FC<{
         <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
           {portrait}
           <p className="mt-2 text-center text-sm text-white/70">Incoming voice call</p>
-          <div className="mt-auto pb-[max(24px,env(safe-area-inset-bottom))] flex justify-center gap-8">
-            <button type="button" className="w-16 h-16 rounded-full bg-stone-600" onClick={() => { stopRing(); void declineCall(matchId); }} aria-label="Decline">Decline</button>
-            <button type="button" className="w-16 h-16 rounded-full bg-emerald-700" onClick={() => void accept()} aria-label="Answer">Answer</button>
+          <div className="mt-auto px-6 pt-4 flex justify-center gap-8" style={{ paddingBottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <button type="button" className="min-w-16 min-h-12 px-4 rounded-full bg-stone-600 text-sm" onClick={() => { stopRing(); void declineCall(matchId); }} aria-label="Decline">Decline</button>
+            <button type="button" className="min-w-16 min-h-12 px-4 rounded-full bg-emerald-700 text-sm" onClick={() => void accept()} aria-label="Answer">Answer</button>
           </div>
         </div>
       )}
@@ -260,8 +261,8 @@ export const CallOverlay: React.FC<{
         <div className="fixed inset-0 z-[90] bg-[#1c1416] text-[#f3ece6] flex flex-col">
           {portrait}
           <p className="mt-2 text-center text-sm text-white/70">{call?.status === 'ringing' ? 'Ringing...' : 'Calling...'}</p>
-          <div className="mt-auto pb-[max(24px,env(safe-area-inset-bottom))] flex justify-center">
-            <button type="button" className="w-16 h-16 rounded-full bg-rose-800" onClick={() => { stopRing(); void cancelCall(matchId); }} aria-label="Cancel">Cancel</button>
+          <div className="mt-auto px-6 pt-4 flex justify-center" style={{ paddingBottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <button type="button" className="min-w-28 min-h-12 px-4 rounded-full bg-rose-800 text-sm" onClick={() => { stopRing(); void cancelCall(matchId); }} aria-label="Cancel">Cancel</button>
           </div>
         </div>
       )}
@@ -270,12 +271,12 @@ export const CallOverlay: React.FC<{
           {portrait}
           <p className="mt-2 text-center text-sm text-white/70">{connected ? 'Voice call' : 'Connecting...'}</p>
           <p className="mt-1 text-center text-lg tabular-nums">{connected ? formatDuration(elapsed) : ''}</p>
-          <div className="mt-auto pb-[max(24px,env(safe-area-inset-bottom))] flex justify-center gap-8">
-            <button type="button" className="w-16 h-16 rounded-full bg-white/10 text-xs" onClick={() => {
+          <div className="mt-auto px-6 pt-4 flex justify-center gap-4" style={{ paddingBottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <button type="button" className="min-w-24 min-h-12 px-4 rounded-full bg-white/10 text-sm" onClick={() => {
               setMuted((m) => !m);
               streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = muted; });
             }} aria-label={muted ? 'Unmute' : 'Mute'}>{muted ? 'Unmute' : 'Mute'}</button>
-            <button type="button" className="w-16 h-16 rounded-full bg-rose-800 text-xs" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }} aria-label="End">End</button>
+            <button type="button" className="min-w-28 min-h-12 px-4 rounded-full bg-rose-800 text-sm" onClick={() => { stopRing(); stopMedia(); void endCall(matchId); }} aria-label="End">End call</button>
           </div>
         </div>
       )}
