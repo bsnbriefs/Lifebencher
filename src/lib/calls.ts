@@ -46,6 +46,12 @@ export async function startCall(matchId: string, calleeId: string, type: CallTyp
     callerIce: [],
     calleeIce: []
   });
+  const token = await auth.currentUser?.getIdToken();
+  void fetch('/api/calls/notify', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ matchId, calleeId })
+  }).catch(() => undefined);
 }
 
 export async function acceptCall(matchId: string, answer: RTCSessionDescriptionInit) {
