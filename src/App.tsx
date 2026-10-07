@@ -52,6 +52,10 @@ function AppContent() {
     if (sessionStorage.getItem(key) === day) return;
     sessionStorage.setItem(key, day);
     void updateDoc(doc(db, 'profiles', user.id), { lastActiveAt: new Date().toISOString() }).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      void updateDoc(doc(db, 'profiles', user.id), { lastActiveAt: new Date().toISOString() }).catch(() => undefined);
+    }, 120000);
+    return () => window.clearInterval(timer);
   }, [user?.id]);
 
   useEffect(() => {
