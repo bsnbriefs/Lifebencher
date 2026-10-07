@@ -213,6 +213,7 @@ class MessagesErrorBoundary extends React.Component<{ children: React.ReactNode 
       return (
         <div className="p-6 text-center space-y-3">
           <p className="text-sm font-semibold text-stone-800">Something went wrong loading this conversation.</p>
+          <p className="text-xs text-stone-500">{this.state.error}</p>
           <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
         </div>
       );
