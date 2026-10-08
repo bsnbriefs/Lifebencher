@@ -129,45 +129,33 @@ export const DiscoverScreen: React.FC = () => {
     return map;
   }, [currentProfile, preferences, profiles]);
 
+function profileAge(profile: Profile): number | null {
+  const age = Number(profile.age);
+  return Number.isFinite(age) && age > 0 ? age : null;
+}
+
+function matchesLocation(profileLocation: string, filter: string): boolean {
+  const value = profileLocation.trim().toLowerCase();
+  if (filter === 'International') {
+    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
+  }
+  return value.includes(filter.toLowerCase());
+}
+
+function matchesFaith(profileFaith: string, filter: string): boolean {
+  const value = profileFaith.trim().toLowerCase();
+  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
+  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
+  if (filter === 'Other') return value === 'other' || value === 'others';
+  return value === filter.toLowerCase();
+}
+
   // Filtered profiles
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
       if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
-      if (approvedIds.includes(p.id) || approvedIds.includes(p.userId) || p.isVerified || p.isVisible) return true;
-      // Keyword search in name or profession
-      if (filters.searchTerm.trim()) {
-        const query = filters.searchTerm.toLowerCase();
-        const matchesName = (p.displayName || '').toLowerCase().includes(query);
-        const matchesProf = (p.profession || '').toLowerCase().includes(query);
-        if (!matchesName && !matchesProf) return false;
-      }
-
-      // Age range
-      if (p.age < filters.minAge || p.age > filters.maxAge) {
-        return false;
-      }
-
-      // Location filter
-      if (filters.location !== 'All Locations') {
-        if (!(p.location || '').toLowerCase().includes(filters.location.toLowerCase())) {
-          return false;
-        }
-      }
-
-      if (filters.faith !== 'All Faiths') {
-        if (p.lifestyle?.faith?.toLowerCase() !== filters.faith.toLowerCase()) {
-          return false;
-        }
-      }
-
-      if (filters.relationshipIntents?.length) {
-        const theirs = p.relationshipIntent || [];
-        if (!filters.relationshipIntents.some((intent) => theirs.includes(intent))) {
-          return false;
-        }
-      }
-
-      if (blockedIds.includes(p.id) || blockedIds.includes(p.userId)) return false;
+      const eligible = approvedIds.includes(p.id) || approvedIds.includes(p.userId) || p.isVerified || p.isVisible;
+      if (!eligible) return false;
 
       const myType =
         entitlements.matchType === 'local' || entitlements.matchType === 'international' || entitlements.matchType === 'both'
@@ -177,6 +165,30 @@ export const DiscoverScreen: React.FC = () => {
             : null;
       const theirType = p.matchType === 'local' || p.matchType === 'international' || p.matchType === 'both' ? p.matchType : null;
       if (myType && myType !== 'both' && theirType && theirType !== 'both' && theirType !== myType) return false;
+
+      if (filters.searchTerm.trim()) {
+        const query = filters.searchTerm.toLowerCase();
+        const matchesName = (p.displayName || '').toLowerCase().includes(query);
+        const matchesProf = (p.profession || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesProf) return false;
+      }
+
+      const age = profileAge(p);
+      const minAge = Math.min(filters.minAge, filters.maxAge);
+      const maxAge = Math.max(filters.minAge, filters.maxAge);
+      const ageFilterActive = minAge !== DEFAULT_FILTERS.minAge || maxAge !== DEFAULT_FILTERS.maxAge;
+      if (ageFilterActive && (age == null || age < minAge || age > maxAge)) return false;
+      if (!ageFilterActive && age != null && (age < minAge || age > maxAge)) return false;
+
+      if (filters.location !== 'All Locations' && !matchesLocation(p.location || '', filters.location)) return false;
+
+      if (filters.faith !== 'All Faiths' && !matchesFaith(p.lifestyle?.faith || '', filters.faith)) return false;
+
+      if (filters.relationshipIntents?.length) {
+        const theirs = p.relationshipIntent || [];
+        if (!filters.relationshipIntents.some((intent) => theirs.includes(intent))) return false;
+      }
+
       return true;
     });
   }, [profiles, filters, blockedIds, entitlements, approvedIds]);
@@ -185,7 +197,7 @@ export const DiscoverScreen: React.FC = () => {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.searchTerm.trim()) count++;
-    if (filters.minAge > 21 || filters.maxAge < 45) count++;
+    if (filters.minAge !== DEFAULT_FILTERS.minAge || filters.maxAge !== DEFAULT_FILTERS.maxAge) count++;
     if (filters.location !== 'All Locations') count++;
     if (filters.faith !== 'All Faiths') count++;
     if (filters.relationshipIntents?.length) count++;
