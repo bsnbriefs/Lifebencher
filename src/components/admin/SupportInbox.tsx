@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { listenAllProfiles } from '../../lib/admin';
 import { useAuth } from '../../context/AuthContext';
+import { Profile } from '../../types';
 import {
   addSupportMessage,
   adminSetSupportStatus,
@@ -22,6 +24,7 @@ export const SupportInbox: React.FC = () => {
   const [draft, setDraft] = useState('');
   const [clientId, setClientId] = useState('');
 
+  useEffect(() => listenAllProfiles(setClients), []);
   useEffect(() => listenSupportInbox(setRows), []);
   useEffect(() => {
     if (!openId) return;
@@ -45,15 +48,17 @@ export const SupportInbox: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-stone-500">Choose a registered client. This opens their support chat and does not create a match.</p>
-      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client name" className="w-full text-xs px-3 py-2 rounded-xl border border-stone-300" />
-      <div className="max-h-40 overflow-y-auto space-y-1">
-        {clients.filter((c) => !search || c.displayName.toLowerCase().includes(search.toLowerCase())).slice(0, 8).map((c) => (
-          <button key={c.id} type="button" className="w-full text-left text-xs bg-white border border-stone-200 rounded-xl px-3 py-2" onClick={() => void openSupportWithClient(c.userId || c.id, c.displayName).then(setOpenId)}>
-            {c.displayName} · {c.location}
+      <p className="text-sm font-semibold text-stone-900">1. Pick a client</p>
+      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name" className="w-full text-xs px-3 py-2 rounded-xl border border-stone-300 bg-white" />
+      <div className="max-h-48 overflow-y-auto space-y-1">
+        {clients.filter((c) => !search || (c.displayName || '').toLowerCase().includes(search.toLowerCase())).slice(0, 12).map((c) => (
+          <button key={c.id} type="button" className="w-full text-left text-xs bg-white border border-stone-200 rounded-xl px-3 py-2" onClick={() => void openSupportWithClient(c.userId || c.id, c.displayName).then((id) => { setOpenId(id); setFilter('active'); })}>
+            Message {c.displayName || 'Unnamed client'}
           </button>
         ))}
+        {clients.length === 0 && <p className="text-xs text-stone-500">No registered clients loaded yet.</p>}
       </div>
+      {current && <p className="text-sm font-semibold text-stone-900">2. Write to {current.userName || current.userEmail || 'this client'}</p>}
       <div className="flex flex-wrap gap-1">
         {SUPPORT_TEMPLATES.map((text, index) => (
           <button key={text.slice(0, 18)} type="button" className="px-2 py-1 rounded-full border border-stone-200 text-[10px]" onClick={() => setDraft(text)}>{['Profile', 'Photos', 'Onboarding', 'Payment', 'Account'][index]}</button>
@@ -69,7 +74,7 @@ export const SupportInbox: React.FC = () => {
               filter === id ? 'bg-stone-900 text-amber-100 border-stone-900' : 'bg-white text-stone-600 border-stone-200'
             }`}
           >
-            {id}
+            {id === 'waiting' ? 'Needs reply' : id === 'active' ? 'Open' : 'Closed'}
           </button>
         ))}
       </div>
