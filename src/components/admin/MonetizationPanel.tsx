@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   BillingTransaction,
   adminGrantFromTransaction,
+  adminRemoveBillingRecord,
   adminSetTransactionStatus,
   listenAllTransactions
 } from '../../lib/billing';
@@ -22,7 +23,7 @@ const FILTERS = [
 
 export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = ({ onNotice }) => {
   const [rows, setRows] = useState<BillingTransaction[]>([]);
-  const [filter, setFilter] = useState('pending');
+  const [showArchived, setShowArchived] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reviewTx, setReviewTx] = useState<BillingTransaction | null>(null);
@@ -40,12 +41,13 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
   const unique = useMemo(() => {
     const seen = new Set<string>();
     return rows.filter((row) => {
-      const key = row.reference || row.id;
+      if (!showArchived && row.archived) return false;
+      const key = row.id;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [rows]);
+  }, [rows, showArchived]);
   const visible = (filter === 'all' ? unique : filter === 'pending' ? unique.filter((r) => r.status === 'pending') : unique.filter((r) => r.productId === filter)).sort((a, b) => {
     if (a.status === 'pending' && b.status !== 'pending') return -1;
     if (b.status === 'pending' && a.status !== 'pending') return 1;
@@ -54,11 +56,18 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
 
   const totals = useMemo(() => {
     const success = rows.filter((r) => r.status === 'success');
-    const pending = rows.filter((r) => r.status === 'pending');
-    const failed = rows.filter((r) => r.status === 'failed');
-    const revenue = success.reduce((sum, r) => sum + (r.amountNgn || 0), 0);
+    const seen = new Set<string>();
+    const uniqueSuccess = success.filter((r) => {
+      const key = r.reference || r.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const pending = rows.filter((r) => r.status === 'pending' && !r.archived);
+    const failed = rows.filter((r) => r.status === 'failed' && !r.archived);
+    const revenue = uniqueSuccess.reduce((sum, r) => sum + (r.amountNgn || 0), 0);
     const byProduct: Record<string, number> = {};
-    success.forEach((r) => {
+    uniqueSuccess.forEach((r) => {
       byProduct[r.productName] = (byProduct[r.productName] || 0) + r.amountNgn;
     });
     return { success, pending, failed, revenue, byProduct };
@@ -107,6 +116,7 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
           </button>
         ))}
       </div>
+      <button type="button" className="text-[11px] font-semibold text-stone-600" onClick={() => setShowArchived((v) => !v)}>{showArchived ? 'Hide archived' : 'Show archived'}</button>
 
       <p className="text-[11px] text-stone-500">
         Flutterwave checkouts confirm themselves after verification. Use Confirm only for bank or already-paid claims.
@@ -157,7 +167,21 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
               >
                 Mark failed
               </button>
+              <button type="button" className="px-3 py-2 rounded-xl border border-rose-300 text-[11px] font-semibold text-rose-800" onClick={() => {
+                const name = profile?.displayName || 'this customer';
+                const ok = window.confirm(`${tx.status === 'success' ? 'Archive this billing record?' : 'Delete this billing record?'}\n\n${name}\n${tx.productName}\n${formatNgn(tx.amountNgn)}\n${tx.reference}\n${tx.status}\n\nThis does not remove a package already granted.`);
+                if (!ok) return;
+                void adminRemoveBillingRecord(tx).then((result) => onNotice(result === 'archived' ? 'Archived from the active list. Entitlement kept.' : 'Record removed. Entitlement kept.'));
+              }}>Delete</button>
             </div>
+          )}
+          {tx.status !== 'pending' && (
+            <button type="button" className="w-full py-2 rounded-xl border border-rose-300 text-[11px] font-semibold text-rose-800" onClick={() => {
+              const name = profile?.displayName || 'this customer';
+              const ok = window.confirm(`${tx.status === 'success' ? 'Archive this billing record?' : 'Delete this billing record?'}\n\n${name}\n${tx.productName}\n${formatNgn(tx.amountNgn)}\n${tx.reference}\n${tx.status}`);
+              if (!ok) return;
+              void adminRemoveBillingRecord(tx).then((result) => onNotice(result === 'archived' ? 'Archived from the active list. Entitlement kept.' : 'Record removed.'));
+            }}>{tx.status === 'success' ? 'Archive' : 'Delete'}</button>
           )}
         </div>
         );
