@@ -5,6 +5,8 @@ import {
   adminSetSupportStatus,
   listenSupportInbox,
   listenSupportMessages,
+  openSupportWithClient,
+  SUPPORT_TEMPLATES,
   SupportConversation,
   SupportMessage
 } from '../../lib/support';
@@ -16,6 +18,7 @@ export const SupportInbox: React.FC = () => {
   const [openId, setOpenId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<SupportMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [clientId, setClientId] = useState('');
 
   useEffect(() => listenSupportInbox(setRows), []);
   useEffect(() => {
@@ -40,6 +43,15 @@ export const SupportInbox: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <div className="flex gap-2">
+        <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Client account ID" className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-300" />
+        <button type="button" className="px-3 rounded-xl bg-stone-900 text-amber-100 text-xs font-semibold" onClick={() => void openSupportWithClient(clientId.trim()).then(setOpenId)}>Contact</button>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {SUPPORT_TEMPLATES.map((text) => (
+          <button key={text.slice(0, 18)} type="button" className="px-2 py-1 rounded-full border border-stone-200 text-[10px]" onClick={() => setDraft(text)}>Template</button>
+        ))}
+      </div>
       <div className="flex gap-1.5">
         {(['waiting', 'active', 'closed'] as const).map((id) => (
           <button
