@@ -1288,9 +1288,18 @@ service cloud.firestore {
         );
 
       allow create: if isSignedIn()
-        && incoming().userId == request.auth.uid
-        && incoming().status == 'waiting'
-        && incoming().get('assignedAdminId', null) == null;
+        && (
+          (
+            incoming().userId == request.auth.uid
+            && incoming().status == 'waiting'
+            && incoming().get('assignedAdminId', null) == null
+          )
+          || (
+            isAdmin()
+            && incoming().userId is string
+            && incoming().status in ['waiting', 'active']
+          )
+        );
 
       allow update: if isAdmin()
         ||
