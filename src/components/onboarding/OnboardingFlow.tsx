@@ -1043,6 +1043,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       <p className="text-xs text-stone-500 mt-0.5">
                         Add 2–3 recent photos of yourself. Tap one to use it as your profile picture.
                       </p>
+                      <p className="text-[11px] text-stone-600">Photos uploaded: {galleryPhotos.length} of 2. Upload at least 2 photos of yourself to submit your profile.</p>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
