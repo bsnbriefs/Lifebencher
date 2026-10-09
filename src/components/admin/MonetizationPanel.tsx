@@ -23,6 +23,7 @@ const FILTERS = [
 
 export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = ({ onNotice }) => {
   const [rows, setRows] = useState<BillingTransaction[]>([]);
+  const [filter, setFilter] = useState('pending');
   const [showArchived, setShowArchived] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
