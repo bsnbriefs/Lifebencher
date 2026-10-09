@@ -23,6 +23,7 @@ import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const FALLBACK_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
@@ -47,6 +48,9 @@ const DEFAULT_FILTERS: DiscoverFilters = {
 
 export const DiscoverScreen: React.FC = () => {
   const { user, currentProfile, preferences } = useAuth();
+  const installState = usePWAInstall();
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [installNote, setInstallNote] = useState<string | null>(null);
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
@@ -64,6 +68,19 @@ export const DiscoverScreen: React.FC = () => {
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const approvedRef = useRef<Profile[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setShowWelcome(false);
+      return;
+    }
+    setShowWelcome(localStorage.getItem(`lifebencher_welcome_${user.id}`) !== '1');
+  }, [user?.id]);
+
+  const dismissWelcome = () => {
+    if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1');
+    setShowWelcome(false);
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -270,6 +287,41 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
           )}
         </button>
       </div>
+
+      {showWelcome && (
+        <section className="rounded-3xl border border-rose-200 bg-white p-4 text-stone-800">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-serif text-lg font-bold text-rose-950">Welcome to Lifebencher Match ❤️</h2>
+            <button type="button" className="text-stone-400" aria-label="Close welcome" onClick={dismissWelcome}><X className="w-4 h-4" /></button>
+          </div>
+          <p className="mt-1 text-sm">Your next meaningful connection could start here!</p>
+          <p className="mt-2 text-xs text-stone-500">We're excited to have you on board. Here's how to get started:</p>
+          <ul className="mt-3 space-y-2 text-xs">
+            <li><span className="font-semibold">Complete your profile.</span> Make sure your details and photos reflect the real you.</li>
+            <li><span className="font-semibold">Discover your matches.</span> Explore profiles and use filters to find people who match your preferences.</li>
+            <li><span className="font-semibold">Connect and chat.</span> Connect with people you're interested in and start meaningful conversations.</li>
+            <li><span className="font-semibold">Stay connected.</span> Install Lifebencher on your phone for easier access to your matches and important notifications.</li>
+          </ul>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" className="rounded-full bg-rose-900 px-4 py-2 text-xs font-semibold text-amber-100" onClick={() => {
+              if (installState.isInstalled) {
+                setInstallNote('Lifebencher is already installed on this device.');
+                return;
+              }
+              if (installState.isInstallable) {
+                void installState.install().then((ok) => setInstallNote(ok ? 'Lifebencher was added to this device.' : 'Follow the installation prompt in your browser to add Lifebencher to your home screen.'));
+                return;
+              }
+              setInstallNote(installState.isIOS
+                ? 'On iPhone, open Safari, tap Share, then Add to Home Screen.'
+                : 'Follow the installation prompt in your browser to add Lifebencher to your home screen.');
+            }}>Install the app</button>
+            <button type="button" className="rounded-full border border-stone-300 px-4 py-2 text-xs font-semibold" onClick={dismissWelcome}>Explore Discover</button>
+          </div>
+          {installNote && <p className="mt-2 text-[11px] text-stone-500">{installNote}</p>}
+          <p className="mt-3 text-xs text-rose-900">We're glad you're here. ❤️</p>
+        </section>
+      )}
 
       {/* Toast Notification Banner */}
       <AnimatePresence>
