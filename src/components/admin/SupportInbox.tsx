@@ -22,7 +22,8 @@ export const SupportInbox: React.FC = () => {
   const [openId, setOpenId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<SupportMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [clientId, setClientId] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pickedName, setPickedName] = useState('');
 
   useEffect(() => listenAllProfiles(setClients), []);
   useEffect(() => listenSupportInbox(setRows), []);
@@ -52,13 +53,22 @@ export const SupportInbox: React.FC = () => {
       <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name" className="w-full text-xs px-3 py-2 rounded-xl border border-stone-300 bg-white" />
       <div className="max-h-48 overflow-y-auto space-y-1">
         {clients.filter((c) => !search || (c.displayName || '').toLowerCase().includes(search.toLowerCase())).slice(0, 12).map((c) => (
-          <button key={c.id} type="button" className="w-full text-left text-xs bg-white border border-stone-200 rounded-xl px-3 py-2" onClick={() => void openSupportWithClient(c.userId || c.id, c.displayName).then((id) => { setOpenId(id); setFilter('active'); })}>
+          <button key={c.id} type="button" className="w-full text-left text-xs bg-white border border-stone-200 rounded-xl px-3 py-2" onClick={() => {
+            setNotice('Opening chat…');
+            setPickedName(c.displayName || 'this client');
+            void openSupportWithClient(c.userId || c.id, c.displayName).then((id) => {
+              setOpenId(id);
+              setFilter('active');
+              setNotice(null);
+            }).catch((err) => setNotice(err instanceof Error ? err.message : 'Could not open this chat. Publish the updated Firestore rules.'));
+          }}>
             Message {c.displayName || 'Unnamed client'}
           </button>
         ))}
         {clients.length === 0 && <p className="text-xs text-stone-500">No registered clients loaded yet.</p>}
       </div>
-      {current && <p className="text-sm font-semibold text-stone-900">2. Write to {current.userName || current.userEmail || 'this client'}</p>}
+      {notice && <p className="text-xs text-rose-800">{notice}</p>}
+      {(current || openId) && <p className="text-sm font-semibold text-stone-900">2. Write to {current?.userName || pickedName}</p>}
       <div className="flex flex-wrap gap-1">
         {SUPPORT_TEMPLATES.map((text, index) => (
           <button key={text.slice(0, 18)} type="button" className="px-2 py-1 rounded-full border border-stone-200 text-[10px]" onClick={() => setDraft(text)}>{['Profile', 'Photos', 'Onboarding', 'Payment', 'Account'][index]}</button>
@@ -91,13 +101,11 @@ export const SupportInbox: React.FC = () => {
         </button>
       ))}
       {list.length === 0 && <p className="text-xs text-stone-500 text-center py-6">No {filter} conversations.</p>}
-      {current && (
+      {(current || openId) && (
         <div className="bg-white rounded-2xl border border-stone-200 p-3 space-y-2">
           <div className="flex justify-between items-center">
-            <p className="text-xs font-semibold">{current.userEmail}</p>
-            <button type="button" className="text-[11px] font-semibold" onClick={() => void adminSetSupportStatus(current.id, 'closed', current.assignedAdminId)}>
-              Close
-            </button>
+            <p className="text-xs font-semibold">{current?.userName || pickedName}</p>
+            {current && <button type="button" className="text-[11px] font-semibold" onClick={() => void adminSetSupportStatus(current.id, 'closed', current.assignedAdminId)}>Close</button>}
           </div>
           <div className="max-h-48 overflow-y-auto space-y-1">
             {msgs.map((m) => (
@@ -107,11 +115,11 @@ export const SupportInbox: React.FC = () => {
               </p>
             ))}
           </div>
-          {current.status !== 'closed' && (
+          {openId && (
             <div className="flex gap-2">
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-300" />
-              <button type="button" onClick={() => void send()} className="px-3 rounded-xl bg-rose-900 text-amber-100 text-xs font-semibold">
-                Reply
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-300" placeholder="Write a message" />
+              <button type="button" onClick={() => void send().catch((err) => setNotice(err instanceof Error ? err.message : 'Could not send'))} className="px-3 rounded-xl bg-rose-900 text-amber-100 text-xs font-semibold">
+                Send
               </button>
             </div>
           )}
