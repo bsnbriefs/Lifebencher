@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
-import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
+import { listenAllProfiles, profileReadyForReview, setProfileVerified } from '../../lib/admin';
 import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
@@ -72,7 +72,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const queue: VerificationCandidate[] = useMemo(
     () =>
       liveProfiles
-        .filter((p) => !p.isVerified || !p.isVisible)
+        .filter((p) => (!p.isVerified || !p.isVisible) && profileReadyForReview(p))
         .map((p) => ({
           id: p.id,
           displayName: p.displayName,
