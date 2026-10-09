@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -33,6 +34,7 @@ export interface BillingTransaction {
   matchType?: 'local' | 'international' | 'both' | null;
   aiReceiptNote?: string;
   aiReceiptConfidence?: number;
+  archived?: boolean;
 }
 
 export interface Entitlements {
@@ -174,6 +176,16 @@ async function publishProfileIfComplete(uid: string, matchType?: 'local' | 'inte
   } catch {
     /* admin session required to flip visibility */
   }
+}
+
+export async function adminRemoveBillingRecord(tx: BillingTransaction): Promise<'archived' | 'deleted'> {
+  if (!tx.id) throw new Error('Missing billing record');
+  if (tx.status === 'success') {
+    await updateDoc(doc(db, 'transactions', tx.id), { archived: true, updatedAt: new Date().toISOString() });
+    return 'archived';
+  }
+  await deleteDoc(doc(db, 'transactions', tx.id));
+  return 'deleted';
 }
 
 export async function adminSetTransactionStatus(id: string, status: TxStatus): Promise<void> {
