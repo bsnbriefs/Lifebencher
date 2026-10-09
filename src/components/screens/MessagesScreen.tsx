@@ -818,6 +818,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const myId = user?.id || '';
   const [matchRecords, setMatchRecords] = useState<Record<string, Match>>({});
   const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(initialConversationId || null);
   const [supportId, setSupportId] = useState<string | null>(null);
   const [supportMsgs, setSupportMsgs] = useState<SupportMessage[]>([]);
   const [supportDraft, setSupportDraft] = useState('');
