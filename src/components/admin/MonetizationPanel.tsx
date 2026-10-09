@@ -14,7 +14,8 @@ const FILTERS = [
   { id: 'boost_24h', label: 'Boost' },
   { id: 'extra_match', label: 'Extra Match' },
   { id: 'matchmaking_local', label: 'Local' },
-  { id: 'matchmaking_international', label: 'International' }
+  { id: 'matchmaking_international', label: 'International' },
+  { id: 'matchmaking_both', label: 'Local + Foreign — ₦60,000' }
 ];
 
 export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = ({ onNotice }) => {
@@ -30,7 +31,16 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
     []
   );
 
-  const visible = (filter === 'all' ? rows : filter === 'pending' ? rows.filter((r) => r.status === 'pending') : rows.filter((r) => r.productId === filter)).sort((a, b) => {
+  const unique = useMemo(() => {
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+      const key = row.reference || row.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rows]);
+  const visible = (filter === 'all' ? unique : filter === 'pending' ? unique.filter((r) => r.status === 'pending') : unique.filter((r) => r.productId === filter)).sort((a, b) => {
     if (a.status === 'pending' && b.status !== 'pending') return -1;
     if (b.status === 'pending' && a.status !== 'pending') return 1;
     return 0;
@@ -108,12 +118,12 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
         <div key={tx.id} className="bg-white p-3 rounded-2xl border border-stone-200 space-y-2">
           <div className="flex justify-between gap-2 text-xs">
             <div>
-              <p className="font-semibold text-stone-900">{tx.productName}</p>
-              <p className="text-[10px] text-stone-500">{tx.reference}</p>
-              <p className="text-[10px] text-stone-400">{tx.userId.slice(0, 10)}…</p>
+              <p className="font-semibold text-stone-900">{tx.userId ? `Customer ${tx.userId}` : 'Customer identity unavailable — review required'}</p>
+              <p className="text-[11px] text-stone-700">{tx.productName} · {formatNgn(tx.amountNgn)}</p>
+              <p className="text-[10px] text-stone-500">{tx.reference} · {tx.source || 'payment'} · {tx.status}</p>
               {tx.source && <p className="text-[10px] text-stone-400">{tx.source}</p>}
               <p className="text-[10px] uppercase font-semibold text-stone-600">
-                {tx.matchType || (tx.productId === 'matchmaking_local' ? 'local' : tx.productId === 'matchmaking_international' ? 'international' : '')}
+                {tx.matchType || (tx.productId === 'matchmaking_local' ? 'local' : tx.productId === 'matchmaking_international' ? 'international' : tx.productId === 'matchmaking_both' ? 'both' : '')}
               </p>
             </div>
             <div className="text-right">
@@ -137,11 +147,14 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  if (!tx.userId) return onNotice('Customer identity unavailable — review required');
+                  const ok = window.confirm(`Confirm payment?\n\nCustomer: ${tx.userId}\nPackage: ${tx.productName}\nAmount: ${formatNgn(tx.amountNgn)}\nReference: ${tx.reference}`);
+                  if (!ok) return;
                   void adminGrantFromTransaction(tx)
                     .then(() => onNotice(`Confirmed ${tx.productName}`))
-                    .catch((e) => onNotice(e instanceof Error ? e.message : 'Confirm failed'))
-                }
+                    .catch((e) => onNotice(e instanceof Error ? e.message : 'Confirm failed'));
+                }}
                 className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold"
               >
                 Confirm & grant
