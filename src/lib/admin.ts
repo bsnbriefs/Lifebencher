@@ -39,7 +39,21 @@ export function listenAllProfiles(
   );
 }
 
+export function profileReadyForReview(profile: Profile): boolean {
+  const photos = [...new Set((profile.photos || []).filter((url) => url.startsWith('https://')))];
+  return Boolean(
+    profile.displayName?.trim()
+    && profile.location?.trim()
+    && profile.profession?.trim()
+    && (profile.bio || '').trim().length >= 15
+    && photos.length >= 2
+  );
+}
+
 export async function setProfileVerified(profile: Profile, isVerified: boolean): Promise<void> {
+  if (isVerified && !profileReadyForReview(profile)) {
+    throw new Error('This profile is incomplete. A name, location, profession, short bio, and two photos are required before approval.');
+  }
   const id = profile.userId || profile.id;
   let matchType = profile.matchType === 'local' || profile.matchType === 'international' ? profile.matchType : null;
   if (!matchType) {
