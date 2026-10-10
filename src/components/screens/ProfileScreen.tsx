@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ShieldCheck,
   Eye,
@@ -22,9 +22,6 @@ import { RELATIONSHIP_INTENT_OPTIONS, normalizeRelationshipIntent } from '../../
 import { useAuth } from '../../context/AuthContext';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { deleteProfilePhoto, uploadProfilePhoto } from '../../lib/profilePhoto';
-import { pickRecorderMime } from '../../lib/chat';
-import { deleteVoiceIntroFile, uploadVoiceIntro, VOICE_INTRO_MAX_MS } from '../../lib/voiceIntro';
-import { VoiceIntroPlayer } from '../profile/VoiceIntroPlayer';
 import { MembershipPanel } from '../billing/MembershipPanel';
 import { SupportCenter } from '../support/SupportCenter';
 
@@ -63,25 +60,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
   const [prefAgeMin, setPrefAgeMin] = useState(preferences?.ageMin || 24);
   const [prefAgeMax, setPrefAgeMax] = useState(preferences?.ageMax || 35);
   const [prefLocations, setPrefLocations] = useState(preferences?.preferredLocations.join(', ') || 'Lagos, Abuja');
-  const [voiceBusy, setVoiceBusy] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [isRecordingIntro, setIsRecordingIntro] = useState(false);
-  const [recordMs, setRecordMs] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
-  const [previewMs, setPreviewMs] = useState(0);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const timerRef = useRef<number | null>(null);
-  const startedAtRef = useRef(0);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      recorderRef.current?.stream.getTracks().forEach((t) => t.stop());
-    };
-  }, [previewUrl]);
 
   if (!currentProfile) {
     return (
@@ -114,94 +92,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
       preferredLocations: prefLocations.split(',').map((s) => s.trim()).filter(Boolean)
     });
     setIsPrefsOpen(false);
-  };
-
-  const formatIntroTime = (ms: number) => {
-    const total = Math.max(0, Math.round(ms / 1000));
-    return `00:${String(Math.min(30, total)).padStart(2, '0')}`;
-  };
-
-  const stopIntroTimer = () => {
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const handleStopIntro = () => {
-    recorderRef.current?.stop();
-  };
-
-  const handleStartIntro = async () => {
-    setVoiceError(null);
-    if (typeof MediaRecorder === 'undefined') {
-      setVoiceError('Voice recording is not available in this browser.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = pickRecorderMime();
-      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorderRef.current = recorder;
-      startedAtRef.current = Date.now();
-      setRecordMs(0);
-      setIsRecordingIntro(true);
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        stopIntroTimer();
-        setIsRecordingIntro(false);
-        const duration = Math.min(VOICE_INTRO_MAX_MS, Date.now() - startedAtRef.current);
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewBlob(blob);
-        setPreviewMs(duration);
-        setPreviewUrl(URL.createObjectURL(blob));
-        recorderRef.current = null;
-      };
-      recorder.start();
-      timerRef.current = window.setInterval(() => {
-        const elapsed = Date.now() - startedAtRef.current;
-        setRecordMs(Math.min(VOICE_INTRO_MAX_MS, elapsed));
-        if (elapsed >= VOICE_INTRO_MAX_MS) handleStopIntro();
-      }, 200);
-    } catch {
-      setVoiceError('Microphone permission is needed to record a voice introduction.');
-    }
-  };
-
-  const handleDiscardPreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setPreviewBlob(null);
-    setPreviewMs(0);
-  };
-
-  const handleSaveIntro = async () => {
-    if (!previewBlob) return;
-    setVoiceBusy(true);
-    setVoiceError(null);
-    const previous = currentProfile.voiceIntroPath;
-    try {
-      const saved = await uploadVoiceIntro(previewBlob, previewMs);
-      updateProfile({ voiceIntroPath: saved.path, voiceIntroDurationMs: saved.durationMs });
-      if (previous && previous !== saved.path) await deleteVoiceIntroFile(previous);
-      handleDiscardPreview();
-    } catch (err) {
-      setVoiceError(err instanceof Error ? err.message : 'Could not save voice introduction.');
-    } finally {
-      setVoiceBusy(false);
-    }
-  };
-
-  const handleDeleteIntro = async () => {
-    const previous = currentProfile.voiceIntroPath;
-    updateProfile({ voiceIntroPath: '', voiceIntroDurationMs: 0 });
-    await deleteVoiceIntroFile(previous);
-    handleDiscardPreview();
   };
 
   return (

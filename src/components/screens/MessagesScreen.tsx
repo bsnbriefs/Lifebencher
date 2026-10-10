@@ -963,7 +963,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       .then((mode) => { if (!cancelled) setDisappearingMode(mode); })
       .catch(() => { if (!cancelled) setDisappearingMode('off'); });
     void getChatTheme(activeConvId)
-      .then((theme) => { if (!cancelled) setChatThemeState(theme); })
+      .then(() => { if (!cancelled) setChatThemeState('classic'); })
       .catch(() => { if (!cancelled) setChatThemeState('classic'); });
     return () => { cancelled = true; };
   }, [activeConvId]);
@@ -1294,12 +1294,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const themeStyle = CHAT_THEME_STYLE[chatTheme] || CHAT_THEME_STYLE.classic;
 
   const handleSetChatTheme = async (theme: ChatThemeId) => {
-    if (!activeConvId) return;
-    setChatThemeState(theme);
+    if (!activeConvId || theme !== 'classic') return;
+    setChatThemeState('classic');
     try {
-      await setChatTheme(activeConvId, theme);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Could not save chat theme.');
+      await setChatTheme(activeConvId, 'classic');
+    } catch {
+      /* keep classic */
     }
   };
 
@@ -2556,38 +2556,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3 max-h-[80dvh] overflow-y-auto"
+              className="w-full max-w-sm bg-white text-stone-900 rounded-3xl p-5 shadow-2xl border border-stone-200 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-serif font-bold text-base">Chat Theme</h3>
-                  <p className="text-[11px] text-stone-500 mt-0.5">Only changes how this conversation looks for you.</p>
+                  <p className="text-[11px] text-stone-500 mt-0.5">Classic is the only theme. This keeps messages easy to read.</p>
                 </div>
                 <button type="button" onClick={() => setShowThemePicker(false)} className="w-8 h-8 rounded-full hover:bg-stone-100 text-stone-500 flex items-center justify-center" aria-label="Close themes">
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="space-y-1.5">
-                {CHAT_THEME_OPTIONS.map((option) => {
-                  const selected = chatTheme === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => void handleSetChatTheme(option.id)}
-                      className={`w-full flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left ${selected ? 'border-rose-800 bg-rose-50' : 'border-stone-200 hover:bg-stone-50'}`}
-                    >
-                      <span className="flex h-8 w-12 overflow-hidden rounded-lg border border-black/10 shrink-0">
-                        {option.swatch.map((color) => (
-                          <span key={color} className="flex-1" style={{ background: color }} />
-                        ))}
-                      </span>
-                      <span className="flex-1 text-sm font-semibold text-stone-800">{option.label}</span>
-                      {selected && <Check className="w-4 h-4 text-rose-800" />}
-                    </button>
-                  );
-                })}
-              </div>
+              <button type="button" onClick={() => void handleSetChatTheme('classic')} className="w-full flex items-center gap-3 rounded-2xl border border-rose-800 bg-rose-50 px-3 py-2.5 text-left">
+                <span className="flex-1 text-sm font-semibold text-stone-800">Classic</span>
+                <Check className="w-4 h-4 text-rose-800" />
+              </button>
             </motion.div>
           </div>
         )}
