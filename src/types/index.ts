@@ -41,6 +41,9 @@ export interface Profile {
   };
   isVerified: boolean;
   isVisible: boolean;
+  isAdminProfile?: boolean;
+  accountStatus?: 'active' | 'removed';
+  matchType?: 'local' | 'international' | 'both' | null;
   compatibilityScore?: number;
   compatibilityReason?: string;
   createdAt: string;
@@ -75,7 +78,7 @@ export interface ProfilePreferences {
   preferredRelationshipGoals: string[];
 }
 
-export type MatchRequestStatus = 'pending' | 'accepted' | 'declined';
+export type MatchRequestStatus = 'pending' | 'accepted' | 'declined' | 'matched' | 'withdrawn';
 
 export interface MatchRequest {
   id: string;
