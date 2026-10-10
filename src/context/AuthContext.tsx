@@ -593,7 +593,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth.currentUser) return;
     const photos = [...new Set((profileData.photos || []).filter((url) => url.startsWith('https://')))];
     if (photos.length < 2) throw new Error('Upload at least 2 photos of yourself to submit your profile.');
-    if (!profileData.displayName?.trim() || !profileData.location?.trim() || !profileData.profession?.trim() || (profileData.bio || '').trim().length < 15) {
+    if (!profileData.displayName?.trim()) throw new Error('Add your name to finish your profile.');
+    if (!profileData.location?.trim() || !profileData.profession?.trim() || (profileData.bio || '').trim().length < 15) {
       throw new Error('Complete the required profile fields before submitting.');
     }
     const uid = auth.currentUser.uid;
