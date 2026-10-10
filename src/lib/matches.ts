@@ -117,18 +117,18 @@ export async function fetchProfileSafe(profileId: string): Promise<Profile | und
 }
 export async function fetchApprovedDiscoverProfiles(): Promise<Profile[]> {
   const token = await auth.currentUser?.getIdToken();
-  if (!token) return [];
+  if (!token) throw new Error('Sign in again to load approved profiles.');
   const res = await fetch('/api/discover/profiles', { headers: { Authorization: `Bearer ${token}` } });
-  const body = (await res.json()) as { profiles?: Record<string, unknown>[] };
-  if (!res.ok) return [];
-  return (body.profiles || []).map((d) => mapProfileDoc(String(d.id), d));
+  const body = (await res.json().catch(() => ({}))) as { profiles?: Record<string, unknown>[]; error?: string };
+  if (!res.ok) throw new Error(body.error || 'Approved profiles could not be loaded.');
+  return (body.profiles || []).map((d) => mapProfileDoc(String(d.id || d.userId), d));
 }
 export function listenVisibleProfiles(
   currentUid: string,
   onChange: (profiles: Profile[]) => void
 ): () => void {
-  const visibleQ = query(collection(db, 'profiles'), where('isVisible', '==', true), limit(200));
-  const verifiedQ = query(collection(db, 'profiles'), where('isVerified', '==', true), limit(200));
+  const visibleQ = query(collection(db, 'profiles'), where('isVisible', '==', true), where('isAdminProfile', '==', false), limit(200));
+  const verifiedQ = query(collection(db, 'profiles'), where('isVerified', '==', true), where('isAdminProfile', '==', false), limit(200));
   let visible: Profile[] = [];
   let verified: Profile[] = [];
   const publish = () => {

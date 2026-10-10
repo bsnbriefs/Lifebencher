@@ -40,7 +40,7 @@ export function listenAllProfiles(
 }
 
 export async function setProfileVerified(profile: Profile, isVerified: boolean): Promise<void> {
-  const id = profile.id || profile.userId;
+  const id = profile.userId || profile.id;
   let matchType = profile.matchType === 'local' || profile.matchType === 'international' ? profile.matchType : null;
   if (!matchType) {
     try {
