@@ -90,7 +90,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const queue: VerificationCandidate[] = useMemo(
     () =>
       liveProfiles
-        .filter((p) => !p.isVerified || !p.isVisible)
+        .filter((p) => p.accountStatus !== 'removed' && (!p.isVerified || !p.isVisible))
         .map((p) => ({
           id: p.id,
           displayName: p.displayName,
@@ -110,7 +110,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
   const registeredClients = useMemo(
     () =>
-      liveProfiles.map((p) => ({
+      liveProfiles
+        .filter((p) => p.accountStatus !== 'removed')
+        .map((p) => ({
         id: p.id,
         displayName: p.displayName,
         age: p.age,
@@ -506,6 +508,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     const res = await fetch('/api/admin/remove-account', { method: 'POST', headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: removeTarget.userId || removeTarget.id, reason: removeReason }) });
                     const body = await res.json().catch(() => ({}));
                     setNotification(res.ok ? 'Account removed successfully.' : (body.error || 'Could not remove account.'));
+                    if (res.ok) {
+                      const removedId = removeTarget.userId || removeTarget.id;
+                      setLiveProfiles((prev) => prev.filter((p) => p.id !== removedId && p.userId !== removedId));
+                    }
                     setRemoveTarget(null);
                     setReviewId(null);
                     setTimeout(() => setNotification(null), 4000);
