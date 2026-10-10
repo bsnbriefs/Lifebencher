@@ -493,8 +493,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         {removeTarget && (
           <div className="fixed inset-0 z-[60] bg-black/70 p-4 flex items-end" onClick={() => setRemoveTarget(null)}>
             <div className="w-full max-w-md mx-auto bg-white rounded-3xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
-              <h3 className="font-serif font-bold">Remove Account?</h3>
-              <p className="text-xs text-stone-600">This will permanently disable this user's Lifebencher access. Use only for serious rule violations. Reports stay on file.</p>
+              <h3 className="font-serif font-bold">Remove this account?</h3>
+              <p className="text-xs text-stone-600">Account: {removeTarget.displayName}, {removeTarget.age}<br />Account ID: {removeTarget.userId || removeTarget.id}</p>
+              <p className="text-xs text-stone-600">Use this for a policy violation or a wrongly onboarded account. The account will leave Discover and cannot sign in. Payments stay on file.</p>
               <textarea value={removeReason} onChange={(e) => setRemoveReason(e.target.value)} placeholder="Reason, for example harassment or a fraudulent profile" className="w-full h-20 rounded-2xl border border-stone-200 p-3 text-xs" />
               <div className="flex gap-2">
                 <button type="button" className="flex-1 py-2 rounded-xl border text-xs" onClick={() => setRemoveTarget(null)}>Cancel</button>
@@ -735,6 +736,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       }
                     >
                       Grant Local + Foreign
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-rose-800"
+                      onClick={() => {
+                        const profile = liveProfiles.find((p) => p.id === c.id);
+                        if (!profile) return;
+                        setRemoveTarget(profile);
+                        setRemoveReason('');
+                      }}
+                    >
+                      Remove account
                     </button>
                   </div>
                 </div>
