@@ -96,6 +96,7 @@ export function mapProfileDoc(profileId: string, d: Record<string, unknown>, pho
     isVerified: Boolean(d.isVerified),
     isVisible: d.isVisible === true,
     isAdminProfile: d.isAdminProfile === true,
+    accountStatus: d.accountStatus === 'removed' ? 'removed' : 'active',
     matchType: d.matchType === 'local' || d.matchType === 'international' || d.matchType === 'both' ? d.matchType : null,
     createdAt: String(d.createdAt || ''),
     updatedAt: String(d.updatedAt || ''),
@@ -134,7 +135,7 @@ export function listenVisibleProfiles(
   const publish = () => {
     const merged = new Map<string, Profile>();
     [...visible, ...verified].forEach((p) => {
-      if (p.id !== currentUid && p.userId !== currentUid && p.isAdminProfile !== true) merged.set(p.id, p);
+      if (p.id !== currentUid && p.userId !== currentUid && p.isAdminProfile !== true && p.accountStatus !== 'removed') merged.set(p.id, p);
     });
     onChange(Array.from(merged.values()));
   };
