@@ -22,6 +22,28 @@ import { AuthActionPage, firebaseActionFromLocation } from './components/auth/Au
 
 const TABS: NavigationTab[] = ['discover', 'matches', 'messages', 'profile'];
 
+class ScreenErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || 'This screen failed to load' };
+  }
+  componentDidCatch(error: Error) {
+    console.error('Screen failed', error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-6 text-center space-y-3">
+          <p className="text-sm font-semibold text-stone-800">This screen could not open.</p>
+          <p className="text-xs text-stone-500">{this.state.error}</p>
+          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function tabFromHash(): NavigationTab {
   const raw = window.location.hash.replace('#', '');
   return TABS.includes(raw as NavigationTab) ? (raw as NavigationTab) : 'discover';
@@ -184,15 +206,15 @@ function AppContent() {
             transition={{ duration: 0.22, ease: 'easeOut' }}
           >
             {activeTab === 'discover' && (
-              <MessagesErrorBoundary>
+              <ScreenErrorBoundary>
                 <DiscoverScreen />
-              </MessagesErrorBoundary>
+              </ScreenErrorBoundary>
             )}
             {activeTab === 'matches' && <MatchesScreen onOpenChat={handleOpenChat} />}
             {activeTab === 'messages' && (
-              <MessagesErrorBoundary>
+              <ScreenErrorBoundary>
                 <MessagesScreen initialConversationId={targetChatMatchId} />
-              </MessagesErrorBoundary>
+              </ScreenErrorBoundary>
             )}
             {activeTab === 'profile' && (
               <ProfileScreen onOpenAdmin={isAdmin ? () => setIsAdminMode(true) : undefined} />
@@ -202,28 +224,6 @@ function AppContent() {
       </MobileAppShell>
     </div>
   );
-}
-
-class MessagesErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
-  state = { error: null as string | null };
-  static getDerivedStateFromError(error: Error) {
-    return { error: error.message || 'Messages failed to load' };
-  }
-  componentDidCatch(error: Error) {
-    console.error('Messages screen failed', error);
-  }
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="p-6 text-center space-y-3">
-          <p className="text-sm font-semibold text-stone-800">Something went wrong loading this conversation.</p>
-          <p className="text-xs text-stone-500">{this.state.error}</p>
-          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 export default function App() {
