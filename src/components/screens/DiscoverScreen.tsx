@@ -46,6 +46,55 @@ const DEFAULT_FILTERS: DiscoverFilters = {
   relationshipIntents: []
 };
 
+function profileAge(profile: Profile): number | null {
+  const age = Number(profile.age);
+  return Number.isFinite(age) && age > 0 ? age : null;
+}
+
+function matchesLocation(profileLocation: string, filter: string): boolean {
+  const value = (profileLocation || '').trim().toLowerCase();
+  if (filter === 'International') {
+    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
+  }
+  return value.includes(filter.toLowerCase());
+}
+
+function matchesFaith(profileFaith: string, filter: string): boolean {
+  const value = (profileFaith || '').trim().toLowerCase();
+  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
+  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
+  if (filter === 'Other') return value === 'other' || value === 'others';
+  return value === filter.toLowerCase();
+}
+
+function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string }) {
+  const list = (photos || []).filter(Boolean);
+  const safe = list.length ? list : [FALLBACK_PHOTO];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (safe.length < 2) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % safe.length), 4000);
+    return () => window.clearInterval(id);
+  }, [safe.length]);
+  return (
+    <>
+      <img
+        src={safe[idx] || FALLBACK_PHOTO}
+        alt={name || 'Profile'}
+        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
+        loading="lazy"
+      />
+      {safe.length > 1 && (
+        <div className="absolute top-3 left-3 z-20 flex gap-1">
+          {safe.map((_, i) => (
+            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 export const DiscoverScreen: React.FC = () => {
   const { user, currentProfile, preferences } = useAuth();
   const installState = usePWAInstall();
@@ -149,27 +198,6 @@ export const DiscoverScreen: React.FC = () => {
     });
     return map;
   }, [currentProfile, preferences, profiles]);
-
-function profileAge(profile: Profile): number | null {
-  const age = Number(profile.age);
-  return Number.isFinite(age) && age > 0 ? age : null;
-}
-
-function matchesLocation(profileLocation: string, filter: string): boolean {
-  const value = profileLocation.trim().toLowerCase();
-  if (filter === 'International') {
-    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
-  }
-  return value.includes(filter.toLowerCase());
-}
-
-function matchesFaith(profileFaith: string, filter: string): boolean {
-  const value = profileFaith.trim().toLowerCase();
-  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
-  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
-  if (filter === 'Other') return value === 'other' || value === 'others';
-  return value === filter.toLowerCase();
-}
 
   // Filtered profiles
   const filteredProfiles = useMemo(() => {
@@ -540,31 +568,3 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
     </div>
   );
 };
-
-function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string }) {
-  const list = (photos || []).filter(Boolean);
-  const safe = list.length ? list : [FALLBACK_PHOTO];
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (safe.length < 2) return;
-    const id = window.setInterval(() => setIdx((i) => (i + 1) % safe.length), 4000);
-    return () => window.clearInterval(id);
-  }, [safe.length]);
-  return (
-    <>
-      <img
-        src={safe[idx] || FALLBACK_PHOTO}
-        alt={name || 'Profile'}
-        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
-        loading="lazy"
-      />
-      {safe.length > 1 && (
-        <div className="absolute top-3 left-3 z-20 flex gap-1">
-          {safe.map((_, i) => (
-            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
