@@ -20,8 +20,10 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
   try {
     await requireAdmin(req);
-    const snap = await getAdmin().firestore().collection('profiles').get();
-    const profiles = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const db = getAdmin().firestore();
+    const [snap, users] = await Promise.all([db.collection('profiles').get(), db.collection('users').get()]);
+    const emailById = new Map(users.docs.map((d) => [d.id, String(d.data()?.email || '')]));
+    const profiles = snap.docs.map((d) => ({ id: d.id, email: emailById.get(d.id) || '', ...d.data() }));
     return json(res, 200, { profiles });
   } catch (err) {
     return json(res, err.status || 500, { error: err.message || 'List failed' });
