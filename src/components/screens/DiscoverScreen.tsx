@@ -63,6 +63,7 @@ export const DiscoverScreen: React.FC = () => {
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const approvedRef = useRef<Profile[]>([]);
 
   useEffect(() => {
@@ -72,35 +73,37 @@ export const DiscoverScreen: React.FC = () => {
       return;
     }
     setIsLoadingProfiles(true);
+    setLoadError(null);
+    const buckets = { matches: [] as Profile[], visible: [] as Profile[], approved: [] as Profile[] };
+    const publish = () => {
+      const merged = new Map<string, Profile>();
+      [...buckets.matches, ...buckets.visible, ...buckets.approved].forEach((p) => {
+        if (!p || p.id === user.id || p.userId === user.id || p.isAdminProfile === true) return;
+        merged.set(p.userId || p.id, p);
+      });
+      const list = Array.from(merged.values());
+      approvedRef.current = list;
+      setApprovedIds(list.map((p) => p.id));
+      setProfiles(list);
+      setIsLoadingProfiles(false);
+    };
     const unsubMatches = listenUserMatches(user.id, (matches) => {
-      const partners = matches
+      buckets.matches = matches
         .filter((m) => m.status !== 'ended' && m.otherProfile)
         .map((m) => m.otherProfile as Profile);
-      setApprovedIds(partners.map((p) => p.id));
-      approvedRef.current = partners;
-      setProfiles((current) => {
-        const seen = new Set(partners.map((p) => p.id));
-        return [...partners, ...current.filter((p) => !seen.has(p.id))];
-      });
-      setIsLoadingProfiles(false);
+      publish();
     });
     const unsubProfiles = listenVisibleProfiles(user.id, (list) => {
-      setProfiles((current) => {
-        const approved = approvedRef.current;
-        const seen = new Set(approved.map((p) => p.id));
-        return [...approved, ...list.filter((p) => !seen.has(p.id))];
-      });
-      setIsLoadingProfiles(false);
+      buckets.visible = list;
+      publish();
     });
     void fetchApprovedDiscoverProfiles().then((list) => {
-      approvedRef.current = [...approvedRef.current, ...list.filter((p) => !approvedRef.current.some((a) => a.id === p.id))];
-      setApprovedIds(approvedRef.current.map((p) => p.id));
-      setProfiles((current) => {
-        const seen = new Set(approvedRef.current.map((p) => p.id));
-        return [...approvedRef.current, ...current.filter((p) => !seen.has(p.id))];
-      });
+      buckets.approved = list;
+      publish();
+    }).catch((err) => {
+      setLoadError(err instanceof Error ? err.message : 'Approved profiles could not be loaded.');
       setIsLoadingProfiles(false);
-    }).catch(() => setIsLoadingProfiles(false));
+    });
     const unsubEnt = listenEntitlements(user.id, setEntitlements);
     const unsubBlocks = listenBlockedIds(user.id, setBlockedIds);
     const unsubOutgoing = listenOutgoingInterestIds(user.id, (ids) => {
@@ -270,6 +273,10 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
           )}
         </button>
       </div>
+
+      {loadError && (
+        <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{loadError}</p>
+      )}
 
       {/* Toast Notification Banner */}
       <AnimatePresence>
