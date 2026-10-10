@@ -23,24 +23,45 @@ export default async function handler(req, res) {
     const body = await readBody(req);
     const userId = String(body.userId || '');
     const reason = String(body.reason || '').trim();
-    if (!userId || userId === adminUser.uid) return json(res, 400, { error: 'Invalid account' });
+    if (!userId || userId === adminUser.uid) return json(res, 400, { error: 'You cannot remove this account.' });
     if (reason.length < 8) return json(res, 400, { error: 'A removal reason is required.' });
 
     const admin = getAdmin();
     const db = admin.firestore();
+    const [profileSnap, userSnap] = await Promise.all([
+      db.doc(`profiles/${userId}`).get(),
+      db.doc(`users/${userId}`).get()
+    ]);
+    if (!profileSnap.exists) return json(res, 404, { error: 'Account not found' });
+    const profile = profileSnap.data() || {};
+    const user = userSnap.data() || {};
+    if (profile.isAdminProfile === true || user.role === 'admin' || user.email === SUPER) {
+      return json(res, 400, { error: 'Admin accounts cannot be removed here.' });
+    }
+
     await admin.auth().updateUser(userId, { disabled: true }).catch(() => undefined);
+    const now = new Date().toISOString();
     await db.doc(`profiles/${userId}`).set({
       isVisible: false,
       isVerified: false,
       accountStatus: 'removed',
-      removedAt: new Date().toISOString()
+      removedAt: now,
+      removedBy: adminUser.uid,
+      removalReason: reason,
+      updatedAt: now
     }, { merge: true });
+    const [asUser1, asUser2] = await Promise.all([
+      db.collection('matches').where('user1Id', '==', userId).get(),
+      db.collection('matches').where('user2Id', '==', userId).get()
+    ]);
+    await Promise.all([...asUser1.docs, ...asUser2.docs].map((d) => d.ref.set({ status: 'ended', endedAt: now }, { merge: true })));
     await db.collection('moderationActions').add({
       targetUserId: userId,
       adminUserId: adminUser.uid,
       action: 'account_removed',
       reason,
-      createdAt: new Date().toISOString()
+      preserved: ['transactions', 'entitlements', 'moderationActions'],
+      createdAt: now
     });
     return json(res, 200, { ok: true });
   } catch (err) {
