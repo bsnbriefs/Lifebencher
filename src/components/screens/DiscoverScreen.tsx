@@ -410,9 +410,6 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
                     {activityLabel(p.lastActiveAt) && (
                       <p className={`text-[11px] mt-1 ${activityLabel(p.lastActiveAt) === 'Active now' ? 'text-emerald-300' : 'text-emerald-200'}`}>{activityLabel(p.lastActiveAt) === 'Active now' ? '● Active now' : activityLabel(p.lastActiveAt)}</p>
                     )}
-                    {p.voiceIntroPath && (
-                      <p className="text-[11px] text-stone-500 mt-1">{p.location}</p>
-                    )}
                   </div>
                 </div>
 
