@@ -141,7 +141,11 @@ export const DiscoverScreen: React.FC = () => {
     const map: Record<string, CompatibilityResult> = {};
     if (!currentProfile) return map;
     profiles.forEach((p) => {
-      map[p.id] = calculateCompatibility(currentProfile, p, preferences);
+      try {
+        map[p.id] = calculateCompatibility(currentProfile, p, preferences);
+      } catch {
+        /* skip a broken profile instead of crashing Discover */
+      }
     });
     return map;
   }, [currentProfile, preferences, profiles]);
@@ -537,25 +541,26 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
   );
 };
 
-function DiscoverCardPhoto({ photos, name }: { photos: string[]; name: string }) {
-  const list = photos.length ? photos : [FALLBACK_PHOTO];
+function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string }) {
+  const list = (photos || []).filter(Boolean);
+  const safe = list.length ? list : [FALLBACK_PHOTO];
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    if (list.length < 2) return;
-    const id = window.setInterval(() => setIdx((i) => (i + 1) % list.length), 4000);
+    if (safe.length < 2) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % safe.length), 4000);
     return () => window.clearInterval(id);
-  }, [list.length]);
+  }, [safe.length]);
   return (
     <>
       <img
-        src={list[idx] || FALLBACK_PHOTO}
-        alt={name}
+        src={safe[idx] || FALLBACK_PHOTO}
+        alt={name || 'Profile'}
         className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
         loading="lazy"
       />
-      {list.length > 1 && (
+      {safe.length > 1 && (
         <div className="absolute top-3 left-3 z-20 flex gap-1">
-          {list.map((_, i) => (
+          {safe.map((_, i) => (
             <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
           ))}
         </div>
