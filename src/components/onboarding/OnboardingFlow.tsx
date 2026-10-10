@@ -63,7 +63,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     sendEmailLink,
     resetPassword,
     completeOnboarding,
-    isAuthenticated
+    isAuthenticated,
+    user
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -107,6 +108,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     if (authMode === 'login') setAuthMode('register');
     if (currentStep === 1) setCurrentStep(2);
   }, [isAuthenticated]);
+  useEffect(() => {
+    if (displayName.trim()) return;
+    const fromAccount = user?.displayName?.trim() || user?.email?.split('@')[0] || '';
+    if (fromAccount) setDisplayName(fromAccount);
+  }, [user, displayName]);
 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -323,24 +329,35 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
   const handleFinishOnboarding = async () => {
     setIsSubmitting(true);
-    const ordered = [...galleryPhotos];
+    setErrorMessage(null);
+    if (!displayName.trim()) {
+      setErrorMessage('Add your name to finish your profile.');
+      setIsSubmitting(false);
+      return;
+    }
+    const ordered = [...galleryPhotos].filter((url) => url.startsWith('https://'));
+    if (ordered.length < 2) {
+      setErrorMessage('Upload at least 2 photos of yourself to submit your profile.');
+      setIsSubmitting(false);
+      return;
+    }
     if (primaryPhotoIndex > 0 && primaryPhotoIndex < ordered.length) {
       const [main] = ordered.splice(primaryPhotoIndex, 1);
       ordered.unshift(main);
     }
-    const photoToUse = ordered[0] || '';
+    let saved = false;
 
     try {
     await completeOnboarding(
       {
-        displayName,
+        displayName: displayName.trim(),
         age,
         gender,
         location,
         profession,
         education,
         bio,
-        photos: ordered.length ? ordered : photoToUse ? [photoToUse] : [],
+        photos: ordered,
         interests: selectedInterests,
         values: selectedValues,
         relationshipGoal,
@@ -359,18 +376,20 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         preferredLocations: [location]
       }
     );
+    saved = true;
     } catch (err) {
       console.error(err);
       setErrorMessage(err instanceof Error ? err.message : 'Could not save profile. You can tap Activate again.');
     } finally {
     setIsSubmitting(false);
+    }
+    if (!saved) return;
     try {
       sessionStorage.removeItem('lifebencher_onboarding_step');
     } catch {
       /* ignore */
     }
     if (onCompleted) onCompleted();
-    }
   };
 
   return (
@@ -1108,6 +1127,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
                     {/* Miniature Card Preview */}
                     <div className="bg-stone-50 rounded-2xl overflow-hidden border border-stone-200 p-3 space-y-3">
+                      <label className="block text-xs font-semibold text-stone-700">
+                        Your name
+                        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" placeholder="Your name" />
+                      </label>
                       <div className="flex items-center gap-3">
                         <img
                           src={galleryPhotos[primaryPhotoIndex] || galleryPhotos[0] || ''}
