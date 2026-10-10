@@ -46,11 +46,66 @@ const DEFAULT_FILTERS: DiscoverFilters = {
   relationshipIntents: []
 };
 
-export const DiscoverScreen: React.FC = () => {
+function profileAge(profile: Profile): number | null {
+  const age = Number(profile.age);
+  return Number.isFinite(age) && age > 0 ? age : null;
+}
+
+function matchesLocation(profileLocation: string, filter: string): boolean {
+  const value = (profileLocation || '').trim().toLowerCase();
+  if (filter === 'International') {
+    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
+  }
+  return value.includes(filter.toLowerCase());
+}
+
+function matchesFaith(profileFaith: string, filter: string): boolean {
+  const value = (profileFaith || '').trim().toLowerCase();
+  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
+  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
+  if (filter === 'Other') return value === 'other' || value === 'others';
+  return value === filter.toLowerCase();
+}
+
+function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string }) {
+  const list = (photos || []).filter(Boolean);
+  const safe = list.length ? list : [FALLBACK_PHOTO];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (safe.length < 2) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % safe.length), 4000);
+    return () => window.clearInterval(id);
+  }, [safe.length]);
+  return (
+    <>
+      <img
+        src={safe[idx] || FALLBACK_PHOTO}
+        alt={name || 'Profile'}
+        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
+        loading="lazy"
+      />
+      {safe.length > 1 && (
+        <div className="absolute top-3 left-3 z-20 flex gap-1">
+          {safe.map((_, i) => (
+            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function DiscoverScreen() {
   const { user, currentProfile, preferences } = useAuth();
+  const installState = usePWAInstall();
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [installNote, setInstallNote] = useState<string | null>(null);
+  const [notificationNote, setNotificationNote] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState<'install' | 'notify' | null>(null);
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filters, setFilters] = useState<DiscoverFilters>(DEFAULT_FILTERS);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
@@ -64,11 +119,73 @@ export const DiscoverScreen: React.FC = () => {
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [installNote, setInstallNote] = useState('');
-  const installState = usePWAInstall();
   const approvedRef = useRef<Profile[]>([]);
+
+  const dismissWelcome = () => {
+    if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1');
+    setShowWelcome(false);
+  };
+
+  const handleInstall = async () => {
+    if (installState.isInstalled) {
+      setInstallNote('App already installed.');
+      return;
+    }
+    if (!installState.isInstallable) {
+      setInstallNote(installState.isIOS ? 'On iPhone, open Safari, tap Share, then Add to Home Screen.' : 'Installation is not available in this browser yet. Use the browser menu to add Lifebencher to your home screen.');
+      return;
+    }
+    setActionBusy('install');
+    try {
+      const accepted = await installState.install();
+      setInstallNote(accepted ? 'Lifebencher was installed on this device.' : 'Installation was not completed.');
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setNotificationNote('Notifications are not supported in this browser.');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      setNotificationNote('Notifications are blocked. You can enable them in your browser or device settings.');
+      return;
+    }
+    const vapid = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    if (!vapid) {
+      setNotificationNote('Notification setup could not be completed. Please try again.');
+      return;
+    }
+    setActionBusy('notify');
+    try {
+      const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (permission === 'denied') {
+        setNotificationNote('Notifications are blocked. You can enable them in your browser or device settings.');
+        return;
+      }
+      if (permission !== 'granted') {
+        setNotificationNote('Notification permission was not granted.');
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const key = Uint8Array.from(atob(vapid.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+      const existing = await reg.pushManager.getSubscription();
+      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      const token = await import('../../lib/firebase').then((m) => m.auth.currentUser?.getIdToken());
+      const res = await fetch('/api/calls/subscribe', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() })
+      });
+      setNotificationNote(res.ok ? (existing ? 'Notifications are already enabled.' : 'Notifications enabled.') : 'Notification permission is enabled, but setup could not be completed. Please try again.');
+    } catch {
+      setNotificationNote('Notification permission is enabled, but setup could not be completed. Please try again.');
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -139,31 +256,14 @@ export const DiscoverScreen: React.FC = () => {
     const map: Record<string, CompatibilityResult> = {};
     if (!currentProfile) return map;
     profiles.forEach((p) => {
-      map[p.id] = calculateCompatibility(currentProfile, p, preferences);
+      try {
+        map[p.id] = calculateCompatibility(currentProfile, p, preferences);
+      } catch {
+        /* skip a broken profile instead of crashing Discover */
+      }
     });
     return map;
   }, [currentProfile, preferences, profiles]);
-
-function profileAge(profile: Profile): number | null {
-  const age = Number(profile.age);
-  return Number.isFinite(age) && age > 0 ? age : null;
-}
-
-function matchesLocation(profileLocation: string, filter: string): boolean {
-  const value = profileLocation.trim().toLowerCase();
-  if (filter === 'International') {
-    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
-  }
-  return value.includes(filter.toLowerCase());
-}
-
-function matchesFaith(profileFaith: string, filter: string): boolean {
-  const value = profileFaith.trim().toLowerCase();
-  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
-  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
-  if (filter === 'Other') return value === 'other' || value === 'others';
-  return value === filter.toLowerCase();
-}
 
   // Filtered profiles
   const filteredProfiles = useMemo(() => {
@@ -290,23 +390,27 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
         <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{loadError}</p>
       )}
       {showWelcome && (
-        <section className="rounded-3xl border border-rose-200 bg-white p-4 text-stone-800">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-serif text-lg font-bold text-rose-950">Welcome to Lifebencher Match</h2>
-            <button type="button" className="text-stone-400" aria-label="Close welcome" onClick={() => { if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1'); setShowWelcome(false); }}><X className="w-4 h-4" /></button>
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onClick={dismissWelcome}>
+          <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-3xl bg-white p-5 text-stone-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="welcome-title" className="font-serif text-xl font-bold text-rose-950">Welcome to Lifebencher Match ❤️</h2>
+              <button type="button" className="rounded-full p-1 text-stone-500" aria-label="Close welcome" onClick={dismissWelcome}><X className="w-5 h-5" /></button>
+            </div>
+            <p className="mt-2 text-sm">Your next meaningful connection could start here. Here's how to get started.</p>
+            <ol className="mt-4 space-y-3 text-sm">
+              <li><span className="font-semibold text-rose-900">1. Build your profile.</span> Complete your profile with your real details, preferences, and at least two clear photos of yourself. Accurate information and genuine photos help build trust.</li>
+              <li><span className="font-semibold text-rose-900">2. Discover and connect.</span> Explore eligible profiles, use filters, and send a connection request. Once it is accepted, use Lifebencher chat to get to know each other.</li>
+              <li><span className="font-semibold text-rose-900">3. Stay connected.</span> Install Lifebencher on your phone and enable notifications for messages, connection requests, and account updates. Delivery depends on your browser and device settings.</li>
+            </ol>
+            <div className="mt-5 grid gap-2">
+              <button type="button" disabled={actionBusy !== null} className="rounded-full bg-rose-900 px-4 py-3 text-sm font-semibold text-amber-100 disabled:opacity-60" onClick={() => void handleInstall()}>{actionBusy === 'install' ? 'Opening install…' : 'Install the app'}</button>
+              <button type="button" disabled={actionBusy !== null} className="rounded-full border border-stone-300 px-4 py-3 text-sm font-semibold disabled:opacity-60" onClick={() => void handleEnableNotifications()}>{actionBusy === 'notify' ? 'Setting up…' : 'Enable notifications'}</button>
+              <button type="button" className="rounded-full px-4 py-3 text-sm font-semibold text-stone-600" onClick={dismissWelcome}>Explore Discover</button>
+            </div>
+            {installNote && <p className="mt-3 text-xs text-stone-500">{installNote}</p>}
+            {notificationNote && <p className="mt-1 text-xs text-stone-500">{notificationNote}</p>}
           </div>
-          <p className="mt-1 text-sm">Your next meaningful connection could start here.</p>
-          <p className="mt-2 text-xs text-stone-500">Complete your profile, explore Discover, and install the app for easier access.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className="rounded-full bg-rose-900 px-4 py-2 text-xs font-semibold text-amber-100" onClick={() => {
-              if (installState.isInstalled) { setInstallNote('Lifebencher is already installed on this device.'); return; }
-              if (installState.isInstallable) { void installState.install().then((ok) => setInstallNote(ok ? 'Lifebencher was added to this device.' : 'Follow the browser prompt to add Lifebencher to your home screen.')); return; }
-              setInstallNote(installState.isIOS ? 'On iPhone, open Safari, tap Share, then Add to Home Screen.' : 'Follow the browser prompt to add Lifebencher to your home screen.');
-            }}>Install the app</button>
-            <button type="button" className="rounded-full border border-stone-300 px-4 py-2 text-xs font-semibold" onClick={() => { if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1'); setShowWelcome(false); }}>Explore Discover</button>
-          </div>
-          {installNote && <p className="mt-2 text-[11px] text-stone-500">{installNote}</p>}
-        </section>
+        </div>
       )}
 
       {/* Toast Notification Banner */}
@@ -409,6 +513,9 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
                     </p>
                     {activityLabel(p.lastActiveAt) && (
                       <p className={`text-[11px] mt-1 ${activityLabel(p.lastActiveAt) === 'Active now' ? 'text-emerald-300' : 'text-emerald-200'}`}>{activityLabel(p.lastActiveAt) === 'Active now' ? '● Active now' : activityLabel(p.lastActiveAt)}</p>
+                    )}
+                    {p.voiceIntroPath && (
+                      <p className="text-[11px] text-stone-500 mt-1">{p.location}</p>
                     )}
                   </div>
                 </div>
@@ -519,30 +626,3 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
     </div>
   );
 };
-
-function DiscoverCardPhoto({ photos, name }: { photos: string[]; name: string }) {
-  const list = photos.length ? photos : [FALLBACK_PHOTO];
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (list.length < 2) return;
-    const id = window.setInterval(() => setIdx((i) => (i + 1) % list.length), 4000);
-    return () => window.clearInterval(id);
-  }, [list.length]);
-  return (
-    <>
-      <img
-        src={list[idx] || FALLBACK_PHOTO}
-        alt={name}
-        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
-        loading="lazy"
-      />
-      {list.length > 1 && (
-        <div className="absolute top-3 left-3 z-20 flex gap-1">
-          {list.map((_, i) => (
-            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
