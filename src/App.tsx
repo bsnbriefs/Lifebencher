@@ -4,7 +4,6 @@ import { NavigationTab } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MobileAppShell } from './components/layout/MobileAppShell';
-import { DiscoverScreen } from './components/screens/DiscoverScreen';
 import { MatchesScreen } from './components/screens/MatchesScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
@@ -13,6 +12,9 @@ import { MatchmakingPaywall } from './components/onboarding/MatchmakingPaywall';
 
 const AdminDashboard = lazy(() =>
   import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const DiscoverScreen = lazy(() =>
+  import('./components/screens/DiscoverScreen').then((m) => ({ default: m.DiscoverScreen }))
 );
 import { WifiOff } from 'lucide-react';
 import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
