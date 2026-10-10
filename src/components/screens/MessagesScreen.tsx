@@ -47,7 +47,6 @@ import {
 import { ContactExchangeRequest } from '../../types';
 import { db } from '../../lib/firebase';
 import { CallOverlay } from '../chat/CallOverlay';
-import { addSupportMessage, listenMyConversations, listenSupportMessages, SupportMessage } from '../../lib/support';
 
 interface MessagesScreenProps {
   initialConversationId?: string | null;
@@ -819,9 +818,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
   const [matchRecords, setMatchRecords] = useState<Record<string, Match>>({});
   const [conversations, setConversations] = useState<ConversationWithMeta[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(initialConversationId || null);
-  const [supportId, setSupportId] = useState<string | null>(null);
-  const [supportMsgs, setSupportMsgs] = useState<SupportMessage[]>([]);
-  const [supportDraft, setSupportDraft] = useState('');
   const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -901,14 +897,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
       }
     : null;
 
-  useEffect(() => {
-    if (!myId) return;
-    return listenMyConversations(myId, (rows) => setSupportId(rows[0]?.id || null));
-  }, [myId]);
-  useEffect(() => {
-    if (!supportId) return;
-    return listenSupportMessages(supportId, setSupportMsgs);
-  }, [supportId]);
   useEffect(() => {
     if (!myId) return;
     return listenUserMatches(myId, async (matches) => {
@@ -1628,19 +1616,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ initialConversat
               </button>
             </div>
 
-            {supportId && (
-              <div className="bg-white rounded-2xl border border-rose-200 p-3 space-y-2">
-                <p className="text-sm font-semibold text-rose-950">Lifebencher Support</p>
-                <p className="text-[11px] text-stone-500">This is Lifebencher Support, not another match.</p>
-                <div className="max-h-36 overflow-y-auto space-y-1">
-                  {supportMsgs.map((m) => <p key={m.id} className="text-xs"><span className="font-semibold">{m.senderType === 'admin' ? 'Support' : 'You'}: </span>{m.content}</p>)}
-                </div>
-                <div className="flex gap-2">
-                  <input value={supportDraft} onChange={(e) => setSupportDraft(e.target.value)} className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-300" placeholder="Reply to support" />
-                  <button type="button" className="px-3 rounded-xl bg-rose-900 text-amber-100 text-xs" onClick={() => { if (!supportDraft.trim()) return; void addSupportMessage(supportId, 'user', supportDraft.trim()); setSupportDraft(''); }}>Send</button>
-                </div>
-              </div>
-            )}
             {conversations.length === 0 ? (
               <div className="text-center py-16 bg-white rounded-3xl border border-stone-200 p-6 space-y-2">
                 <MessageSquare className="w-8 h-8 text-stone-300 mx-auto" />

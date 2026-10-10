@@ -98,10 +98,7 @@ export async function sendInterest(otherUserId: string): Promise<'sent' | 'match
       await acceptInterest(id, otherUserId);
       return 'matched';
     }
-    if (data.senderId === uid && status === 'withdrawn') {
-      await updateDoc(ref, { status: 'pending', updatedAt: now });
-      return 'sent';
-    }
+    if (data.senderId === uid) return 'sent';
     return 'sent';
   }
 
@@ -129,10 +126,6 @@ export async function sendInterest(otherUserId: string): Promise<'sent' | 'match
 export async function acceptInterest(requestId: string, senderId: string): Promise<string> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
-  const snap = await getDoc(doc(db, 'matchRequests', requestId));
-  if (!snap.exists() || snap.data().status !== 'pending' || snap.data().receiverId !== uid) {
-    throw new Error('This request is no longer pending.');
-  }
 
   const matchId = await createOrGetMatch(senderId);
 
@@ -146,27 +139,6 @@ export async function acceptInterest(requestId: string, senderId: string): Promi
   }
 
   return matchId;
-}
-
-export async function withdrawInterest(requestId: string): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
-  const ref = doc(db, 'matchRequests', requestId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error('Request not found.');
-  const data = snap.data();
-  if (data.senderId !== uid) throw new Error('You can only withdraw a request you sent.');
-  if (data.status !== 'pending') throw new Error('This request is no longer pending.');
-  await updateDoc(ref, { status: 'withdrawn', updatedAt: new Date().toISOString() });
-}
-
-export function listenOutgoingInterests(uid: string, onChange: (requests: MatchRequest[]) => void): () => void {
-  const q = query(collection(db, 'matchRequests'), where('senderId', '==', uid));
-  return onSnapshot(q, async (snap) => {
-    const pending = snap.docs.map((d) => mapRequest(d.id, d.data() as Record<string, unknown>)).filter((r) => r.status === 'pending');
-    const withProfiles = await Promise.all(pending.map(async (r) => ({ ...r, senderProfile: await fetchProfileSafe(r.receiverId) })));
-    onChange(withProfiles);
-  }, () => onChange([]));
 }
 
 export async function declineInterest(requestId: string): Promise<void> {

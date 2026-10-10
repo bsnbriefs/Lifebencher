@@ -17,28 +17,24 @@ async function init(req, res) {
 
   const db = getAdmin().firestore();
   const matchType = matchTypeFromProductId(product.id);
-  const existing = await db.collection('transactions').where('userId', '==', user.uid).get();
-  const pending = existing.docs.find((d) => d.data().productId === product.id && d.data().status === 'pending' && d.data().source === 'flutterwave');
-  const reference = pending?.data().reference || `LB-${Date.now()}-${user.uid.slice(0, 6)}`;
-  if (!pending) {
-    await db.collection('transactions').add({
-      userId: user.uid,
-      productId: product.id,
-      productName: product.name,
-      amountNgn: product.priceNgn,
-      currency: 'NGN',
-      status: 'pending',
-      reference,
-      source: 'flutterwave',
-      createdAt: new Date().toISOString(),
-      ...(matchType ? { matchType } : {}),
-      ...(body.matchId ? { matchId: String(body.matchId) } : {})
-    });
-  }
-
+  const reference = `LB-${Date.now()}-${user.uid.slice(0, 6)}`;
   const origin = String(
     body.origin || process.env.PUBLIC_APP_URL || 'https://lifebencher.xyz'
   ).replace(/\/$/, '');
+
+  await db.collection('transactions').add({
+    userId: user.uid,
+    productId: product.id,
+    productName: product.name,
+    amountNgn: product.priceNgn,
+    currency: 'NGN',
+    status: 'pending',
+    reference,
+    source: 'flutterwave',
+    createdAt: new Date().toISOString(),
+    ...(matchType ? { matchType } : {}),
+    ...(body.matchId ? { matchId: String(body.matchId) } : {})
+  });
 
   const flwRes = await fetch('https://api.flutterwave.com/v3/payments', {
     method: 'POST',

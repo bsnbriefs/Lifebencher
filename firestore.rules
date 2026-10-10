@@ -1001,7 +1001,7 @@ service cloud.firestore {
           && isValidId(data.senderId)
           && isValidId(data.receiverId)
           && data.senderId != data.receiverId
-          && data.status in ['pending', 'matched', 'declined', 'withdrawn']
+          && data.status in ['pending', 'matched', 'declined']
           && data.createdAt is string
           && data.createdAt.size() <= 64
           && data.updatedAt is string
@@ -1042,12 +1042,6 @@ service cloud.firestore {
             request.auth.uid == existing().receiverId
             && existing().status == 'pending'
             && incoming().status in ['matched', 'declined']
-          )
-          ||
-          (
-            request.auth.uid == existing().senderId
-            && existing().status == 'pending'
-            && incoming().status == 'withdrawn'
           )
         );
 
@@ -1294,18 +1288,9 @@ service cloud.firestore {
         );
 
       allow create: if isSignedIn()
-        && (
-          (
-            incoming().userId == request.auth.uid
-            && incoming().status == 'waiting'
-            && incoming().get('assignedAdminId', null) == null
-          )
-          || (
-            isAdmin()
-            && incoming().userId is string
-            && incoming().status in ['waiting', 'active']
-          )
-        );
+        && incoming().userId == request.auth.uid
+        && incoming().status == 'waiting'
+        && incoming().get('assignedAdminId', null) == null;
 
       allow update: if isAdmin()
         ||

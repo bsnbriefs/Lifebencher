@@ -19,7 +19,7 @@ import { Match, MatchRequest } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
 import { endMatch, listenUserMatches } from '../../lib/matches';
-import { acceptInterest, declineInterest, listenIncomingInterests, listenOutgoingInterests, withdrawInterest } from '../../lib/interests';
+import { acceptInterest, declineInterest, listenIncomingInterests } from '../../lib/interests';
 import { startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
 import { calculateCompatibility } from '../../lib/compatibility';
 import { whyMatchedLines } from '../../lib/whyMatched';
@@ -73,7 +73,6 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
 
   const [activeMatches, setActiveMatches] = useState<Match[]>([]);
   const [requests, setRequests] = useState<MatchRequest[]>([]);
-  const [sentRequests, setSentRequests] = useState<MatchRequest[]>([]);
 
   // Celebration modal state
   const [celebrationMatch, setCelebrationMatch] = useState<{
@@ -130,11 +129,9 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
       setActiveMatches(matches.filter((m) => m.status !== 'ended'));
     });
     const unsubRequests = listenIncomingInterests(user.id, setRequests);
-    const unsubSent = listenOutgoingInterests(user.id, setSentRequests);
     return () => {
       unsubMatches();
       unsubRequests();
-      unsubSent();
     };
   }, [user?.id]);
 
@@ -312,19 +309,6 @@ export const MatchesScreen: React.FC<MatchesScreenProps> = ({ onOpenChat }) => {
               </motion.div>
             ))
           )}
-          {sentRequests.map((req) => (
-            <div key={req.id} className="bg-white rounded-2xl p-4 border border-stone-200 space-y-2">
-              <p className="text-sm font-semibold">Request sent to {req.senderProfile?.displayName || 'a member'}</p>
-              <button type="button" className="text-xs font-semibold text-rose-900" onClick={() => {
-                const ok = window.confirm('Withdraw this request?\n\nYou can no longer continue this pending connection unless you send a new request, where permitted.');
-                if (!ok) return;
-                void withdrawInterest(req.id).then(() => {
-                  setExtensionSuccessMsg('Request withdrawn.');
-                  setTimeout(() => setExtensionSuccessMsg(null), 3000);
-                }).catch((err) => setExtensionSuccessMsg(err instanceof Error ? err.message : 'Could not withdraw this request.'));
-              }}>Withdraw Request</button>
-            </div>
-          ))}
         </div>
       )}
 

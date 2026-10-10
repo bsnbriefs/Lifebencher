@@ -63,8 +63,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     sendEmailLink,
     resetPassword,
     completeOnboarding,
-    isAuthenticated,
-    user
+    isAuthenticated
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -108,11 +107,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     if (authMode === 'login') setAuthMode('register');
     if (currentStep === 1) setCurrentStep(2);
   }, [isAuthenticated]);
-  useEffect(() => {
-    if (displayName.trim()) return;
-    const fromAccount = user?.displayName?.trim() || user?.email?.split('@')[0] || '';
-    if (fromAccount) setDisplayName(fromAccount);
-  }, [user, displayName]);
 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -329,24 +323,17 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
   const handleFinishOnboarding = async () => {
     setIsSubmitting(true);
-    setErrorMessage(null);
-    if (!displayName.trim()) {
-      setErrorMessage('Add your name to finish your profile.');
-      setIsSubmitting(false);
-      return;
-    }
     const ordered = [...galleryPhotos];
     if (primaryPhotoIndex > 0 && primaryPhotoIndex < ordered.length) {
       const [main] = ordered.splice(primaryPhotoIndex, 1);
       ordered.unshift(main);
     }
     const photoToUse = ordered[0] || '';
-    let saved = false;
 
     try {
     await completeOnboarding(
       {
-        displayName: displayName.trim(),
+        displayName,
         age,
         gender,
         location,
@@ -372,20 +359,18 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         preferredLocations: [location]
       }
     );
-    saved = true;
     } catch (err) {
       console.error(err);
       setErrorMessage(err instanceof Error ? err.message : 'Could not save profile. You can tap Activate again.');
     } finally {
     setIsSubmitting(false);
-    }
-    if (!saved) return;
     try {
       sessionStorage.removeItem('lifebencher_onboarding_step');
     } catch {
       /* ignore */
     }
     if (onCompleted) onCompleted();
+    }
   };
 
   return (
@@ -1058,7 +1043,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       <p className="text-xs text-stone-500 mt-0.5">
                         Add 2–3 recent photos of yourself. Tap one to use it as your profile picture.
                       </p>
-                      <p className="text-[11px] text-stone-600">Photos uploaded: {galleryPhotos.length} of 2. Upload at least 2 photos of yourself to submit your profile.</p>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -1124,10 +1108,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
                     {/* Miniature Card Preview */}
                     <div className="bg-stone-50 rounded-2xl overflow-hidden border border-stone-200 p-3 space-y-3">
-                      <label className="block text-xs font-semibold text-stone-700">
-                        Your name
-                        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" placeholder="Your name" />
-                      </label>
                       <div className="flex items-center gap-3">
                         <img
                           src={galleryPhotos[primaryPhotoIndex] || galleryPhotos[0] || ''}

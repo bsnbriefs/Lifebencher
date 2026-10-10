@@ -23,7 +23,6 @@ import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
-import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const FALLBACK_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
@@ -46,60 +45,8 @@ const DEFAULT_FILTERS: DiscoverFilters = {
   relationshipIntents: []
 };
 
-function profileAge(profile: Profile): number | null {
-  const age = Number(profile.age);
-  return Number.isFinite(age) && age > 0 ? age : null;
-}
-
-function matchesLocation(profileLocation: string, filter: string): boolean {
-  const value = (profileLocation || '').trim().toLowerCase();
-  if (filter === 'International') {
-    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
-  }
-  return value.includes(filter.toLowerCase());
-}
-
-function matchesFaith(profileFaith: string, filter: string): boolean {
-  const value = (profileFaith || '').trim().toLowerCase();
-  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
-  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
-  if (filter === 'Other') return value === 'other' || value === 'others';
-  return value === filter.toLowerCase();
-}
-
-function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string }) {
-  const list = (photos || []).filter(Boolean);
-  const safe = list.length ? list : [FALLBACK_PHOTO];
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (safe.length < 2) return;
-    const id = window.setInterval(() => setIdx((i) => (i + 1) % safe.length), 4000);
-    return () => window.clearInterval(id);
-  }, [safe.length]);
-  return (
-    <>
-      <img
-        src={safe[idx] || FALLBACK_PHOTO}
-        alt={name || 'Profile'}
-        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
-        loading="lazy"
-      />
-      {safe.length > 1 && (
-        <div className="absolute top-3 left-3 z-20 flex gap-1">
-          {safe.map((_, i) => (
-            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-export function DiscoverScreen() {
+export const DiscoverScreen: React.FC = () => {
   const { user, currentProfile, preferences } = useAuth();
-  const installState = usePWAInstall();
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [installNote, setInstallNote] = useState<string | null>(null);
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
@@ -117,14 +64,6 @@ export function DiscoverScreen() {
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const approvedRef = useRef<Profile[]>([]);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setShowWelcome(false);
-      return;
-    }
-    setShowWelcome(localStorage.getItem(`lifebencher_welcome_${user.id}`) !== '1');
-  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -185,14 +124,31 @@ export function DiscoverScreen() {
     const map: Record<string, CompatibilityResult> = {};
     if (!currentProfile) return map;
     profiles.forEach((p) => {
-      try {
-        map[p.id] = calculateCompatibility(currentProfile, p, preferences);
-      } catch {
-        /* skip a broken profile instead of crashing Discover */
-      }
+      map[p.id] = calculateCompatibility(currentProfile, p, preferences);
     });
     return map;
   }, [currentProfile, preferences, profiles]);
+
+function profileAge(profile: Profile): number | null {
+  const age = Number(profile.age);
+  return Number.isFinite(age) && age > 0 ? age : null;
+}
+
+function matchesLocation(profileLocation: string, filter: string): boolean {
+  const value = profileLocation.trim().toLowerCase();
+  if (filter === 'International') {
+    return !!value && !/\blagos\b|\babuja\b|port harcourt/.test(value);
+  }
+  return value.includes(filter.toLowerCase());
+}
+
+function matchesFaith(profileFaith: string, filter: string): boolean {
+  const value = profileFaith.trim().toLowerCase();
+  if (filter === 'Christian') return value === 'christian' || value === 'christianity';
+  if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
+  if (filter === 'Other') return value === 'other' || value === 'others';
+  return value === filter.toLowerCase();
+}
 
   // Filtered profiles
   const filteredProfiles = useMemo(() => {
@@ -314,41 +270,6 @@ export function DiscoverScreen() {
           )}
         </button>
       </div>
-
-      {showWelcome && (
-        <section className="rounded-3xl border border-rose-200 bg-white p-4 text-stone-800">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-serif text-lg font-bold text-rose-950">Welcome to Lifebencher Match ❤️</h2>
-            <button type="button" className="text-stone-400" aria-label="Close welcome" onClick={() => { if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1'); setShowWelcome(false); }}><X className="w-4 h-4" /></button>
-          </div>
-          <p className="mt-1 text-sm">Your next meaningful connection could start here!</p>
-          <p className="mt-2 text-xs text-stone-500">We're excited to have you on board. Here's how to get started:</p>
-          <ul className="mt-3 space-y-2 text-xs">
-            <li><span className="font-semibold">Complete your profile.</span> Make sure your details and photos reflect the real you.</li>
-            <li><span className="font-semibold">Discover your matches.</span> Explore profiles and use filters to find people who match your preferences.</li>
-            <li><span className="font-semibold">Connect and chat.</span> Connect with people you're interested in and start meaningful conversations.</li>
-            <li><span className="font-semibold">Stay connected.</span> Install Lifebencher on your phone for easier access to your matches and important notifications.</li>
-          </ul>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className="rounded-full bg-rose-900 px-4 py-2 text-xs font-semibold text-amber-100" onClick={() => {
-              if (installState.isInstalled) {
-                setInstallNote('Lifebencher is already installed on this device.');
-                return;
-              }
-              if (installState.isInstallable) {
-                void installState.install().then((ok) => setInstallNote(ok ? 'Lifebencher was added to this device.' : 'Follow the installation prompt in your browser to add Lifebencher to your home screen.'));
-                return;
-              }
-              setInstallNote(installState.isIOS
-                ? 'On iPhone, open Safari, tap Share, then Add to Home Screen.'
-                : 'Follow the installation prompt in your browser to add Lifebencher to your home screen.');
-            }}>Install the app</button>
-            <button type="button" className="rounded-full border border-stone-300 px-4 py-2 text-xs font-semibold" onClick={() => { if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1'); setShowWelcome(false); }}>Explore Discover</button>
-          </div>
-          {installNote && <p className="mt-2 text-[11px] text-stone-500">{installNote}</p>}
-          <p className="mt-3 text-xs text-rose-900">We're glad you're here. ❤️</p>
-        </section>
-      )}
 
       {/* Toast Notification Banner */}
       <AnimatePresence>
@@ -563,3 +484,30 @@ export function DiscoverScreen() {
     </div>
   );
 };
+
+function DiscoverCardPhoto({ photos, name }: { photos: string[]; name: string }) {
+  const list = photos.length ? photos : [FALLBACK_PHOTO];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (list.length < 2) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % list.length), 4000);
+    return () => window.clearInterval(id);
+  }, [list.length]);
+  return (
+    <>
+      <img
+        src={list[idx] || FALLBACK_PHOTO}
+        alt={name}
+        className="w-full h-full object-cover group-hover:scale-101 transition duration-500"
+        loading="lazy"
+      />
+      {list.length > 1 && (
+        <div className="absolute top-3 left-3 z-20 flex gap-1">
+          {list.map((_, i) => (
+            <span key={i} className={`h-1 rounded-full ${i === idx ? 'w-5 bg-amber-300' : 'w-3 bg-white/40'}`} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

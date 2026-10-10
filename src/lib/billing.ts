@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -34,7 +33,6 @@ export interface BillingTransaction {
   matchType?: 'local' | 'international' | 'both' | null;
   aiReceiptNote?: string;
   aiReceiptConfidence?: number;
-  archived?: boolean;
 }
 
 export interface Entitlements {
@@ -138,12 +136,7 @@ export async function createPendingTransaction(
   if (!uid) throw new Error('Not signed in');
   const product = productById(productId);
   if (!product) throw new Error('Unknown product');
-  const existing = await getDocs(query(collection(db, 'transactions'), where('userId', '==', uid)));
-  const pending = existing.docs.find((d) => d.data().productId === product.id && d.data().status === 'pending');
-  if (pending) {
-    if (extras?.receiptUrl) await updateDoc(pending.ref, { receiptUrl: extras.receiptUrl, source: 'receipt_claim' });
-    return pending.id;
-  }
+  const now = new Date().toISOString();
   const reference = `LB-${Date.now()}-${uid.slice(0, 6)}`;
   const payload = {
     userId: uid,
@@ -153,7 +146,7 @@ export async function createPendingTransaction(
     currency: 'NGN' as const,
     status: 'pending' as const,
     reference,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     source: extras?.receiptUrl ? 'receipt_claim' : 'claim',
     ...(matchTypeFromProductId(product.id) ? { matchType: matchTypeFromProductId(product.id) } : {}),
     ...(extras?.matchId ? { matchId: extras.matchId } : {}),
@@ -168,24 +161,16 @@ async function publishProfileIfComplete(uid: string, matchType?: 'local' | 'inte
     const snap = await getDoc(doc(db, 'profiles', uid));
     const d = snap.data() || {};
     const complete = Boolean(d.displayName) && (Boolean(d.bio) || Boolean(d.profession) || Boolean(d.photoUrl));
-    if (!complete || d.isAdminProfile === true || d.isVerified === true) return;
+    if (!complete || d.isAdminProfile === true) return;
     await updateDoc(doc(db, 'profiles', uid), {
+      isVisible: true,
+      isVerified: true,
       updatedAt: new Date().toISOString(),
       ...(matchType ? { matchType } : {})
     });
   } catch {
     /* admin session required to flip visibility */
   }
-}
-
-export async function adminRemoveBillingRecord(tx: BillingTransaction): Promise<'archived' | 'deleted'> {
-  if (!tx.id) throw new Error('Missing billing record');
-  if (tx.status === 'success') {
-    await updateDoc(doc(db, 'transactions', tx.id), { archived: true, updatedAt: new Date().toISOString() });
-    return 'archived';
-  }
-  await deleteDoc(doc(db, 'transactions', tx.id));
-  return 'deleted';
 }
 
 export async function adminSetTransactionStatus(id: string, status: TxStatus): Promise<void> {
@@ -196,9 +181,6 @@ export async function adminSetTransactionStatus(id: string, status: TxStatus): P
 }
 
 export async function adminGrantFromTransaction(tx: BillingTransaction): Promise<void> {
-  if (!tx.userId) throw new Error('Customer identity unavailable — review required');
-  if (tx.status === 'success') return;
-  if (tx.status === 'failed') throw new Error('This payment is already marked failed.');
   const uid = tx.userId;
   const product = productById(tx.productId);
   const patch: Record<string, unknown> = {

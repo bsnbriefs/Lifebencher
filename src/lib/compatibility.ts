@@ -98,8 +98,8 @@ export function calculateCompatibility(
       targetProfile.age >= myPreferences.ageMin && targetProfile.age <= myPreferences.ageMax;
     if (ageInRange) score += 3;
 
-    locMatch = (myPreferences.preferredLocations || []).some((loc) =>
-      (targetProfile.location || '').toLowerCase().includes(loc.toLowerCase().split(',')[0])
+    locMatch = myPreferences.preferredLocations.some((loc) =>
+      targetProfile.location.toLowerCase().includes(loc.toLowerCase().split(',')[0])
     );
     if (locMatch) score += 2;
   } else {

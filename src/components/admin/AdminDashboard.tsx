@@ -20,12 +20,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
-import { listenAllProfiles, profileReadyForReview, setProfileVerified } from '../../lib/admin';
+import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
 import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
 import { SupportInbox } from './SupportInbox';
-import { openSupportWithClient } from '../../lib/support';
 import { AdminReportsPanel } from './AdminReportsPanel';
 import { closeReviewItem, listenReviewQueue, ReviewItem } from '../../lib/reviewQueue';
 
@@ -73,7 +72,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const queue: VerificationCandidate[] = useMemo(
     () =>
       liveProfiles
-        .filter((p) => (!p.isVerified || !p.isVisible) && profileReadyForReview(p))
+        .filter((p) => !p.isVerified || !p.isVisible)
         .map((p) => ({
           id: p.id,
           displayName: p.displayName,
@@ -409,7 +408,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   <button type="button" className="text-[11px] font-semibold text-rose-900 pt-1" onClick={() => setReviewId(cand.id)}>
                     Review full profile & photos
                   </button>
-                  <button type="button" className="text-[11px] font-semibold text-stone-700" onClick={() => void openSupportWithClient(cand.id, cand.displayName).then(() => setActiveTab('support'))}>Contact client</button>
                 </div>
 
                 {/* Status or Actions */}
