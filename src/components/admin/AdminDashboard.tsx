@@ -27,6 +27,8 @@ import { MonetizationPanel } from './MonetizationPanel';
 import { SupportInbox } from './SupportInbox';
 import { AdminReportsPanel } from './AdminReportsPanel';
 import { closeReviewItem, listenReviewQueue, ReviewItem } from '../../lib/reviewQueue';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface AdminDashboardProps {
   onBackToApp: () => void;
@@ -58,6 +60,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [removeReason, setRemoveReason] = useState('');
+  const [emailById, setEmailById] = useState<Record<string, string>>({});
   const reviewProfile = liveProfiles.find((p) => p.id === reviewId) || null;
 
   useEffect(() => {
@@ -67,6 +70,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       a();
       b();
     };
+  }, []);
+
+  useEffect(() => {
+    return onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const next: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          const email = String(d.data().email || '');
+          if (email) next[d.id] = email;
+        });
+        setEmailById(next);
+      },
+      () => setEmailById({})
+    );
   }, []);
 
   const queue: VerificationCandidate[] = useMemo(
@@ -100,9 +118,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         location: p.location,
         isVerified: p.isVerified,
         status: p.isVisible ? 'Active' : 'Hidden',
-        matchType: p.matchType || null
+        matchType: p.matchType || null,
+        email: emailById[p.id] || emailById[p.userId] || ''
       })).filter((c) => poolFilter === 'all' || c.matchType === poolFilter),
-    [liveProfiles, poolFilter]
+    [liveProfiles, poolFilter, emailById]
   );
 
   // Manual Curation Matchmaker state
@@ -637,6 +656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
         {/* TAB 4: CLIENT DIRECTORY */}
         {activeTab === 'clients' && (
+          <>
           <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-2xs space-y-3">
             <h3 className="font-serif font-bold text-base text-stone-900">
               Registered Clients Directory
@@ -673,6 +693,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                     </div>
                     <span className="text-stone-500 text-[11px]">
+                      {c.email || 'Email unavailable'}
+                      <br />
                       {c.profession} · {c.location}
                       {c.matchType ? ` · ${c.matchType}` : ''}
                     </span>
@@ -719,6 +741,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               ))}
             </div>
           </div>
+          </>
         )}
 
         {activeTab === 'billing' && <MonetizationPanel onNotice={setNotification} />}
