@@ -23,6 +23,7 @@ import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const FALLBACK_PHOTO =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80';
@@ -64,7 +65,18 @@ export const DiscoverScreen: React.FC = () => {
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [installNote, setInstallNote] = useState('');
+  const installState = usePWAInstall();
   const approvedRef = useRef<Profile[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setShowWelcome(false);
+      return;
+    }
+    setShowWelcome(localStorage.getItem(`lifebencher_welcome_${user.id}`) !== '1');
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -276,6 +288,25 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
 
       {loadError && (
         <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{loadError}</p>
+      )}
+      {showWelcome && (
+        <section className="rounded-3xl border border-rose-200 bg-white p-4 text-stone-800">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-serif text-lg font-bold text-rose-950">Welcome to Lifebencher Match</h2>
+            <button type="button" className="text-stone-400" aria-label="Close welcome" onClick={() => { if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1'); setShowWelcome(false); }}><X className="w-4 h-4" /></button>
+          </div>
+          <p className="mt-1 text-sm">Your next meaningful connection could start here.</p>
+          <p className="mt-2 text-xs text-stone-500">Complete your profile, explore Discover, and install the app for easier access.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" className="rounded-full bg-rose-900 px-4 py-2 text-xs font-semibold text-amber-100" onClick={() => {
+              if (installState.isInstalled) { setInstallNote('Lifebencher is already installed on this device.'); return; }
+              if (installState.isInstallable) { void installState.install().then((ok) => setInstallNote(ok ? 'Lifebencher was added to this device.' : 'Follow the browser prompt to add Lifebencher to your home screen.')); return; }
+              setInstallNote(installState.isIOS ? 'On iPhone, open Safari, tap Share, then Add to Home Screen.' : 'Follow the browser prompt to add Lifebencher to your home screen.');
+            }}>Install the app</button>
+            <button type="button" className="rounded-full border border-stone-300 px-4 py-2 text-xs font-semibold" onClick={() => { if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1'); setShowWelcome(false); }}>Explore Discover</button>
+          </div>
+          {installNote && <p className="mt-2 text-[11px] text-stone-500">{installNote}</p>}
+        </section>
       )}
 
       {/* Toast Notification Banner */}
