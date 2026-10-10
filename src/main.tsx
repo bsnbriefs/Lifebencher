@@ -17,7 +17,13 @@ class RootBoundary extends Component<{ children: ReactNode }, { error: string | 
   }
   render() {
     if (this.state.error) {
-      return <div style={{padding: 24, fontFamily: 'sans-serif'}}>Lifebencher could not open this screen. Refresh the page.</div>;
+      return (
+        <div style={{padding: 24, fontFamily: 'sans-serif', color: '#fff'}}>
+          <p>Lifebencher could not open this screen.</p>
+          <p style={{fontSize: 12, opacity: 0.7}}>{this.state.error}</p>
+          <button type="button" onClick={() => window.location.reload()} style={{marginTop: 12, padding: '8px 14px', borderRadius: 999, border: 0, background: '#7A1F2B', color: '#fff'}}>Refresh</button>
+        </div>
+      );
     }
     return this.props.children;
   }

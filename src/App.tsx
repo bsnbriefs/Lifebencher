@@ -183,7 +183,11 @@ function AppContent() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
           >
-            {activeTab === 'discover' && <DiscoverScreen />}
+            {activeTab === 'discover' && (
+              <MessagesErrorBoundary>
+                <DiscoverScreen />
+              </MessagesErrorBoundary>
+            )}
             {activeTab === 'matches' && <MatchesScreen onOpenChat={handleOpenChat} />}
             {activeTab === 'messages' && (
               <MessagesErrorBoundary>
