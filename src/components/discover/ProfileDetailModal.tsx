@@ -16,7 +16,6 @@ import { Profile, RELATIONSHIP_INTENT_OPTIONS, normalizeRelationshipIntent } fro
 import { CompatibilityResult } from '../../lib/compatibility';
 import { whyMatchedLines } from '../../lib/whyMatched';
 import { CONVERSATION_STARTERS } from '../../data/guides';
-import { VoiceIntroPlayer } from '../profile/VoiceIntroPlayer';
 
 interface ProfileDetailModalProps {
   profile: Profile | null;
