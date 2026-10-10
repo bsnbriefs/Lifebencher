@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
-import { listenAllProfiles, setProfileVerified } from '../../lib/admin';
+import { listenAllProfiles, profileReadyForReview, setProfileVerified } from '../../lib/admin';
 import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
@@ -422,10 +422,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
                     <button
                       onClick={() => handleApprove(cand.id)}
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 text-xs font-bold transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                      disabled={!profileReadyForReview(cand)}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:bg-stone-300 disabled:text-stone-600 text-xs font-bold transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>Approve & Verify</span>
+                      <span>{profileReadyForReview(cand) ? 'Approve & Verify' : 'Incomplete'}</span>
                     </button>
                   </div>
                 ) : (
@@ -463,7 +464,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <p className="text-[11px] text-stone-500">{(reviewProfile.interests || []).join(' · ')}</p>
               <div className="flex gap-2">
                 <button type="button" className="flex-1 py-2 rounded-xl border text-xs" onClick={() => { handleReject(reviewProfile.id); setReviewId(null); }}>Decline</button>
-                <button type="button" className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold" onClick={() => { handleApprove(reviewProfile.id); setReviewId(null); }}>Approve</button>
+                <button type="button" className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold disabled:bg-stone-300" disabled={!profileReadyForReview(reviewProfile)} onClick={() => { handleApprove(reviewProfile.id); setReviewId(null); }}>{profileReadyForReview(reviewProfile) ? 'Approve' : 'Incomplete'}</button>
               </div>
               <button type="button" className="w-full py-2 rounded-xl border border-rose-300 text-rose-800 text-xs font-semibold" onClick={() => { setRemoveTarget(reviewProfile); setRemoveReason(''); }}>Remove Account</button>
             </div>
