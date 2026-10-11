@@ -2,7 +2,6 @@ import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase
 import { Profile } from '../types';
 import { auth, db } from './firebase';
 import { mapProfileDoc } from './matches';
-import { grantPendingMatchmakingForUser } from './billing';
 
 async function fetchProfilesViaAdminApi(): Promise<Profile[]> {
   const token = await auth.currentUser?.getIdToken();
@@ -52,7 +51,7 @@ export function profileReadyForReview(profile: Profile): boolean {
 
 export async function setProfileVerified(profile: Profile, isVerified: boolean): Promise<void> {
   if (isVerified && !profileReadyForReview(profile)) {
-    throw new Error('This profile is incomplete. A name, location, profession, short bio, and two photos are required before approval.');
+    throw new Error('This profile is incomplete. Two photos and the required fields are needed before approval.');
   }
   const id = profile.userId || profile.id;
   let matchType = profile.matchType === 'local' || profile.matchType === 'international' ? profile.matchType : null;
@@ -81,6 +80,5 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
       read: false,
       createdAt: new Date().toISOString()
     });
-    await grantPendingMatchmakingForUser(id);
   }
 }

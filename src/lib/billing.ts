@@ -197,6 +197,12 @@ export async function adminSetTransactionStatus(id: string, status: TxStatus): P
 
 export async function adminGrantFromTransaction(tx: BillingTransaction): Promise<void> {
   if (!tx.userId) throw new Error('Customer identity unavailable — review required');
+  if (tx.source === 'flutterwave' && tx.status !== 'success') {
+    throw new Error('Await Flutterwave verification. Do not approve an unverified checkout.');
+  }
+  if ((tx.source === 'receipt_claim' || tx.source === 'claim') && !tx.receiptUrl) {
+    throw new Error('No payment receipt uploaded. Do not approve until the customer submits a receipt.');
+  }
   if (tx.status === 'success') return;
   if (tx.status === 'failed') throw new Error('This payment is already marked failed.');
   const uid = tx.userId;
@@ -223,7 +229,19 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
   await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   await adminSetTransactionStatus(tx.id, 'success');
   if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international' || product?.id === 'matchmaking_both') {
-    await publishProfileIfComplete(uid, matchTypeFromProductId(product.id));
+    const profileSnap = await getDoc(doc(db, 'profiles', uid));
+    const p = profileSnap.data() || {};
+    const photos = Array.isArray(p.photoUrls) ? p.photoUrls.filter(Boolean) : [];
+    const complete = Boolean(p.displayName) && photos.length >= 2 && (Boolean(p.bio) || Boolean(p.profession));
+    if (p.isAdminProfile !== true) {
+      await setDoc(doc(db, 'profiles', uid), {
+        paymentConfirmed: true,
+        paymentConfirmedAt: new Date().toISOString(),
+        matchType: matchTypeFromProductId(product.id),
+        reviewEligible: complete,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
   }
 }
 
