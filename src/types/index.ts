@@ -43,6 +43,7 @@ export interface Profile {
   isVisible: boolean;
   isAdminProfile?: boolean;
   accountStatus?: 'active' | 'removed';
+  paymentConfirmed?: boolean;
   matchType?: 'local' | 'international' | 'both' | null;
   compatibilityScore?: number;
   compatibilityReason?: string;
