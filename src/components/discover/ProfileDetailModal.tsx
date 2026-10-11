@@ -9,7 +9,9 @@ import {
   Sparkles,
   CheckCircle2,
   Share2,
-  Calendar
+  Calendar,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile, RELATIONSHIP_INTENT_OPTIONS, normalizeRelationshipIntent } from '../../types';
@@ -19,23 +21,44 @@ import { CONVERSATION_STARTERS } from '../../data/guides';
 
 interface ProfileDetailModalProps {
   profile: Profile | null;
+  profiles?: Profile[];
   compatibility?: CompatibilityResult | null;
   hasSentInterest?: boolean;
   isLoading?: boolean;
   onClose: () => void;
   onExploreMatch: (profileId: string) => void;
+  onSelect?: (profile: Profile) => void;
 }
 
 export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
   profile,
+  profiles = [],
   compatibility,
   hasSentInterest,
   isLoading,
   onClose,
-  onExploreMatch
+  onExploreMatch,
+  onSelect
 }) => {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [aiExplain, setAiExplain] = useState<{ explanation: string; starters: string[] } | null>(null);
+  const [edgeNote, setEdgeNote] = useState('');
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const startRef = React.useRef<{ x: number; y: number } | null>(null);
+  const index = profiles.findIndex((p) => p.id === profile?.id);
+  const previous = index > 0 ? profiles[index - 1] : null;
+  const next = index >= 0 && index < profiles.length - 1 ? profiles[index + 1] : null;
+
+  const move = (direction: -1 | 1) => {
+    const target = direction === -1 ? previous : next;
+    if (!target) {
+      setEdgeNote(direction === -1 ? 'This is the first profile.' : "You've reached the end of available profiles.");
+      return;
+    }
+    setEdgeNote('');
+    onSelect?.(target);
+    panelRef.current?.scrollTo({ top: 0 });
+  };
 
   useEffect(() => {
     setActivePhotoIdx(0);
@@ -78,10 +101,25 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-3 sm:p-4">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 300 }}
+          ref={panelRef}
+          key={profile.id}
+          initial={{ opacity: 0, x: 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -12 }}
+          transition={{ duration: 0.18 }}
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest('button, a, input, textarea')) return;
+            startRef.current = { x: e.clientX, y: e.clientY };
+          }}
+          onPointerUp={(e) => {
+            const start = startRef.current;
+            startRef.current = null;
+            if (!start) return;
+            const dx = e.clientX - start.x;
+            const dy = e.clientY - start.y;
+            if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+            move(dx < 0 ? 1 : -1);
+          }}
           className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-[#1a1614] text-[#f3ece6] rounded-3xl shadow-2xl border border-white/10 relative flex flex-col"
         >
           {/* Close Button Top Right */}
@@ -92,6 +130,8 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
           >
             <X className="w-4 h-4" />
           </button>
+          <button type="button" onClick={() => move(-1)} disabled={!previous} className="absolute left-3 top-1/2 z-30 w-9 h-9 -translate-y-1/2 rounded-full bg-black/50 text-white disabled:opacity-30" aria-label="Previous profile"><ChevronLeft className="w-5 h-5 mx-auto" /></button>
+          <button type="button" onClick={() => move(1)} disabled={!next} className="absolute right-3 top-1/2 z-30 w-9 h-9 -translate-y-1/2 rounded-full bg-black/50 text-white disabled:opacity-30" aria-label="Next profile"><ChevronRight className="w-5 h-5 mx-auto" /></button>
 
           {/* Photo Gallery Header */}
           <div className="relative aspect-4/5 w-full bg-stone-200 overflow-hidden shrink-0">
@@ -286,7 +326,9 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
           </div>
 
           {/* Sticky Bottom Action Bar */}
-          <div className="p-4 bg-[#1a1614] border-t border-white/10 sticky bottom-0 z-30 flex items-center gap-3">
+          <div className="p-4 bg-[#1a1614] border-t border-white/10 sticky bottom-0 z-30 space-y-2">
+            {edgeNote && <p className="text-center text-[11px] text-stone-400">{edgeNote}</p>}
+            <div className="flex items-center gap-3">
             <button
               onClick={onClose}
               className="py-3 px-4 rounded-2xl border border-white/15 text-stone-200 font-semibold text-xs"
@@ -317,6 +359,7 @@ export const ProfileDetailModal: React.FC<ProfileDetailModalProps> = ({
                 </>
               )}
             </button>
+            </div>
           </div>
         </motion.div>
       </div>
