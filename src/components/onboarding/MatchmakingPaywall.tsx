@@ -109,7 +109,7 @@ export const MatchmakingPaywall: React.FC = () => {
       <div className="max-w-md w-full mx-auto flex-1 space-y-3">
         <div>
           <h1 className="font-serif text-xl font-bold text-stone-900">Choose your match package</h1>
-          <p className="text-xs text-stone-500 mt-1">Choose where you'd like to meet potential matches.</p>
+          <p className="text-xs text-stone-500 mt-1">Pay through Flutterwave. Your profile enters review only after payment is verified.</p>
         </div>
 
         <button
@@ -168,7 +168,7 @@ export const MatchmakingPaywall: React.FC = () => {
 
         <div className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2">
           <p className="text-xs font-semibold text-stone-800">Already a paying client?</p>
-          <p className="text-[11px] text-stone-500">Upload a receipt or bank-alert photo. Do not pay again.</p>
+          <p className="text-[11px] text-stone-500">Upload a receipt or bank alert. Do not pay again. Admin reviews it before your profile enters the queue.</p>
           <input
             ref={receiptInputRef}
             type="file"
@@ -180,46 +180,17 @@ export const MatchmakingPaywall: React.FC = () => {
               setReceiptPreview(file ? URL.createObjectURL(file) : null);
             }}
           />
-          <button
-            type="button"
-            onClick={() => receiptInputRef.current?.click()}
-            className="w-full py-3 rounded-xl bg-white border border-stone-300 text-xs font-semibold text-stone-900"
-          >
-            Choose receipt from gallery
-          </button>
-          {receiptPreview && (
-            <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-36 object-contain rounded-2xl border border-stone-200 bg-white" />
-          )}
+          <button type="button" onClick={() => receiptInputRef.current?.click()} className="w-full py-3 rounded-xl bg-white border border-stone-300 text-xs font-semibold text-stone-900">Choose receipt from gallery</button>
+          {receiptPreview && <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-36 object-contain rounded-2xl border border-stone-200 bg-white" />}
           {receiptFile && <p className="text-[11px] text-stone-600">{receiptFile.name}</p>}
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => void alreadyPaid('matchmaking_local')}
-            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
-          >
-            Submit proof — Nigeria ₦30,000
-          </button>
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => void alreadyPaid('matchmaking_international')}
-            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
-          >
-            Submit proof — Abroad ₦50,000
-          </button>
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => void alreadyPaid('matchmaking_both')}
-            className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold"
-          >
-            Submit proof — Local + Foreign ₦60,000
-          </button>
+          <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_local')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Nigeria ₦30,000</button>
+          <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_international')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Abroad ₦50,000</button>
+          <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_both')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Local + Foreign ₦60,000</button>
         </div>
 
         {pending && (
           <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl p-3">
-            {pending.productName} is pending confirmation ({pending.reference}). Discover stays closed until admin confirms payment.
+            {pending.productName} is pending ({pending.reference}). Your profile stays out of review until payment is verified.
           </p>
         )}
         {note && <p className="text-[11px] text-stone-600 bg-stone-100 rounded-2xl p-3">{note}</p>}
