@@ -623,10 +623,12 @@ export function DiscoverScreen() {
       {detailProfile && (
         <ProfileDetailModal
           profile={detailProfile}
+          profiles={filteredProfiles}
           compatibility={compatibilityMap[detailProfile.id]}
           hasSentInterest={!!sentInterests[detailProfile.id]}
           isLoading={requestLoading === detailProfile.id}
           onClose={() => setDetailProfile(null)}
+          onSelect={setDetailProfile}
           onExploreMatch={(pid) => handleExploreMatch(pid)}
         />
       )}
