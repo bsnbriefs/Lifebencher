@@ -5,7 +5,9 @@ export default async function handler(req, res) {
   try {
     const user = await requireUser(req);
     const { subscription } = await readBody(req);
-    if (!subscription?.endpoint) return json(res, 400, { error: 'Missing subscription' });
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return json(res, 400, { error: 'Incomplete push subscription' });
+    }
     const id = Buffer.from(subscription.endpoint).toString('base64url').slice(-80);
     await getAdmin().firestore().doc(`pushSubscriptions/${id}`).set({
       userId: user.uid,
