@@ -154,8 +154,9 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
             <div className="flex gap-2">
               <button
                 type="button"
+                disabled={tx.source === 'flutterwave' || !tx.receiptUrl}
                 onClick={() => setReviewTx(tx)}
-                className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold"
+                className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold disabled:bg-stone-300"
               >
                 Confirm & grant
               </button>
@@ -203,9 +204,20 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                   <p className="text-xs">{tx.productName} · {formatNgn(tx.amountNgn)} · {tx.status}</p>
                   <p className="text-[11px] text-stone-500">{tx.reference} · {tx.createdAt}</p>
                   <p className="text-[10px] text-stone-400">Account: {tx.userId || 'unavailable'}</p>
-                  {tx.receiptUrl ? <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-rose-800 underline">View full receipt</a> : <p className="text-xs text-stone-500">No uploaded receipt. Flutterwave payments are verified automatically.</p>}
+                  {tx.receiptUrl ? (
+                    <div className="space-y-2">
+                      <img src={tx.receiptUrl} alt="Payment receipt" className="w-full max-h-64 object-contain rounded-2xl border border-stone-200 bg-stone-50" />
+                      <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-rose-800 underline">Open full receipt</a>
+                    </div>
+                  ) : tx.source === 'flutterwave' ? (
+                    <p className="text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">Awaiting Flutterwave verification. This profile stays out of review until Flutterwave confirms the payment.</p>
+                  ) : (
+                    <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">No uploaded receipt. Do not approve this claim until the customer submits a payment receipt.</p>
+                  )}
                   {reviewTx && tx.status === 'pending' && (
-                    <button type="button" className="w-full py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold" onClick={() => {
+                    <button type="button" disabled={!tx.receiptUrl || tx.source === 'flutterwave'} className="w-full py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold disabled:bg-stone-300" onClick={() => {
+                      if (tx.source === 'flutterwave') return onNotice('Await Flutterwave verification');
+                      if (!tx.receiptUrl) return onNotice('Receipt required before approval');
                       if (!tx.userId || !profile) return onNotice('Customer profile unavailable');
                       const ok = window.confirm(`Confirm payment?\n\nCustomer: ${profile.displayName}\nPackage: ${tx.productName}\nAmount: ${formatNgn(tx.amountNgn)}\nReference: ${tx.reference}`);
                       if (!ok) return;
