@@ -153,9 +153,9 @@ export function DiscoverScreen() {
       setNotificationNote('Notifications are blocked. You can enable them in your browser or device settings.');
       return;
     }
-    const vapid = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    const vapid = String(import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
     if (!vapid) {
-      setNotificationNote('Notification setup could not be completed. Please try again.');
+      setNotificationNote('Notification setup is not configured yet. Add VITE_VAPID_PUBLIC_KEY and redeploy.');
       return;
     }
     setActionBusy('notify');
@@ -169,19 +169,26 @@ export function DiscoverScreen() {
         setNotificationNote('Notification permission was not granted.');
         return;
       }
-      const reg = await navigator.serviceWorker.ready;
-      const key = Uint8Array.from(atob(vapid.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      const reg = await navigator.serviceWorker.ready.catch(() => registration);
+      const padded = vapid.replace(/-/g, '+').replace(/_/g, '/');
+      const key = Uint8Array.from(atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
       const existing = await reg.pushManager.getSubscription();
       const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
       const token = await import('../../lib/firebase').then((m) => m.auth.currentUser?.getIdToken());
+      if (!token) {
+        setNotificationNote('Sign in again, then enable notifications.');
+        return;
+      }
       const res = await fetch('/api/calls/subscribe', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: sub.toJSON() })
       });
-      setNotificationNote(res.ok ? (existing ? 'Notifications are already enabled.' : 'Notifications enabled.') : 'Notification permission is enabled, but setup could not be completed. Please try again.');
-    } catch {
-      setNotificationNote('Notification permission is enabled, but setup could not be completed. Please try again.');
+      const body = await res.json().catch(() => ({}));
+      setNotificationNote(res.ok ? (existing ? 'Notifications are already enabled.' : 'Notifications enabled.') : (body.error || 'Notification permission is enabled, but setup could not be completed. Please try again.'));
+    } catch (err) {
+      setNotificationNote(err instanceof Error ? `Notification setup failed: ${err.message}` : 'Notification permission is enabled, but setup could not be completed. Please try again.');
     } finally {
       setActionBusy(null);
     }
