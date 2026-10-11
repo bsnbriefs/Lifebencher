@@ -4,15 +4,18 @@ import { NavigationTab } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MobileAppShell } from './components/layout/MobileAppShell';
-import { DiscoverScreen } from './components/screens/DiscoverScreen';
 import { MatchesScreen } from './components/screens/MatchesScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { MatchmakingPaywall } from './components/onboarding/MatchmakingPaywall';
+import { InstallPage } from './components/common/InstallPage';
 
 const AdminDashboard = lazy(() =>
   import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const DiscoverScreen = lazy(() =>
+  import('./components/screens/DiscoverScreen').then((m) => ({ default: m.DiscoverScreen }))
 );
 import { WifiOff } from 'lucide-react';
 import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
@@ -21,6 +24,28 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { AuthActionPage, firebaseActionFromLocation } from './components/auth/AuthActionPage';
 
 const TABS: NavigationTab[] = ['discover', 'matches', 'messages', 'profile'];
+
+class ScreenErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || 'This screen failed to load' };
+  }
+  componentDidCatch(error: Error) {
+    console.error('Screen failed', error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-6 text-center space-y-3">
+          <p className="text-sm font-semibold text-stone-800">This screen could not open.</p>
+          <p className="text-xs text-stone-500">{this.state.error}</p>
+          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function tabFromHash(): NavigationTab {
   const raw = window.location.hash.replace('#', '');
@@ -116,6 +141,10 @@ function AppContent() {
     selectTab('messages');
   };
 
+  if (window.location.hash.replace('#', '').split('?')[0] === 'install') {
+    return <InstallPage />;
+  }
+
   if (firebaseAction) {
     return <AuthActionPage mode={firebaseAction.mode} oobCode={firebaseAction.oobCode} />;
   }
@@ -183,12 +212,16 @@ function AppContent() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
           >
-            {activeTab === 'discover' && <DiscoverScreen />}
+            {activeTab === 'discover' && (
+              <ScreenErrorBoundary>
+                <DiscoverScreen />
+              </ScreenErrorBoundary>
+            )}
             {activeTab === 'matches' && <MatchesScreen onOpenChat={handleOpenChat} />}
             {activeTab === 'messages' && (
-              <MessagesErrorBoundary>
+              <ScreenErrorBoundary>
                 <MessagesScreen initialConversationId={targetChatMatchId} />
-              </MessagesErrorBoundary>
+              </ScreenErrorBoundary>
             )}
             {activeTab === 'profile' && (
               <ProfileScreen onOpenAdmin={isAdmin ? () => setIsAdminMode(true) : undefined} />
@@ -198,28 +231,6 @@ function AppContent() {
       </MobileAppShell>
     </div>
   );
-}
-
-class MessagesErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
-  state = { error: null as string | null };
-  static getDerivedStateFromError(error: Error) {
-    return { error: error.message || 'Messages failed to load' };
-  }
-  componentDidCatch(error: Error) {
-    console.error('Messages screen failed', error);
-  }
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="p-6 text-center space-y-3">
-          <p className="text-sm font-semibold text-stone-800">Something went wrong loading this conversation.</p>
-          <p className="text-xs text-stone-500">{this.state.error}</p>
-          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 export default function App() {
