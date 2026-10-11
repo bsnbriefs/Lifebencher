@@ -86,22 +86,21 @@ export async function grantVerifiedTransaction(txSnap) {
       const psnap = await t.get(pref);
       const p = psnap.data() || {};
 
+      const photos = Array.isArray(p.photoUrls) ? p.photoUrls.filter(Boolean) : [];
       const complete =
         Boolean(p.displayName) &&
-        (Boolean(p.bio) ||
-          Boolean(p.profession) ||
-          Boolean(p.photoUrl));
+        photos.length >= 2 &&
+        (Boolean(p.bio) || Boolean(p.profession));
 
-      if (p.isAdminProfile === true) {
-        /* never publish admin profiles */
-      } else if (complete) {
+      if (p.isAdminProfile !== true) {
         t.set(
           pref,
           {
-            isVisible: true,
-            isVerified: true,
+            paymentConfirmed: true,
+            paymentConfirmedAt: new Date().toISOString(),
             matchType: matchTypeFromProductId(pid),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            ...(complete ? { reviewEligible: true } : { reviewEligible: false })
           },
           { merge: true }
         );
