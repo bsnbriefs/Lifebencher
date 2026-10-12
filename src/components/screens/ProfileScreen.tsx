@@ -40,6 +40,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoProgress, setPhotoProgress] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoBroken, setPhotoBroken] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -141,11 +142,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
       <div className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-4">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <img
-              src={currentProfile.photos[0] || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'}
-              alt={currentProfile.displayName}
-              className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-200 shadow-xs"
-            />
+            {currentProfile.photos?.[0]?.startsWith('https://') && !photoBroken ? (
+              <img
+                src={currentProfile.photos[0]}
+                alt={currentProfile.displayName}
+                onError={() => setPhotoBroken(true)}
+                className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-200 shadow-xs"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-2xl border-2 border-stone-200 bg-stone-100 text-stone-500 flex items-center justify-center text-center text-[10px] font-semibold px-1">
+                Add photo
+              </div>
+            )}
             <label className="absolute inset-0 rounded-2xl bg-black/0 hover:bg-black/25 transition flex items-end justify-center cursor-pointer">
               <span className="mb-1 px-1.5 py-0.5 rounded-full bg-white/90 text-[10px] font-semibold text-stone-800 flex items-center gap-1">
                 <Camera className="w-3 h-3" />
@@ -165,7 +173,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
                   setPhotoProgress(0);
                   try {
                     const url = await uploadProfilePhoto(file, setPhotoProgress);
-                    updateProfile({ photos: [url] });
+                    await updateProfile({ photos: [url] });
+                    setPhotoBroken(false);
                   } catch (err) {
                     setPhotoError(err instanceof Error ? err.message : 'Upload failed');
                   } finally {
@@ -457,6 +466,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
                                 urls.push(await uploadProfilePhoto(batch[i], setPhotoProgress, existing.length + i));
                               }
                               updateProfile({ photos: [...existing, ...urls].slice(0, 3) });
+                              setPhotoBroken(false);
                             } catch (err) {
                               setPhotoError(err instanceof Error ? err.message : 'Upload failed');
                             } finally {
