@@ -169,7 +169,15 @@ export function DiscoverScreen() {
 
   const handleEnableNotifications = async () => {
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setNotificationNote('Notifications are not supported in this browser.');
+      setNotificationNote('Notifications are not supported in this browser. Open Chrome or Safari.');
+      return;
+    }
+    if (/Instagram|FBAN|FBAV|FB_IAB|Line\/|Twitter|TikTok|Snapchat/i.test(navigator.userAgent)) {
+      setNotificationNote('This app browser cannot enable notifications. Open https://www.lifebencher.xyz in Chrome.');
+      return;
+    }
+    if (window.location.hostname === 'lifebencher.xyz') {
+      window.location.replace(`https://www.lifebencher.xyz${window.location.pathname}${window.location.search}${window.location.hash}`);
       return;
     }
     if (Notification.permission === 'denied') {
@@ -181,10 +189,7 @@ export function DiscoverScreen() {
       setNotificationNote('Notification setup is not configured yet. Add VITE_VAPID_PUBLIC_KEY and redeploy.');
       return;
     }
-    if (window.location.hostname === 'lifebencher.xyz') {
-      window.location.replace(`https://www.lifebencher.xyz${window.location.pathname}${window.location.search}${window.location.hash}`);
-      return;
-    }
+    setActionBusy('notify');
     try {
       const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (permission === 'denied') {
@@ -195,11 +200,12 @@ export function DiscoverScreen() {
         setNotificationNote('Notification permission was not granted.');
         return;
       }
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      const reg = await navigator.serviceWorker.ready.catch(() => registration);
+      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      const reg = registration.active ? registration : await navigator.serviceWorker.ready;
       const key = vapidKey(vapid);
-      const existing = await reg.pushManager.getSubscription();
-      const sub = await ensurePushSubscription(reg, key);
+      const stale = await reg.pushManager.getSubscription();
+      if (stale) await stale.unsubscribe().catch(() => undefined);
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
       const token = await import('../../lib/firebase').then((m) => m.auth.currentUser?.getIdToken());
       if (!token) {
         setNotificationNote('Sign in again, then enable notifications.');
@@ -211,9 +217,14 @@ export function DiscoverScreen() {
         body: JSON.stringify({ subscription: sub.toJSON() })
       });
       const body = await res.json().catch(() => ({}));
-      setNotificationNote(res.ok ? (existing ? 'Notifications are already enabled.' : 'Notifications enabled.') : (body.error || 'Notification permission is enabled, but setup could not be completed. Please try again.'));
+      setNotificationNote(res.ok ? 'Notifications enabled.' : (body.error || 'Notification permission is enabled, but saving it failed. Please try again.'));
     } catch (err) {
-      setNotificationNote(err instanceof Error ? `Notification setup failed: ${err.message}` : 'Notification permission is enabled, but setup could not be completed. Please try again.');
+      const message = err instanceof Error ? err.message : '';
+      if (/push service|registration failed/i.test(message)) {
+        setNotificationNote('Your browser rejected push setup. Open https://www.lifebencher.xyz in Chrome, not an in-app browser, then try again.');
+      } else {
+        setNotificationNote(message ? `Notification setup failed: ${message}` : 'Notification setup could not be completed. Please try again.');
+      }
     } finally {
       setActionBusy(null);
     }
