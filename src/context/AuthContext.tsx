@@ -85,7 +85,7 @@ interface AuthContextType {
   sendPhoneCode: (phone: string) => Promise<void>;
   confirmPhoneCode: (code: string) => Promise<void>;
   completeOnboarding: (profileData: Partial<Profile>, prefsData?: Partial<ProfilePreferences>) => Promise<void>;
-  updateProfile: (updated: Partial<Profile>) => void;
+  updateProfile: (updated: Partial<Profile>) => Promise<void>;
   updatePreferences: (updated: Partial<ProfilePreferences>) => void;
   logout: () => void;
   deleteAccount: (password?: string) => Promise<void>;
@@ -166,6 +166,11 @@ function profileFromDoc(uid: string, data: Record<string, unknown> | undefined, 
     interests: Array.isArray(data?.interests) ? (data.interests as string[]) : extras?.interests || [],
     values: Array.isArray(data?.values) ? (data.values as string[]) : extras?.values || [],
     relationshipGoal: (data?.relationshipGoal as string) || extras?.relationshipGoal || 'Intentional marriage',
+    relationshipIntent: Array.isArray(data?.relationshipIntent)
+      ? (data.relationshipIntent as string[])
+      : extras?.relationshipIntent || [],
+    voiceIntroPath: typeof data?.voiceIntroPath === 'string' ? data.voiceIntroPath : extras?.voiceIntroPath || '',
+    voiceIntroDurationMs: typeof data?.voiceIntroDurationMs === 'number' ? data.voiceIntroDurationMs : extras?.voiceIntroDurationMs || 0,
     lifestyle: (data?.lifestyle && typeof data.lifestyle === 'object'
       ? (data.lifestyle as Profile['lifestyle'])
       : extras?.lifestyle) || {},
@@ -197,10 +202,7 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
   const photoUrl = profile.photos?.[0];
   const lifestyle = profile.lifestyle || {};
   const profileName = typeof profile.displayName === 'string' ? profile.displayName.trim() : '';
-  const authName = auth.currentUser?.displayName?.trim() || '';
-  const displayName = [profileName, authName].find(
-    (name) => name && !['member', 'profile'].includes(name.toLowerCase())
-  ) || 'Profile';
+  const displayName = (profileName || auth.currentUser?.displayName?.trim() || 'Profile').slice(0, 60);
   return {
     id: profile.id,
     userId: profile.userId,
@@ -219,6 +221,13 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
     updatedAt: nowIso(),
     interests: clipList(profile.interests, 12, 80),
     values: clipList(profile.values, 12, 80),
+    relationshipIntent: clipList(profile.relationshipIntent, 6, 40),
+    ...(profile.voiceIntroPath
+      ? {
+          voiceIntroPath: String(profile.voiceIntroPath).slice(0, 240),
+          voiceIntroDurationMs: Math.max(0, Math.round(Number(profile.voiceIntroDurationMs || 0)))
+        }
+      : { voiceIntroPath: '', voiceIntroDurationMs: 0 }),
     lifestyle: {
       ...(lifestyle.faith ? { faith: String(lifestyle.faith).slice(0, 40) } : {}),
       ...(lifestyle.smoking ? { smoking: lifestyle.smoking } : {}),
@@ -229,6 +238,9 @@ function firestoreProfilePayload(profile: Partial<Profile> & { id: string; userI
     ...(photoUrl && photoUrl.startsWith('https://') ? { photoUrl: photoUrl.slice(0, 2000) } : {}),
     ...(profile.photos && profile.photos.length
       ? { photoUrls: profile.photos.filter((u) => u.startsWith('https://')).slice(0, 3).map((u) => u.slice(0, 2000)) }
+      : {}),
+    ...(typeof (profile as { matchType?: string }).matchType === 'string'
+      ? { matchType: (profile as { matchType?: string }).matchType }
       : {})
   };
 }
@@ -247,6 +259,9 @@ function saveExtras(uid: string, extras: Partial<Profile>) {
     photos: extras.photos,
     interests: extras.interests,
     values: extras.values,
+    relationshipIntent: extras.relationshipIntent,
+    voiceIntroPath: extras.voiceIntroPath,
+    voiceIntroDurationMs: extras.voiceIntroDurationMs,
     lifestyle: extras.lifestyle
   };
   localStorage.setItem(`${EXTRAS_STORAGE_KEY}_${uid}`, JSON.stringify(next));
@@ -575,6 +590,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     prefsData?: Partial<ProfilePreferences>
   ) => {
     if (!auth.currentUser) return;
+    const photos = [...new Set((profileData.photos || []).filter((url) => url.startsWith('https://')))];
+    if (photos.length < 2) throw new Error('Upload at least 2 photos of yourself to submit your profile.');
+    if (!profileData.displayName?.trim()) throw new Error('Add your name to finish your profile.');
+    if (!profileData.location?.trim() || !profileData.profession?.trim() || (profileData.bio || '').trim().length < 15) {
+      throw new Error('Complete the required profile fields before submitting.');
+    }
     const uid = auth.currentUser.uid;
     const merged: Profile = {
       ...(currentProfile || profileFromDoc(uid, undefined, profileData)),
@@ -661,21 +682,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfile = (updated: Partial<Profile>) => {
-    if (!currentProfile || !auth.currentUser) return;
+  const updateProfile = async (updated: Partial<Profile>) => {
+    if (!currentProfile || !auth.currentUser) throw new Error('Sign in again to update your profile.');
     const uid = auth.currentUser.uid;
-    const merged = { ...currentProfile, ...updated, updatedAt: nowIso() };
-    setCurrentProfile(merged);
-    saveExtras(uid, merged);
-
+    const nextName = typeof updated.displayName === 'string' ? updated.displayName.trim().slice(0, 60) : currentProfile.displayName;
+    if (updated.displayName !== undefined && nextName.length < 2) throw new Error('Enter a name with at least 2 characters.');
+    const merged = { ...currentProfile, ...updated, displayName: nextName, updatedAt: nowIso() };
     const allowed = firestoreProfilePayload({
       ...merged,
       isVerified: currentProfile.isVerified,
+      isVisible: currentProfile.isVisible,
+      isAdminProfile: currentProfile.isAdminProfile,
       createdAt: currentProfile.createdAt
     });
-    updateDoc(doc(db, 'profiles', uid), allowed).catch((error) => {
-      console.error('Profile update failed', error);
-    });
+    await updateDoc(doc(db, 'profiles', uid), allowed);
+    if (nextName && nextName !== auth.currentUser.displayName) {
+      await updateAuthProfile(auth.currentUser, { displayName: nextName }).catch(() => undefined);
+    }
+    setCurrentProfile(merged);
+    saveExtras(uid, merged);
   };
 
   const updatePreferences = (updated: Partial<ProfilePreferences>) => {
