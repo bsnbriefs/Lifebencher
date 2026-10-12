@@ -687,15 +687,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const uid = auth.currentUser.uid;
     const nextName = typeof updated.displayName === 'string' ? updated.displayName.trim().slice(0, 60) : currentProfile.displayName;
     if (updated.displayName !== undefined && nextName.length < 2) throw new Error('Enter a name with at least 2 characters.');
+    const patch: Record<string, unknown> = { updatedAt: nowIso() };
+    if (updated.displayName !== undefined) patch.displayName = nextName;
+    if (typeof updated.age === 'number') patch.age = Math.round(updated.age);
+    if (typeof updated.profession === 'string') patch.profession = updated.profession.trim().slice(0, 100);
+    if (typeof updated.education === 'string') patch.education = updated.education.trim().slice(0, 120);
+    if (typeof updated.location === 'string') patch.location = updated.location.trim().slice(0, 100);
+    if (typeof updated.bio === 'string') patch.bio = updated.bio.trim().slice(0, 1000);
+    if (typeof updated.relationshipGoal === 'string') patch.relationshipGoal = updated.relationshipGoal.slice(0, 100);
+    if (Array.isArray(updated.relationshipIntent)) patch.relationshipIntent = clipList(updated.relationshipIntent, 6, 40);
+    await updateDoc(doc(db, 'profiles', uid), patch);
     const merged = { ...currentProfile, ...updated, displayName: nextName, updatedAt: nowIso() };
-    const allowed = firestoreProfilePayload({
-      ...merged,
-      isVerified: currentProfile.isVerified,
-      isVisible: currentProfile.isVisible,
-      isAdminProfile: currentProfile.isAdminProfile,
-      createdAt: currentProfile.createdAt
-    });
-    await updateDoc(doc(db, 'profiles', uid), allowed);
     if (nextName && nextName !== auth.currentUser.displayName) {
       await updateAuthProfile(auth.currentUser, { displayName: nextName }).catch(() => undefined);
     }
