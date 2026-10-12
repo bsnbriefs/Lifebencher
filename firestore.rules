@@ -144,7 +144,10 @@ service cloud.firestore {
           'lifestyle',
           'matchType',
           'isAdminProfile',
-          'lastActiveAt'
+          'lastActiveAt',
+          'paymentConfirmed',
+          'accountStatus',
+          'profileSubmitted'
         ])
         && isValidId(data.id)
         && isValidId(data.userId)
@@ -399,7 +402,10 @@ service cloud.firestore {
             && incoming().isVerified == existing().isVerified
             && incoming().createdAt == existing().createdAt
             && incoming().isVisible == existing().isVisible
-            && incoming().get('matchType', 'local') == existing().get('matchType', 'local')
+            && (
+              !existing().keys().hasAny(['matchType'])
+              || incoming().get('matchType', '') == existing().matchType
+            )
             && incoming().get('isAdminProfile', false) == existing().get('isAdminProfile', false)
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'displayName',
