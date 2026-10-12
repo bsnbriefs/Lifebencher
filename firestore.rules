@@ -395,18 +395,18 @@ service cloud.firestore {
           isAdmin()
           ||
           (
-            isValidProfile(incoming())
-            && incoming().userId == request.auth.uid
+            existing().userId == request.auth.uid
             && incoming().userId == existing().userId
             && incoming().id == existing().id
             && incoming().isVerified == existing().isVerified
             && incoming().createdAt == existing().createdAt
             && incoming().isVisible == existing().isVisible
-            && (
-              !existing().keys().hasAny(['matchType'])
-              || incoming().get('matchType', '') == existing().matchType
-            )
             && incoming().get('isAdminProfile', false) == existing().get('isAdminProfile', false)
+            && incoming().get('paymentConfirmed', false) == existing().get('paymentConfirmed', false)
+            && incoming().get('accountStatus', 'active') == existing().get('accountStatus', 'active')
+            && incoming().displayName is string
+            && incoming().displayName.size() >= 2
+            && incoming().displayName.size() <= 60
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'displayName',
               'age',
@@ -419,11 +419,6 @@ service cloud.firestore {
               'relationshipIntent',
               'voiceIntroPath',
               'voiceIntroDurationMs',
-          'voiceIntroPath',
-          'voiceIntroDurationMs',
-          'relationshipIntent',
-          'voiceIntroPath',
-          'voiceIntroDurationMs',
               'updatedAt',
               'photoUrl',
               'photoUrls',
