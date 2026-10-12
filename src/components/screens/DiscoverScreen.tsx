@@ -181,7 +181,10 @@ export function DiscoverScreen() {
       setNotificationNote('Notification setup is not configured yet. Add VITE_VAPID_PUBLIC_KEY and redeploy.');
       return;
     }
-    setActionBusy('notify');
+    if (window.location.hostname === 'lifebencher.xyz') {
+      window.location.replace(`https://www.lifebencher.xyz${window.location.pathname}${window.location.search}${window.location.hash}`);
+      return;
+    }
     try {
       const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (permission === 'denied') {
