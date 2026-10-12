@@ -43,6 +43,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [saveNote, setSaveNote] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Form states for full edit
   const [displayName, setDisplayName] = useState(currentProfile?.displayName || '');
@@ -69,19 +72,36 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
     );
   }
 
-  const handleSaveFullProfile = (e: React.FormEvent) => {
+  const handleSaveFullProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
-      displayName,
-      age: Number(age),
-      profession,
-      education,
-      location,
-      bio,
-      relationshipGoal,
-      relationshipIntent: normalizeRelationshipIntent(relationshipIntent)
-    });
-    setIsEditingFull(false);
+    const name = displayName.trim();
+    if (name.length < 2) {
+      setSaveError('Enter a name with at least 2 characters.');
+      setSaveNote('');
+      return;
+    }
+    setSaving(true);
+    setSaveError('');
+    try {
+      await updateProfile({
+        displayName: name,
+        age: Number(age),
+        profession: profession.trim(),
+        education: education.trim(),
+        location: location.trim(),
+        bio: bio.trim(),
+        relationshipGoal,
+        relationshipIntent: normalizeRelationshipIntent(relationshipIntent)
+      });
+      setDisplayName(name);
+      setSaveNote('Profile saved.');
+      setIsEditingFull(false);
+    } catch (err) {
+      setSaveNote('');
+      setSaveError(err instanceof Error ? err.message : 'Could not save your profile.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSavePreferences = (e: React.FormEvent) => {
@@ -583,10 +603,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-2xl bg-rose-900 text-amber-100 font-semibold shadow-md hover:bg-rose-950 transition cursor-pointer"
+                  disabled={saving}
+                  className="w-full py-3.5 rounded-2xl bg-rose-900 text-amber-100 font-semibold shadow-md hover:bg-rose-950 transition cursor-pointer disabled:opacity-60"
                 >
-                  Save Profile Changes
+                  {saving ? 'Saving…' : 'Save Profile Changes'}
                 </button>
+                {saveError && <p className="text-xs text-rose-700">{saveError}</p>}
+                {saveNote && <p className="text-xs text-emerald-700">{saveNote}</p>}
               </form>
             </motion.div>
           </div>
