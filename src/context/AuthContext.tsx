@@ -696,6 +696,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof updated.bio === 'string') patch.bio = updated.bio.trim().slice(0, 1000);
     if (typeof updated.relationshipGoal === 'string') patch.relationshipGoal = updated.relationshipGoal.slice(0, 100);
     if (Array.isArray(updated.relationshipIntent)) patch.relationshipIntent = clipList(updated.relationshipIntent, 6, 40);
+    if (Array.isArray(updated.photos)) {
+      const urls = updated.photos.filter((u) => typeof u === 'string' && u.startsWith('https://')).slice(0, 3);
+      patch.photoUrls = urls;
+      patch.photoUrl = urls[0] || '';
+    }
     await updateDoc(doc(db, 'profiles', uid), patch);
     const merged = { ...currentProfile, ...updated, displayName: nextName, updatedAt: nowIso() };
     if (nextName && nextName !== auth.currentUser.displayName) {
