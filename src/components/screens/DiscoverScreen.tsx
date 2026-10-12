@@ -95,6 +95,29 @@ function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string 
   );
 }
 
+function vapidKey(raw: string): Uint8Array {
+  const cleaned = raw.trim().replace(/^['"]|['"]$/g, '');
+  const padded = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '='));
+  const key = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  if (key.length !== 65) throw new Error('The notification key is invalid. Check VITE_VAPID_PUBLIC_KEY.');
+  return key;
+}
+
+async function ensurePushSubscription(reg: ServiceWorkerRegistration, key: Uint8Array) {
+  const subscribe = () => reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  const existing = await reg.pushManager.getSubscription();
+  try {
+    return existing || await subscribe();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (!/push service|registration failed/i.test(message)) throw err;
+    const stale = existing || await reg.pushManager.getSubscription();
+    if (stale) await stale.unsubscribe().catch(() => undefined);
+    return subscribe();
+  }
+}
+
 export function DiscoverScreen() {
   const { user, currentProfile, preferences } = useAuth();
   const installState = usePWAInstall();
@@ -171,10 +194,9 @@ export function DiscoverScreen() {
       }
       const registration = await navigator.serviceWorker.register('/sw.js');
       const reg = await navigator.serviceWorker.ready.catch(() => registration);
-      const padded = vapid.replace(/-/g, '+').replace(/_/g, '/');
-      const key = Uint8Array.from(atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+      const key = vapidKey(vapid);
       const existing = await reg.pushManager.getSubscription();
-      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      const sub = await ensurePushSubscription(reg, key);
       const token = await import('../../lib/firebase').then((m) => m.auth.currentUser?.getIdToken());
       if (!token) {
         setNotificationNote('Sign in again, then enable notifications.');
