@@ -60,7 +60,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   const raw = errInfo.error.toLowerCase();
   if (raw.includes('permission') || raw.includes('insufficient')) {
-    throw new Error('You do not have permission for that action. Try again or refresh.');
+    throw new Error('Missing or insufficient permissions. The profile rules blocked this save.');
   }
   if (raw.includes('offline') || raw.includes('unavailable') || raw.includes('network')) {
     throw new Error('Network problem. Check your connection and try again.');
