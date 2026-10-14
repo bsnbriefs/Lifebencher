@@ -101,16 +101,17 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     if (authMode === 'login') setAuthMode('register');
     if (currentStep === 1) setCurrentStep(2);
   }, [isAuthenticated]);
-  useEffect(() => {
-    if (displayName.trim()) return;
-    const fromAccount = user?.displayName?.trim() || user?.email?.split('@')[0] || '';
-    if (fromAccount) setDisplayName(fromAccount);
-  }, [user, displayName]);
 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+
+  useEffect(() => {
+    if (displayName.trim()) return;
+    const fromAccount = user?.displayName?.trim() || user?.email?.split('@')[0] || '';
+    if (fromAccount) setDisplayName(fromAccount);
+  }, [user, displayName]);
 
   // Step 2: About You
   const [age, setAge] = useState<number>(29);
