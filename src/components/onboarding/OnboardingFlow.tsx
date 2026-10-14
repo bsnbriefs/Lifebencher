@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   ArrowRight,
@@ -63,7 +63,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
     sendEmailLink,
     resetPassword,
     completeOnboarding,
-    isAuthenticated
+    isAuthenticated,
+    user
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -83,30 +84,28 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   // Step indicator: 1 to 6 — restore if Auth hydration remounts this screen
+  const draftKey = user?.id ? `lifebencher_onboarding_${user.id}` : 'lifebencher_onboarding_guest';
   const [currentStep, setCurrentStep] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('lifebencher_onboarding_step');
-      const n = saved ? Number(saved) : 1;
+      const saved = localStorage.getItem(draftKey) || sessionStorage.getItem('lifebencher_onboarding_step');
+      const parsed = saved && saved.startsWith('{') ? JSON.parse(saved).step : saved;
+      const n = Number(parsed);
       return n >= 1 && n <= 6 ? n : 1;
     } catch {
       return 1;
     }
   });
 
-  // Step 1: Account
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('lifebencher_onboarding_step', String(currentStep));
-    } catch {
-      /* ignore */
-    }
-  }, [currentStep]);
-
   useEffect(() => {
     if (!isAuthenticated) return;
     if (authMode === 'login') setAuthMode('register');
     if (currentStep === 1) setCurrentStep(2);
   }, [isAuthenticated]);
+  useEffect(() => {
+    if (displayName.trim()) return;
+    const fromAccount = user?.displayName?.trim() || user?.email?.split('@')[0] || '';
+    if (fromAccount) setDisplayName(fromAccount);
+  }, [user, displayName]);
 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -147,6 +146,70 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
   const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
   const [primaryPhotoIndex, setPrimaryPhotoIndex] = useState(0);
   const [photoBusy, setPhotoBusy] = useState(false);
+
+  const restored = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw && raw.startsWith('{')) {
+        const draft = JSON.parse(raw);
+        if (typeof draft.displayName === 'string' && draft.displayName) setDisplayName(draft.displayName);
+        if (typeof draft.age === 'number') setAge(draft.age);
+        if (draft.gender) setGender(draft.gender);
+        if (draft.location) setLocation(draft.location);
+        if (draft.profession) setProfession(draft.profession);
+        if (draft.education) setEducation(draft.education);
+        if (draft.bio) setBio(draft.bio);
+        if (draft.faith) setFaith(draft.faith);
+        if (draft.smoking) setSmoking(draft.smoking);
+        if (draft.drinking) setDrinking(draft.drinking);
+        if (draft.exercise) setExercise(draft.exercise);
+        if (draft.kids) setKids(draft.kids);
+        if (draft.relationshipGoal) setRelationshipGoal(draft.relationshipGoal);
+        if (Array.isArray(draft.selectedValues)) setSelectedValues(draft.selectedValues);
+        if (Array.isArray(draft.selectedInterests)) setSelectedInterests(draft.selectedInterests);
+        if (typeof draft.prefAgeMin === 'number') setPrefAgeMin(draft.prefAgeMin);
+        if (typeof draft.prefAgeMax === 'number') setPrefAgeMax(draft.prefAgeMax);
+        if (Array.isArray(draft.galleryPhotos)) setGalleryPhotos(draft.galleryPhotos.filter((u: string) => u.startsWith('https://')));
+        if (draft.step >= 1 && draft.step <= 6) setCurrentStep(draft.step);
+      }
+    } catch {
+      /* ignore */
+    }
+    restored.current = true;
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!restored.current) return;
+    try {
+      const draft = {
+        step: currentStep,
+        displayName,
+        age,
+        gender,
+        location,
+        profession,
+        education,
+        bio,
+        faith,
+        smoking,
+        drinking,
+        exercise,
+        kids,
+        relationshipGoal,
+        selectedValues,
+        selectedInterests,
+        prefAgeMin,
+        prefAgeMax,
+        galleryPhotos: galleryPhotos.filter((u) => u.startsWith('https://'))
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+      sessionStorage.setItem('lifebencher_onboarding_step', String(currentStep));
+    } catch {
+      /* ignore */
+    }
+  }, [currentStep, displayName, age, gender, location, profession, education, bio, faith, smoking, drinking, exercise, kids, relationshipGoal, selectedValues, selectedInterests, prefAgeMin, prefAgeMax, galleryPhotos, draftKey]);
 
   // Processing state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -208,11 +271,6 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         return;
       }
       await login(loginEmail, loginPassword);
-      try {
-        sessionStorage.removeItem('lifebencher_onboarding_step');
-      } catch {
-        /* ignore */
-      }
     } catch (err) {
       setErrorMessage(formatAuthError(err));
     } finally {
@@ -323,17 +381,24 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
   const handleFinishOnboarding = async () => {
     setIsSubmitting(true);
+    setErrorMessage(null);
+    if (!displayName.trim()) {
+      setErrorMessage('Add your name to finish your profile.');
+      setIsSubmitting(false);
+      return;
+    }
     const ordered = [...galleryPhotos];
     if (primaryPhotoIndex > 0 && primaryPhotoIndex < ordered.length) {
       const [main] = ordered.splice(primaryPhotoIndex, 1);
       ordered.unshift(main);
     }
     const photoToUse = ordered[0] || '';
+    let saved = false;
 
     try {
     await completeOnboarding(
       {
-        displayName,
+        displayName: displayName.trim(),
         age,
         gender,
         location,
@@ -359,18 +424,22 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
         preferredLocations: [location]
       }
     );
+    saved = true;
     } catch (err) {
       console.error(err);
       setErrorMessage(err instanceof Error ? err.message : 'Could not save profile. You can tap Activate again.');
     } finally {
     setIsSubmitting(false);
+    }
+    if (!saved) return;
     try {
+      localStorage.removeItem(draftKey);
+      localStorage.removeItem('lifebencher_onboarding_guest');
       sessionStorage.removeItem('lifebencher_onboarding_step');
     } catch {
       /* ignore */
     }
     if (onCompleted) onCompleted();
-    }
   };
 
   return (
@@ -1043,6 +1112,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
                       <p className="text-xs text-stone-500 mt-0.5">
                         Add 2–3 recent photos of yourself. Tap one to use it as your profile picture.
                       </p>
+                      <p className="text-[11px] text-stone-600">Photos uploaded: {galleryPhotos.length} of 2. Upload at least 2 photos of yourself to submit your profile.</p>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -1108,6 +1178,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onCompleted }) =
 
                     {/* Miniature Card Preview */}
                     <div className="bg-stone-50 rounded-2xl overflow-hidden border border-stone-200 p-3 space-y-3">
+                      <label className="block text-xs font-semibold text-stone-700">
+                        Your name
+                        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" placeholder="Your name" />
+                      </label>
                       <div className="flex items-center gap-3">
                         <img
                           src={galleryPhotos[primaryPhotoIndex] || galleryPhotos[0] || ''}

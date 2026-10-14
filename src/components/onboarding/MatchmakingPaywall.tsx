@@ -58,25 +58,28 @@ export const MatchmakingPaywall: React.FC = () => {
       setNote('Upload a photo of your receipt or bank alert first.');
       return;
     }
-    setBusy(productId);
+    const target = pending?.productId || productId;
+    setBusy(target);
     setNote(null);
     try {
       const receiptUrl = await uploadPaymentReceipt(receiptFile);
-      const txId = await createPendingTransaction(productId, { receiptUrl });
+      const txId = await createPendingTransaction(target, { receiptUrl });
       try {
         const { reviewReceipt } = await import('../../lib/aiClient');
         const { productById } = await import('../../lib/products');
-        const product = productById(productId);
+        const product = productById(target);
         const ai = await reviewReceipt({
           receiptUrl,
           txId,
           expectedAmountNgn: product?.priceNgn || 0,
-          productName: product?.name || productId
+          productName: product?.name || target
         });
         setNote(`Proof submitted for review. ${ai.note}`);
       } catch {
-        setNote('Receipt sent. Admin will confirm on the Billing tab.');
+        setNote('Receipt sent. You can leave and come back. Admin will confirm it.');
       }
+      setReceiptFile(null);
+      setReceiptPreview(null);
     } catch (err) {
       setNote(err instanceof Error ? err.message : 'Could not save claim.');
     } finally {
@@ -167,12 +170,12 @@ export const MatchmakingPaywall: React.FC = () => {
         </button>
 
         <div className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2">
-          <p className="text-xs font-semibold text-stone-800">Already a paying client?</p>
-          <p className="text-[11px] text-stone-500">Upload a receipt or bank alert. Do not pay again. Admin reviews it before your profile enters the queue.</p>
+          <p className="text-xs font-semibold text-stone-800">{pending ? 'Finish your payment proof' : 'Already a paying client?'}</p>
+          <p className="text-[11px] text-stone-500">{pending ? `Attach a receipt for ${pending.productName}. You do not need to pay again or restart registration.` : 'Upload a receipt or bank alert. Do not pay again. Admin reviews it before your profile enters the queue.'}</p>
           <input
             ref={receiptInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            accept="image/*,.jpg,.jpeg,.png,.webp"
             className="sr-only"
             onChange={(e) => {
               const file = e.target.files?.[0] || null;
@@ -183,9 +186,17 @@ export const MatchmakingPaywall: React.FC = () => {
           <button type="button" onClick={() => receiptInputRef.current?.click()} className="w-full py-3 rounded-xl bg-white border border-stone-300 text-xs font-semibold text-stone-900">Choose receipt from gallery</button>
           {receiptPreview && <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-36 object-contain rounded-2xl border border-stone-200 bg-white" />}
           {receiptFile && <p className="text-[11px] text-stone-600">{receiptFile.name}</p>}
-          <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_local')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Nigeria ₦30,000</button>
-          <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_international')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Abroad ₦50,000</button>
-          <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_both')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Local + Foreign ₦60,000</button>
+          {pending ? (
+            <button type="button" disabled={!!busy} onClick={() => void alreadyPaid(pending.productId)} className="w-full py-2.5 rounded-xl bg-rose-900 text-amber-100 text-xs font-semibold">
+              {busy ? 'Uploading…' : `Submit receipt for ${pending.productName}`}
+            </button>
+          ) : (
+            <>
+              <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_local')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Nigeria ₦30,000</button>
+              <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_international')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Abroad ₦50,000</button>
+              <button type="button" disabled={!!busy} onClick={() => void alreadyPaid('matchmaking_both')} className="w-full py-2.5 rounded-xl border border-stone-300 text-xs font-semibold">Submit proof — Local + Foreign ₦60,000</button>
+            </>
+          )}
         </div>
 
         {pending && (
