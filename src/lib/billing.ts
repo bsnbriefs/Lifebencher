@@ -125,8 +125,12 @@ export async function uploadPaymentReceipt(file: File): Promise<string> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   if (file.size > 5 * 1024 * 1024) throw new Error('Receipt must be under 5MB');
-  const path = `receipts/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '')}`;
-  const snap = await uploadBytes(ref(storage, path), file, { contentType: file.type || 'image/jpeg' });
+  const type = file.type || (file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+  if (type === 'image/heic' || type === 'image/heif') {
+    throw new Error('Save the receipt as JPG or PNG first. iPhone HEIC is not accepted.');
+  }
+  const path = `receipts/${uid}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '') || 'receipt.jpg'}`;
+  const snap = await uploadBytes(ref(storage, path), file, { contentType: type.startsWith('image/') ? type : 'image/jpeg' });
   return getDownloadURL(snap.ref);
 }
 
@@ -141,7 +145,13 @@ export async function createPendingTransaction(
   const existing = await getDocs(query(collection(db, 'transactions'), where('userId', '==', uid)));
   const pending = existing.docs.find((d) => d.data().productId === product.id && d.data().status === 'pending');
   if (pending) {
-    if (extras?.receiptUrl) await updateDoc(pending.ref, { receiptUrl: extras.receiptUrl, source: 'receipt_claim' });
+    if (extras?.receiptUrl) {
+      await updateDoc(pending.ref, {
+        receiptUrl: extras.receiptUrl,
+        source: 'receipt_claim',
+        updatedAt: new Date().toISOString()
+      });
+    }
     return pending.id;
   }
   const reference = `LB-${Date.now()}-${uid.slice(0, 6)}`;
