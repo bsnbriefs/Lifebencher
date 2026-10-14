@@ -1113,7 +1113,19 @@ service cloud.firestore {
         && incoming().productId is string
         && incoming().reference is string;
 
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status == 'pending'
+          && incoming().status == 'pending'
+          && incoming().userId == existing().userId
+          && incoming().productId == existing().productId
+          && incoming().amountNgn == existing().amountNgn
+          && incoming().diff(existing()).affectedKeys().hasOnly(['receiptUrl', 'source', 'updatedAt'])
+        );
+
+      allow delete: if isAdmin();
     }
 
 
