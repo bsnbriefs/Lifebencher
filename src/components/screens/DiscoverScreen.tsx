@@ -438,12 +438,12 @@ export function DiscoverScreen() {
       </div>
 
       {unpaid && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+        <div className="rounded-2xl border border-amber-300 bg-stone-900 p-3 text-xs text-amber-100">
           Browse is open. Select a package and complete payment verification before you can send interest or start a conversation.
-          <button type="button" className="mt-2 block font-semibold text-rose-900" onClick={() => setShowPaywall(true)}>Choose a package</button>
+          <button type="button" className="mt-2 block font-semibold text-amber-300" onClick={() => setShowPaywall(true)}>Choose a package</button>
         </div>
       )}
-      {showPaywall && unpaid && <MatchmakingPaywall />}
+      {showPaywall && unpaid && <MatchmakingPaywall onClose={() => setShowPaywall(false)} />}
       {showWelcome && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onClick={dismissWelcome}>
           <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-3xl bg-white p-5 text-stone-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
