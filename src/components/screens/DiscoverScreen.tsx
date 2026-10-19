@@ -44,6 +44,7 @@ const DEFAULT_FILTERS: DiscoverFilters = {
   maxAge: 99,
   location: 'All Locations',
   faith: 'All Faiths',
+  gender: 'All',
   relationshipIntents: []
 };
 
@@ -346,6 +347,11 @@ export function DiscoverScreen() {
 
       if (filters.faith !== 'All Faiths' && !matchesFaith(p.lifestyle?.faith || '', filters.faith)) return false;
 
+      if (filters.gender && filters.gender !== 'All') {
+        const wanted = filters.gender.toLowerCase();
+        if ((p.gender || '').toLowerCase() !== wanted) return false;
+      }
+
       if (filters.relationshipIntents?.length) {
         const theirs = p.relationshipIntent || [];
         if (!filters.relationshipIntents.some((intent) => theirs.includes(intent))) return false;
@@ -362,6 +368,7 @@ export function DiscoverScreen() {
     if (filters.minAge !== DEFAULT_FILTERS.minAge || filters.maxAge !== DEFAULT_FILTERS.maxAge) count++;
     if (filters.location !== 'All Locations') count++;
     if (filters.faith !== 'All Faiths') count++;
+    if (filters.gender && filters.gender !== 'All') count++;
     if (filters.relationshipIntents?.length) count++;
     return count;
   }, [filters]);
