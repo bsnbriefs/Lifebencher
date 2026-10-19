@@ -38,6 +38,12 @@ service cloud.firestore {
         );
     }
 
+    function hasPaidPackage() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/entitlements/$(request.auth.uid))
+        && get(/databases/$(database)/documents/entitlements/$(request.auth.uid)).data.matchmakingPackage in ['local', 'international', 'both'];
+    }
+
     function isValidId(id) {
       return id is string
         && id.size() > 0
@@ -1027,7 +1033,8 @@ service cloud.firestore {
         && isValidId(requestId)
         && isValidMatchRequest(incoming())
         && incoming().senderId == request.auth.uid
-        && incoming().status == 'pending';
+        && incoming().status == 'pending'
+        && hasPaidPackage();
 
       allow update: if isSignedIn()
         && isValidId(requestId)
