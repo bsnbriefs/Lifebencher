@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Globe2, MapPin } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Globe2, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   BillingTransaction,
@@ -13,7 +14,7 @@ import {
 import { confirmFlutterwaveReturn, startFlutterwaveCheckout } from '../../lib/flutterwaveClient';
 import { AppLogo } from '../common/AppLogo';
 
-export const MatchmakingPaywall: React.FC = () => {
+export const MatchmakingPaywall: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const { user, logout } = useAuth();
   const [ent, setEnt] = useState<Entitlements>(EMPTY_ENTITLEMENTS(user?.id || ''));
   const [txs, setTxs] = useState<BillingTransaction[]>([]);
@@ -91,9 +92,9 @@ export const MatchmakingPaywall: React.FC = () => {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 p-4"
+      className="fixed inset-0 z-[120] overflow-y-auto overflow-x-hidden bg-[#FAF8F5] text-stone-900 p-4"
       style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <header className="paywall-header max-w-md w-full mx-auto flex items-center justify-between gap-2 py-1 mb-1 bg-transparent border-0 shadow-none">
@@ -104,8 +105,8 @@ export const MatchmakingPaywall: React.FC = () => {
             <p className="text-[9px] uppercase tracking-[0.18em] text-amber-800 font-semibold">Match</p>
           </div>
         </div>
-        <button type="button" onClick={() => void logout()} className="text-[11px] text-stone-500 font-semibold">
-          Sign out
+        <button type="button" onClick={onClose || (() => void logout())} className="flex items-center gap-1 text-[11px] text-stone-500 font-semibold">
+          {onClose ? <><X className="w-3.5 h-3.5" /> Close</> : 'Sign out'}
         </button>
       </header>
 
@@ -206,6 +207,7 @@ export const MatchmakingPaywall: React.FC = () => {
         )}
         {note && <p className="text-[11px] text-stone-600 bg-stone-100 rounded-2xl p-3">{note}</p>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
