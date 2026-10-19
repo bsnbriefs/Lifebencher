@@ -11,6 +11,7 @@ import {
 import { MatchRequest, MatchRequestStatus, Profile } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { createOrGetMatch, fetchProfileSafe } from './matches';
+import { doc as fsDoc, getDoc as fsGetDoc } from 'firebase/firestore';
 
 export function interestIdFor(userA: string, userB: string): string {
   const [a, b] = [userA, userB].sort();
@@ -71,10 +72,21 @@ export function listenOutgoingInterestIds(
   );
 }
 
+async function requirePaidPackage(): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  const snap = await fsGetDoc(fsDoc(db, 'entitlements', uid));
+  const pack = snap.exists() ? String(snap.data().matchmakingPackage || 'none') : 'none';
+  if (!['local', 'international', 'both'].includes(pack)) {
+    throw new Error('Select a package and complete payment verification to connect with matches.');
+  }
+}
+
 export async function sendInterest(otherUserId: string): Promise<'sent' | 'matched'> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   if (uid === otherUserId) throw new Error('Cannot send interest to yourself');
+  await requirePaidPackage();
 
   const id = interestIdFor(uid, otherUserId);
   const ref = doc(db, 'matchRequests', id);
@@ -129,6 +141,7 @@ export async function sendInterest(otherUserId: string): Promise<'sent' | 'match
 export async function acceptInterest(requestId: string, senderId: string): Promise<string> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
+  await requirePaidPackage();
   const snap = await getDoc(doc(db, 'matchRequests', requestId));
   if (!snap.exists() || snap.data().status !== 'pending' || snap.data().receiverId !== uid) {
     throw new Error('This request is no longer pending.');
