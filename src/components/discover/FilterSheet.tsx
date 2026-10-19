@@ -10,6 +10,7 @@ export interface DiscoverFilters {
   maxAge: number;
   location: string;
   faith: string;
+  gender: string;
   relationshipIntents: string[];
 }
 
@@ -23,6 +24,7 @@ interface FilterSheetProps {
 
 const LOCATIONS = ['All Locations', 'Lagos', 'Abuja', 'Port Harcourt', 'International'];
 const FAITHS = ['All Faiths', 'Christian', 'Muslim', 'Other'];
+const GENDERS = ['All', 'Female', 'Male'];
 
 export const FilterSheet: React.FC<FilterSheetProps> = ({
   isOpen,
@@ -107,6 +109,31 @@ export const FilterSheet: React.FC<FilterSheetProps> = ({
                     onChange={(e) => setLocalFilters({ ...localFilters, maxAge: Number(e.target.value) })}
                     className="w-full accent-rose-900"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-stone-800 block mb-1.5">
+                  Show
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {GENDERS.map((g) => {
+                    const isSelected = (localFilters.gender || 'All') === g;
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setLocalFilters({ ...localFilters, gender: g })}
+                        className={`px-3 py-1.5 rounded-xl border transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-rose-900 text-white border-rose-950 font-semibold'
+                            : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-50'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
