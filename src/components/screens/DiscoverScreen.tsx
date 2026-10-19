@@ -21,6 +21,7 @@ import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
 import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
+import { MatchmakingPaywall } from '../onboarding/MatchmakingPaywall';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -140,6 +141,8 @@ export function DiscoverScreen() {
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
+  const [showPaywall, setShowPaywall] = useState(false);
+  const unpaid = entitlements.matchmakingPackage === 'none';
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const approvedRef = useRef<Profile[]>([]);
@@ -377,6 +380,11 @@ export function DiscoverScreen() {
   const handleExploreMatch = (profileId: string) => {
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
+    if (unpaid) {
+      setShowPaywall(true);
+      setToastMessage('Select a package and complete payment verification to connect with matches.');
+      return;
+    }
     setRequestLoading(profileId);
     sounds.playSend();
     sendInterest(target.userId)
@@ -429,9 +437,13 @@ export function DiscoverScreen() {
         </button>
       </div>
 
-      {loadError && (
-        <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{loadError}</p>
+      {unpaid && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+          Browse is open. Select a package and complete payment verification before you can send interest or start a conversation.
+          <button type="button" className="mt-2 block font-semibold text-rose-900" onClick={() => setShowPaywall(true)}>Choose a package</button>
+        </div>
       )}
+      {showPaywall && unpaid && <MatchmakingPaywall />}
       {showWelcome && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onClick={dismissWelcome}>
           <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-3xl bg-white p-5 text-stone-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
