@@ -8,7 +8,6 @@ import { MatchesScreen } from './components/screens/MatchesScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
-import { MatchmakingPaywall } from './components/onboarding/MatchmakingPaywall';
 import { InstallPage } from './components/common/InstallPage';
 
 const AdminDashboard = lazy(() =>
@@ -187,12 +186,8 @@ function AppContent() {
     );
   }
 
-  if (isAdmin || entitlements.matchmakingPackage !== 'none') {
-    /* existing paid/admin account — never force new registration */
-  } else if (!isOnboarded && !payReturn) {
+  if (!isOnboarded && !payReturn && !isAdmin) {
     return <OnboardingFlow />;
-  } else if (entitlements.matchmakingPackage === 'none') {
-    return <MatchmakingPaywall />;
   }
 
   return (
