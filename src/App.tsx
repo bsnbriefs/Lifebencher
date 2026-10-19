@@ -7,14 +7,12 @@ import { MobileAppShell } from './components/layout/MobileAppShell';
 import { MatchesScreen } from './components/screens/MatchesScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
+import { DiscoverScreen } from './components/screens/DiscoverScreen';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { InstallPage } from './components/common/InstallPage';
 
 const AdminDashboard = lazy(() =>
   import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
-);
-const DiscoverScreen = lazy(() =>
-  import('./components/screens/DiscoverScreen').then((m) => ({ default: m.DiscoverScreen }))
 );
 import { WifiOff } from 'lucide-react';
 import { EMPTY_ENTITLEMENTS, listenEntitlements } from './lib/billing';
@@ -38,7 +36,7 @@ class ScreenErrorBoundary extends React.Component<{ children: React.ReactNode },
         <div className="p-6 text-center space-y-3">
           <p className="text-sm font-semibold text-stone-800">This screen could not open.</p>
           <p className="text-xs text-stone-500">{this.state.error}</p>
-          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => this.setState({ error: null })}>Try again</button>
+          <button type="button" className="px-4 py-2 rounded-full bg-rose-900 text-amber-100 text-xs font-semibold" onClick={() => window.location.reload()}>Try again</button>
         </div>
       );
     }
