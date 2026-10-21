@@ -151,13 +151,6 @@ export function DiscoverScreen() {
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const approvedRef = useRef<Profile[]>([]);
 
-  useEffect(() => {
-    const myGender = (currentProfile?.gender || '').toLowerCase();
-    const opposite = myGender === 'male' ? 'Female' : myGender === 'female' ? 'Male' : '';
-    if (!opposite) return;
-    setFilters((prev) => (prev.gender === 'All' ? { ...prev, gender: opposite } : prev));
-  }, [currentProfile?.gender]);
-
   const dismissWelcome = () => {
     if (user?.id) localStorage.setItem(`lifebencher_welcome_${user.id}`, '1');
     setShowWelcome(false);
@@ -356,15 +349,7 @@ export function DiscoverScreen() {
 
       if (filters.faith !== 'All Faiths' && !matchesFaith(p.lifestyle?.faith || '', filters.faith)) return false;
 
-      const myGender = (currentProfile?.gender || '').toLowerCase();
-      const wantedGender = filters.gender && filters.gender !== 'All'
-        ? filters.gender.toLowerCase()
-        : myGender === 'male'
-          ? 'female'
-          : myGender === 'female'
-            ? 'male'
-            : '';
-      if (wantedGender && (p.gender || '').toLowerCase() !== wantedGender) return false;
+      if (filters.gender && filters.gender !== 'All' && (p.gender || '').toLowerCase() !== filters.gender.toLowerCase()) return false;
 
       if (filters.relationshipIntents?.length) {
         const theirs = p.relationshipIntent || [];
@@ -373,7 +358,7 @@ export function DiscoverScreen() {
 
       return true;
     });
-  }, [profiles, filters, blockedIds, entitlements, approvedIds, currentProfile?.gender]);
+  }, [profiles, filters, blockedIds, entitlements, approvedIds]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
