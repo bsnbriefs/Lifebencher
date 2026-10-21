@@ -251,6 +251,16 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
         reviewEligible: complete,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+      await setDoc(doc(db, 'notifications', `payment-verified-${uid}`), {
+        userId: uid,
+        title: complete ? 'Payment verified' : 'Payment verified — finish your profile',
+        body: complete
+          ? 'Your payment is verified. Your profile is ready for admin review.'
+          : 'Your payment is verified and saved. Complete your profile and upload 2 photos before approval. You do not need to pay again.',
+        href: complete ? 'discover' : 'profile',
+        read: false,
+        createdAt: new Date().toISOString()
+      }).catch(() => undefined);
     }
   }
 }

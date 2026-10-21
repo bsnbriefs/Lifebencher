@@ -38,15 +38,19 @@ export function listenAllProfiles(
   );
 }
 
-export function profileReadyForReview(profile: Profile): boolean {
+export function missingProfileRequirements(profile: Profile): string[] {
   const photos = [...new Set((profile.photos || []).filter((url) => url.startsWith('https://')))];
-  return Boolean(
-    profile.displayName?.trim()
-    && profile.location?.trim()
-    && profile.profession?.trim()
-    && (profile.bio || '').trim().length >= 15
-    && photos.length >= 2
-  );
+  const missing: string[] = [];
+  if (!profile.displayName?.trim()) missing.push('Full name');
+  if (!profile.location?.trim()) missing.push('Location');
+  if (!profile.profession?.trim()) missing.push('Profession');
+  if ((profile.bio || '').trim().length < 15) missing.push('Bio of at least 15 characters');
+  if (photos.length < 2) missing.push(`${Math.max(0, 2 - photos.length)} more profile photo${photos.length === 1 ? '' : 's'}`);
+  return missing;
+}
+
+export function profileReadyForReview(profile: Profile): boolean {
+  return missingProfileRequirements(profile).length === 0;
 }
 
 export async function setProfileVerified(profile: Profile, isVerified: boolean): Promise<void> {
@@ -54,12 +58,12 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
     throw new Error('This profile is incomplete. Two photos and the required fields are needed before approval.');
   }
   const id = profile.userId || profile.id;
-  let matchType = profile.matchType === 'local' || profile.matchType === 'international' ? profile.matchType : null;
+  let matchType = profile.matchType === 'local' || profile.matchType === 'international' || profile.matchType === 'both' ? profile.matchType : null;
   if (!matchType) {
     try {
       const ent = await getDoc(doc(db, 'entitlements', id));
       const pack = ent.data()?.matchType || ent.data()?.matchmakingPackage;
-      if (pack === 'local' || pack === 'international') matchType = pack;
+      if (pack === 'local' || pack === 'international' || pack === 'both') matchType = pack;
     } catch {
       /* keep existing */
     }
@@ -79,6 +83,6 @@ export async function setProfileVerified(profile: Profile, isVerified: boolean):
       href: 'discover',
       read: false,
       createdAt: new Date().toISOString()
-    });
+    }).catch(() => undefined);
   }
 }
