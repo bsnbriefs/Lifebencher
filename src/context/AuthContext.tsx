@@ -708,6 +708,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setCurrentProfile(merged);
     saveExtras(uid, merged);
+    if (merged.paymentConfirmed && !merged.isVerified) {
+      const photos = [...new Set((merged.photos || []).filter((url) => url.startsWith('https://')))];
+      const ready = Boolean(merged.displayName?.trim() && merged.location?.trim() && merged.profession?.trim() && (merged.bio || '').trim().length >= 15 && photos.length >= 2);
+      if (ready) {
+        await setDoc(doc(db, 'notifications', `ready-review-${uid}`), {
+          userId: uid,
+          title: 'Profile ready for review',
+          body: 'Your payment is already verified. Your completed profile is now ready for admin approval.',
+          href: 'profile',
+          read: false,
+          createdAt: nowIso()
+        }).catch(() => undefined);
+      }
+    }
   };
 
   const updatePreferences = (updated: Partial<ProfilePreferences>) => {
