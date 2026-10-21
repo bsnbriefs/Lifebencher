@@ -20,7 +20,7 @@ import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
 import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles } from '../../lib/matches';
-import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
+import { missingProfileRequirements } from '../../lib/admin';
 import { MatchmakingPaywall } from '../onboarding/MatchmakingPaywall';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
@@ -145,6 +145,7 @@ export function DiscoverScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPaymentNotice, setShowPaymentNotice] = useState(true);
   const unpaid = entitlements.matchmakingPackage === 'none';
+  const missingAfterPayment = currentProfile?.paymentConfirmed ? missingProfileRequirements(currentProfile) : [];
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const approvedRef = useRef<Profile[]>([]);
@@ -457,6 +458,11 @@ export function DiscoverScreen() {
         </button>
       </div>
 
+      {missingAfterPayment.length > 0 && (
+        <div className="rounded-2xl border border-amber-300 bg-stone-950 p-3 text-xs text-amber-100">
+          Payment is verified and saved. Complete your profile before approval: {missingAfterPayment.join(', ')}. Open Profile to finish. You do not need to pay again.
+        </div>
+      )}
       {unpaid && showPaymentNotice && !showPaywall && (
         <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="payment-notice-title">
           <div className="w-full max-w-md rounded-3xl bg-stone-950 border border-amber-300 p-5 text-amber-50 shadow-2xl">
