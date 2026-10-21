@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../../types';
-import { listenAllProfiles, profileReadyForReview, setProfileVerified } from '../../lib/admin';
+import { listenAllProfiles, missingProfileRequirements, profileReadyForReview, setProfileVerified } from '../../lib/admin';
 import { adminGrantMatchmaking } from '../../lib/billing';
 import { useAuth } from '../../context/AuthContext';
 import { MonetizationPanel } from './MonetizationPanel';
@@ -90,7 +90,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const queue: VerificationCandidate[] = useMemo(
     () =>
       liveProfiles
-        .filter((p) => p.accountStatus !== 'removed' && p.paymentConfirmed === true && !p.isVerified && profileReadyForReview(p))
+        .filter((p) => p.accountStatus !== 'removed' && p.paymentConfirmed === true && !p.isVerified)
         .map((p) => ({
           id: p.id,
           displayName: p.displayName,
@@ -423,8 +423,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 <div className="p-3 bg-stone-50 rounded-2xl border border-stone-150 text-xs space-y-1">
                   <div className="flex items-center gap-1.5 text-stone-800 font-semibold">
                     <ShieldCheck className="w-3.5 h-3.5 text-rose-800" />
-                    <span>Credentials: {cand.idDocument}</span>
+                    <span>Payment verified</span>
                   </div>
+                  {(() => {
+                    const profile = liveProfiles.find((p) => p.id === cand.id);
+                    const missing = profile ? missingProfileRequirements(profile) : [];
+                    return missing.length ? (
+                      <p className="text-amber-900">Payment verified. Profile incomplete: {missing.join(', ')}.</p>
+                    ) : (
+                      <p className="text-emerald-800">Payment verified. Profile complete and awaiting approval.</p>
+                    );
+                  })()}
                   <p className="text-stone-600 text-[11px] italic">"{cand.bio}"</p>
                   <button type="button" className="text-[11px] font-semibold text-rose-900 pt-1" onClick={() => setReviewId(cand.id)}>
                     Review full profile & photos
@@ -440,15 +449,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     >
                       Decline
                     </button>
-
+                    {(() => {
+                      const profile = liveProfiles.find((p) => p.id === cand.id);
+                      const ready = !!profile && profileReadyForReview(profile);
+                      return (
                     <button
                       onClick={() => handleApprove(cand.id)}
-                      disabled={!profileReadyForReview(cand)}
+                      disabled={!ready}
                       className="flex-1 py-2.5 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 disabled:bg-stone-300 disabled:text-stone-600 text-xs font-bold transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>{profileReadyForReview(cand) ? 'Approve & Verify' : 'Incomplete'}</span>
+                      <span>{ready ? 'Approve & Verify' : 'Incomplete'}</span>
                     </button>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div
