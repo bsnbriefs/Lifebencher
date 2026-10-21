@@ -20,6 +20,7 @@ import { FilterSheet, DiscoverFilters } from '../discover/FilterSheet';
 import { ProfileDetailModal } from '../discover/ProfileDetailModal';
 import { sounds } from '../../lib/sound';
 import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles } from '../../lib/matches';
+import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { missingProfileRequirements } from '../../lib/admin';
 import { MatchmakingPaywall } from '../onboarding/MatchmakingPaywall';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
