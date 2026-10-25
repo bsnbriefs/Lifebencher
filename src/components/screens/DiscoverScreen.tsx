@@ -22,7 +22,6 @@ import { sounds } from '../../lib/sound';
 import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { missingProfileRequirements } from '../../lib/admin';
-import { MatchmakingPaywall } from '../onboarding/MatchmakingPaywall';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -143,9 +142,6 @@ export function DiscoverScreen() {
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [showPaymentNotice, setShowPaymentNotice] = useState(true);
-  const unpaid = entitlements.matchmakingPackage === 'none';
   const missingAfterPayment = currentProfile?.paymentConfirmed ? missingProfileRequirements(currentProfile) : [];
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
@@ -387,11 +383,6 @@ export function DiscoverScreen() {
   const handleExploreMatch = (profileId: string) => {
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
-    if (unpaid) {
-      setShowPaywall(true);
-      setToastMessage('Select a package and complete payment verification to connect with matches.');
-      return;
-    }
     setRequestLoading(profileId);
     sounds.playSend();
     sendInterest(target.userId)
@@ -480,25 +471,6 @@ export function DiscoverScreen() {
           Payment is verified and saved. Complete your profile before approval: {missingAfterPayment.join(', ')}. Open Profile to finish. You do not need to pay again.
         </div>
       )}
-      {unpaid && showPaymentNotice && !showPaywall && (
-        <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="payment-notice-title">
-          <div className="w-full max-w-md rounded-3xl bg-stone-950 border border-amber-300 p-5 text-amber-50 shadow-2xl">
-            <h2 id="payment-notice-title" className="font-serif text-xl font-bold text-amber-100">Your profile is hidden</h2>
-            <p className="mt-3 text-sm leading-6 text-amber-50">Browse is open, but your profile stays hidden until you make payment or upload a payment receipt and it is verified.</p>
-            <p className="mt-2 text-sm leading-6 text-amber-100/80">You cannot send interest, start a conversation, or receive matches until payment is confirmed.</p>
-            <div className="mt-5 grid gap-2">
-              <button type="button" className="rounded-full bg-rose-900 px-4 py-3 text-sm font-semibold text-amber-100" onClick={() => { setShowPaymentNotice(false); setShowPaywall(true); }}>Make payment or upload receipt</button>
-              <button type="button" className="rounded-full border border-amber-300 px-4 py-3 text-sm font-semibold text-amber-100" onClick={() => setShowPaymentNotice(false)}>Browse for now</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {unpaid && !showPaymentNotice && (
-        <button type="button" className="w-full rounded-2xl border border-amber-300 bg-stone-950 p-3 text-left text-xs text-amber-100" onClick={() => setShowPaymentNotice(true)}>
-          Your profile is hidden until payment or a receipt is verified. Tap to continue.
-        </button>
-      )}
-      {showPaywall && unpaid && <MatchmakingPaywall onClose={() => setShowPaywall(false)} />}
       {showWelcome && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onClick={dismissWelcome}>
           <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-3xl bg-white p-5 text-stone-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
