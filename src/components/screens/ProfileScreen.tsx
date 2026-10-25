@@ -212,7 +212,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onOpenAdmin }) => 
         )}
         {!currentProfile.isVisible && (
           <p className="text-[11px] text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">
-            Hidden from Discover until your matchmaking payment is verified or an admin approves your profile.
+            Hidden from Discover until an admin approves your profile. Optional packages remain available below.
           </p>
         )}
 
