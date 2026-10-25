@@ -1033,8 +1033,7 @@ service cloud.firestore {
         && isValidId(requestId)
         && isValidMatchRequest(incoming())
         && incoming().senderId == request.auth.uid
-        && incoming().status == 'pending'
-        && hasPaidPackage();
+        && incoming().status == 'pending';
 
       allow update: if isSignedIn()
         && isValidId(requestId)
