@@ -22,6 +22,7 @@ import { sounds } from '../../lib/sound';
 import { listenUserMatches, listenVisibleProfiles, fetchApprovedDiscoverProfiles } from '../../lib/matches';
 import { listenOutgoingInterestIds, sendInterest } from '../../lib/interests';
 import { missingProfileRequirements } from '../../lib/admin';
+import { MatchmakingPaywall } from '../onboarding/MatchmakingPaywall';
 import { listenBlockedIds, reportUser, blockUser } from '../../lib/safety';
 import { listenEntitlements, EMPTY_ENTITLEMENTS, Entitlements } from '../../lib/billing';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -67,6 +68,28 @@ function matchesFaith(profileFaith: string, filter: string): boolean {
   if (filter === 'Muslim') return value === 'muslim' || value === 'islam';
   if (filter === 'Other') return value === 'other' || value === 'others';
   return value === filter.toLowerCase();
+}
+
+const NIGERIA_PLACES = [
+  'nigeria', 'lagos', 'abuja', 'port harcourt', 'ibadan', 'kano', 'enugu', 'benin',
+  'kaduna', 'warri', 'owerri', 'uyo', 'calabar', 'jos', 'ilorin', 'onitsha', 'abeokuta',
+  'akure', 'asaba', 'awka', 'yenagoa', 'bayelsa', 'rivers', 'delta', 'anambra', 'imo',
+  'abia', 'edo', 'ogun', 'oyo', 'osun', 'ekiti', 'ondo', 'kwara', 'kogi', 'benue',
+  'plateau', 'nasarawa', 'sokoto', 'kebbi', 'zamfara', 'katsina', 'jigawa', 'yobe',
+  'borno', 'adamawa', 'taraba', 'gombe', 'bauchi', 'cross river', 'akwa ibom', 'fct', 'naija'
+];
+
+function isLocalLocation(location: string): boolean {
+  const value = location.trim().toLowerCase();
+  if (!value) return true;
+  if (/\binternational\b|\babroad\b|\bdiaspora\b|\buk\b|\busa\b|\bunited states\b|\bcanada\b|\bdubai\b|\buae\b|\bgermany\b|\bfrance\b|\blondon\b|\bghana\b|\bsouth africa\b/.test(value)) return false;
+  return NIGERIA_PLACES.some((place) => value.includes(place));
+}
+
+function profileIsLocal(profile: Profile): boolean {
+  if (profile.matchType === 'international') return false;
+  if (profile.matchType === 'local') return true;
+  return isLocalLocation(profile.location || '');
 }
 
 function DiscoverCardPhoto({ photos, name }: { photos?: string[]; name?: string }) {
@@ -142,6 +165,14 @@ export function DiscoverScreen() {
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>(EMPTY_ENTITLEMENTS(''));
+  const [showInternationalPaywall, setShowInternationalPaywall] = useState(false);
+  const access =
+    entitlements.matchType === 'local' || entitlements.matchType === 'international' || entitlements.matchType === 'both'
+      ? entitlements.matchType
+      : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international' || entitlements.matchmakingPackage === 'both'
+        ? entitlements.matchmakingPackage
+        : 'local';
+  const canSeeInternational = access === 'international' || access === 'both';
   const missingAfterPayment = currentProfile?.paymentConfirmed ? missingProfileRequirements(currentProfile) : [];
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
@@ -318,14 +349,9 @@ export function DiscoverScreen() {
       const eligible = approvedIds.includes(p.id) || approvedIds.includes(p.userId) || p.isVerified || p.isVisible;
       if (!eligible) return false;
 
-      const myType =
-        entitlements.matchType === 'local' || entitlements.matchType === 'international' || entitlements.matchType === 'both'
-          ? entitlements.matchType
-          : entitlements.matchmakingPackage === 'local' || entitlements.matchmakingPackage === 'international' || entitlements.matchmakingPackage === 'both'
-            ? entitlements.matchmakingPackage
-            : null;
-      const theirType = p.matchType === 'local' || p.matchType === 'international' || p.matchType === 'both' ? p.matchType : null;
-      if (myType && myType !== 'both' && theirType && theirType !== 'both' && theirType !== myType) return false;
+      const localProfile = profileIsLocal(p);
+      if (access === 'local' && !localProfile) return false;
+      if (access === 'international' && localProfile && p.matchType !== 'both') return false;
 
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
@@ -354,7 +380,7 @@ export function DiscoverScreen() {
 
       return true;
     });
-  }, [profiles, filters, blockedIds, entitlements, approvedIds]);
+  }, [profiles, filters, blockedIds, entitlements, approvedIds, access]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
@@ -383,6 +409,11 @@ export function DiscoverScreen() {
   const handleExploreMatch = (profileId: string) => {
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
+    if (!canSeeInternational && !profileIsLocal(target)) {
+      setShowInternationalPaywall(true);
+      setToastMessage('Local matches are free. Pay for international access to connect with profiles outside Nigeria.');
+      return;
+    }
     setRequestLoading(profileId);
     sounds.playSend();
     sendInterest(target.userId)
@@ -442,6 +473,15 @@ export function DiscoverScreen() {
         </button>
       </div>
 
+      {!canSeeInternational && (
+        <div className="rounded-2xl border border-amber-300 bg-stone-950 p-3 text-xs text-amber-100">
+          Local matches are free. International profiles stay locked until you upgrade.
+          <button type="button" className="mt-2 block rounded-full bg-rose-900 px-3 py-2 text-[11px] font-semibold" onClick={() => setShowInternationalPaywall(true)}>
+            Upgrade for international access
+          </button>
+        </div>
+      )}
+
       <div className="rounded-3xl border border-stone-200 bg-white p-3">
         <h2 className="font-serif text-base font-bold text-stone-900">What are you looking for?</h2>
         <p className="mt-0.5 text-[11px] text-stone-500">Choose what fits you. We'll show the matching profiles in your package.</p>
@@ -471,6 +511,7 @@ export function DiscoverScreen() {
           Payment is verified and saved. Complete your profile before approval: {missingAfterPayment.join(', ')}. Open Profile to finish. You do not need to pay again.
         </div>
       )}
+      {showInternationalPaywall && <MatchmakingPaywall onClose={() => setShowInternationalPaywall(false)} />}
       {showWelcome && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onClick={dismissWelcome}>
           <div className="w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-3xl bg-white p-5 text-stone-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
