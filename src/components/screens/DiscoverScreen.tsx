@@ -87,8 +87,6 @@ function isLocalLocation(location: string): boolean {
 }
 
 function profileIsLocal(profile: Profile): boolean {
-  if (profile.matchType === 'international') return false;
-  if (profile.matchType === 'local') return true;
   return isLocalLocation(profile.location || '');
 }
 
@@ -351,7 +349,7 @@ export function DiscoverScreen() {
 
       const localProfile = profileIsLocal(p);
       if (access === 'local' && !localProfile) return false;
-      if (access === 'international' && localProfile && p.matchType !== 'both') return false;
+      if (access === 'international' && localProfile) return false;
 
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
