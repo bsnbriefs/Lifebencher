@@ -7,7 +7,7 @@ import {
   listenAllTransactions
 } from '../../lib/billing';
 import { formatNgn } from '../../lib/products';
-import { listenAllProfiles } from '../../lib/admin';
+import { listenAllProfiles, profileReadyForReview, setProfileVerified } from '../../lib/admin';
 import { Profile } from '../../types';
 
 const FILTERS = [
@@ -120,7 +120,7 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
       <button type="button" className="text-[11px] font-semibold text-stone-600" onClick={() => setShowArchived((v) => !v)}>{showArchived ? 'Hide archived' : 'Show archived'}</button>
 
       <p className="text-[11px] text-stone-500">
-        Flutterwave checkouts confirm themselves after verification. Use Confirm only for bank or already-paid claims.
+        These Flutterwave records are unpaid checkouts. Do not confirm them unless Flutterwave has verified the payment. Approve the profile to onboard the user without a package.
       </p>
 
       {listError && (
@@ -151,15 +151,31 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
             <button type="button" className="flex-1 py-2 rounded-xl border text-[11px] font-semibold" onClick={() => setReviewTx(tx)}>Review payment</button>
           </div>
           {tx.status === 'pending' && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={tx.source === 'flutterwave' || !tx.receiptUrl}
-                onClick={() => setReviewTx(tx)}
-                className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold disabled:bg-stone-300"
-              >
-                Confirm & grant
-              </button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!profile || profile.isVerified || !profileReadyForReview(profile)}
+                  onClick={() => {
+                    if (!profile) return;
+                    void setProfileVerified(profile, true)
+                      .then(() => onNotice(`${profile.displayName} is onboarded. No package was granted.`))
+                      .catch((e) => onNotice(e instanceof Error ? e.message : 'Could not onboard profile'));
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold disabled:bg-stone-300"
+                >
+                  {profile?.isVerified ? 'Already approved' : profile && profileReadyForReview(profile) ? 'Approve profile' : 'Profile incomplete'}
+                </button>
+                <button
+                  type="button"
+                  disabled={tx.source === 'flutterwave' || !tx.receiptUrl}
+                  onClick={() => setReviewTx(tx)}
+                  className="flex-1 py-2 rounded-xl border text-[11px] font-semibold disabled:bg-stone-300"
+                >
+                  Confirm & grant
+                </button>
+              </div>
+              <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -175,6 +191,7 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                 if (!ok) return;
                 void adminRemoveBillingRecord(tx).then((result) => onNotice(result === 'archived' ? 'Archived from the active list. Entitlement kept.' : 'Record removed. Entitlement kept.'));
               }}>Delete</button>
+              </div>
             </div>
           )}
           {tx.status !== 'pending' && (
@@ -210,14 +227,13 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                       <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-rose-800 underline">Open full receipt</a>
                     </div>
                   ) : tx.source === 'flutterwave' ? (
-                    <p className="text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">Awaiting Flutterwave verification. This profile stays out of review until Flutterwave confirms the payment.</p>
+                    <p className="text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">Older Flutterwave claim is still pending. Confirm & grant only if you want to onboard this package now.</p>
                   ) : (
                     <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">No uploaded receipt. Do not approve this claim until the customer submits a payment receipt.</p>
                   )}
                   {reviewTx && tx.status === 'pending' && (
-                    <button type="button" disabled={!tx.receiptUrl || tx.source === 'flutterwave'} className="w-full py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold disabled:bg-stone-300" onClick={() => {
-                      if (tx.source === 'flutterwave') return onNotice('Await Flutterwave verification');
-                      if (!tx.receiptUrl) return onNotice('Receipt required before approval');
+                    <button type="button" disabled={tx.source !== 'flutterwave' && !tx.receiptUrl} className="w-full py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold disabled:bg-stone-300" onClick={() => {
+                      if (tx.source !== 'flutterwave' && !tx.receiptUrl) return onNotice('Receipt required before approval');
                       if (!tx.userId || !profile) return onNotice('Customer profile unavailable');
                       const ok = window.confirm(`Confirm payment?\n\nCustomer: ${profile.displayName}\nPackage: ${tx.productName}\nAmount: ${formatNgn(tx.amountNgn)}\nReference: ${tx.reference}`);
                       if (!ok) return;

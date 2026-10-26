@@ -90,7 +90,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   const queue: VerificationCandidate[] = useMemo(
     () =>
       liveProfiles
-        .filter((p) => p.accountStatus !== 'removed' && p.paymentConfirmed === true && !p.isVerified)
+        .filter((p) => p.accountStatus !== 'removed' && !p.isVerified)
         .map((p) => ({
           id: p.id,
           displayName: p.displayName,
