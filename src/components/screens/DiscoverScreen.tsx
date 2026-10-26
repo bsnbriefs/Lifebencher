@@ -142,7 +142,7 @@ async function ensurePushSubscription(reg: ServiceWorkerRegistration, key: Uint8
 }
 
 export function DiscoverScreen() {
-  const { user, currentProfile, preferences } = useAuth();
+  const { user, currentProfile, preferences, isAdmin } = useAuth();
   const installState = usePWAInstall();
   const [showWelcome, setShowWelcome] = useState(false);
   const [installNote, setInstallNote] = useState<string | null>(null);
@@ -348,8 +348,8 @@ export function DiscoverScreen() {
       if (!eligible) return false;
 
       const localProfile = profileIsLocal(p);
-      if (access === 'local' && !localProfile) return false;
-      if (access === 'international' && localProfile) return false;
+      if (!isAdmin && access === 'local' && !localProfile) return false;
+      if (!isAdmin && access === 'international' && localProfile) return false;
 
       if (filters.searchTerm.trim()) {
         const query = filters.searchTerm.toLowerCase();
@@ -378,7 +378,7 @@ export function DiscoverScreen() {
 
       return true;
     });
-  }, [profiles, filters, blockedIds, entitlements, approvedIds, access]);
+  }, [profiles, filters, blockedIds, entitlements, approvedIds, access, isAdmin]);
 
   // Active filter count indicator
   const activeFilterCount = useMemo(() => {
@@ -407,7 +407,7 @@ export function DiscoverScreen() {
   const handleExploreMatch = (profileId: string) => {
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
-    if (!canSeeInternational && !profileIsLocal(target)) {
+    if (!isAdmin && !canSeeInternational && !profileIsLocal(target)) {
       setShowInternationalPaywall(true);
       setToastMessage('Local matches are free. Pay for international access to connect with profiles outside Nigeria.');
       return;
@@ -471,7 +471,7 @@ export function DiscoverScreen() {
         </button>
       </div>
 
-      {!canSeeInternational && (
+      {!isAdmin && !canSeeInternational && (
         <div className="rounded-2xl border border-amber-300 bg-stone-950 p-3 text-xs text-amber-100">
           Local matches are free. International profiles stay locked until you upgrade.
           <button type="button" className="mt-2 block rounded-full bg-rose-900 px-3 py-2 text-[11px] font-semibold" onClick={() => setShowInternationalPaywall(true)}>
