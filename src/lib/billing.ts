@@ -207,9 +207,6 @@ export async function adminSetTransactionStatus(id: string, status: TxStatus): P
 
 export async function adminGrantFromTransaction(tx: BillingTransaction): Promise<void> {
   if (!tx.userId) throw new Error('Customer identity unavailable — review required');
-  if (tx.source === 'flutterwave' && tx.status !== 'success') {
-    throw new Error('Await Flutterwave verification. Do not approve an unverified checkout.');
-  }
   if ((tx.source === 'receipt_claim' || tx.source === 'claim') && !tx.receiptUrl) {
     throw new Error('No payment receipt uploaded. Do not approve until the customer submits a receipt.');
   }
@@ -236,8 +233,8 @@ export async function adminGrantFromTransaction(tx: BillingTransaction): Promise
     patch.extraMatches = 1;
   }
 
-  await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   await adminSetTransactionStatus(tx.id, 'success');
+  await setDoc(doc(db, 'entitlements', uid), patch, { merge: true });
   if (product?.id === 'matchmaking_local' || product?.id === 'matchmaking_international' || product?.id === 'matchmaking_both') {
     const profileSnap = await getDoc(doc(db, 'profiles', uid));
     const p = profileSnap.data() || {};
