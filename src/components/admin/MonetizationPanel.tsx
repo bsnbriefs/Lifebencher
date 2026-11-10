@@ -120,7 +120,7 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
       <button type="button" className="text-[11px] font-semibold text-stone-600" onClick={() => setShowArchived((v) => !v)}>{showArchived ? 'Hide archived' : 'Show archived'}</button>
 
       <p className="text-[11px] text-stone-500">
-        These Flutterwave records are unpaid checkouts. Do not confirm them unless Flutterwave has verified the payment. Approve the profile to onboard the user without a package.
+        Flutterwave alerts are your proof. Use Confirm & grant after you receive the alert. Do not confirm a checkout that has no alert or receipt.
       </p>
 
       {listError && (
@@ -168,9 +168,9 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                 </button>
                 <button
                   type="button"
-                  disabled={tx.source === 'flutterwave' || !tx.receiptUrl}
+                  disabled={tx.source !== 'flutterwave' && !tx.receiptUrl}
                   onClick={() => setReviewTx(tx)}
-                  className="flex-1 py-2 rounded-xl border text-[11px] font-semibold disabled:bg-stone-300"
+                  className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold disabled:bg-stone-300"
                 >
                   Confirm & grant
                 </button>
