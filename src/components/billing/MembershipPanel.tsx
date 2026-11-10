@@ -64,7 +64,7 @@ export const MembershipPanel: React.FC = () => {
         <p className="text-[11px] text-stone-500 mt-1">
           {plusOn
             ? `Active until ${new Date(ent.planExpiresAt || '').toLocaleDateString()}`
-            : 'Free members keep Discover, interest, and chat after a match.'}
+            : 'Matching in the app is free. Plus is an optional ₦5,000/month upgrade. It is not a match package.'}
         </p>
       </div>
 
