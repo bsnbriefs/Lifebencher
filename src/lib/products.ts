@@ -19,7 +19,7 @@ export const PRODUCTS: Product[] = [
     priceNgn: 5000,
     priceLabel: '₦5,000/mo',
     cadence: 'monthly',
-    summary: 'See who liked you, extra filters, visibility, and 1 boost each month.',
+    summary: 'Optional Plus. Not required to match in the app. See who liked you, extra filters, visibility, and 1 boost each month.',
     bullets: [
       'See who likes you',
       'Advanced filters',
@@ -41,22 +41,22 @@ export const PRODUCTS: Product[] = [
   {
     id: 'matchmaking_local',
     kind: 'matchmaking',
-    name: 'Nigeria Matchmaking',
+    name: 'IG Manual — Nigeria',
     priceNgn: 30000,
     priceLabel: '₦30,000',
     cadence: 'one_time',
-    summary: 'Human-assisted introductions in Nigeria. Up to 3 matches.',
-    bullets: ['Up to 3 introductions', 'Existing 7-day connection rules']
+    summary: 'Manual matching on the Lifebencher Instagram page for Nigeria. App matching stays free.',
+    bullets: ['Manual IG introductions in Nigeria', 'Not required to use the app']
   },
   {
     id: 'matchmaking_international',
     kind: 'matchmaking',
-    name: 'International Matchmaking',
-    priceNgn: 50000,
-    priceLabel: '₦50,000',
+    name: 'IG Manual — International',
+    priceNgn: 60000,
+    priceLabel: '₦60,000',
     cadence: 'one_time',
-    summary: 'Human-assisted introductions abroad. Up to 3 matches.',
-    bullets: ['Up to 3 introductions', 'Existing matching workflow']
+    summary: 'Manual matching on the Lifebencher Instagram page for international clients. App matching stays free.',
+    bullets: ['Manual IG introductions abroad', 'Not required to use the app']
   },
   {
     id: 'matchmaking_both',
