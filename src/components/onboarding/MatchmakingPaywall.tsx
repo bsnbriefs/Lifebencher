@@ -112,8 +112,8 @@ export const MatchmakingPaywall: React.FC<{ onClose?: () => void }> = ({ onClose
 
       <div className="max-w-md w-full mx-auto flex-1 space-y-3">
         <div>
-          <h1 className="font-serif text-xl font-bold text-stone-900">Choose your match package</h1>
-          <p className="text-xs text-stone-500 mt-1">Pay through Flutterwave. Your profile enters review only after payment is verified.</p>
+          <h1 className="font-serif text-xl font-bold text-stone-900">Manual IG matching</h1>
+          <p className="text-xs text-stone-500 mt-1">Matching in the app is free. These packages are only for manual introductions on the Lifebencher Instagram page.</p>
         </div>
 
         <button
@@ -125,12 +125,12 @@ export const MatchmakingPaywall: React.FC<{ onClose?: () => void }> = ({ onClose
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
               <MapPin className="w-4 h-4 text-rose-800" />
-              Nigeria
+              Nigeria — IG manual
             </span>
             <span className="font-bold text-rose-900 text-sm">₦30,000</span>
           </div>
-          <p className="text-[11px] text-stone-600">Meet matches in Nigeria</p>
-          <p className="text-[10px] text-stone-400">Up to 3 matches</p>
+          <p className="text-[11px] text-stone-600">Manual introductions on Instagram for Nigeria</p>
+          <p className="text-[10px] text-stone-400">App matching stays free</p>
         </button>
 
         <button
@@ -142,32 +142,12 @@ export const MatchmakingPaywall: React.FC<{ onClose?: () => void }> = ({ onClose
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
               <Globe2 className="w-4 h-4 text-rose-800" />
-              Abroad
-            </span>
-            <span className="font-bold text-rose-900 text-sm">₦50,000</span>
-          </div>
-          <p className="text-[11px] text-stone-600">Meet international matches</p>
-          <p className="text-[10px] text-stone-400">Up to 3 matches</p>
-        </button>
-
-        <button
-          type="button"
-          disabled={!!busy}
-          onClick={() => void pay('matchmaking_both')}
-          className={`w-full text-left px-4 py-3 rounded-2xl border bg-white space-y-1 opacity-100 ${busy === 'matchmaking_both' ? 'border-rose-400 ring-2 ring-rose-100' : 'border-rose-300'}`}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2 font-semibold text-stone-900 text-sm">
-              <Globe2 className="w-4 h-4 text-rose-800" />
-              Local + Foreign
+              International — IG manual
             </span>
             <span className="font-bold text-rose-900 text-sm">₦60,000</span>
           </div>
-          <p className="text-[11px] text-stone-700">Meet matches in Nigeria and abroad</p>
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] text-stone-600">Up to 3 matches total</p>
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-100 bg-rose-900 px-1.5 py-0.5 rounded-full">Both pools</span>
-          </div>
+          <p className="text-[11px] text-stone-600">Manual introductions on Instagram for international clients</p>
+          <p className="text-[10px] text-stone-400">App matching stays free</p>
         </button>
 
         <div className="rounded-2xl border border-stone-200 bg-white p-3 space-y-2">
