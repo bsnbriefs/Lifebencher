@@ -227,7 +227,11 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                       <a href={tx.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-rose-800 underline">Open full receipt</a>
                     </div>
                   ) : tx.source === 'flutterwave' ? (
-                    <p className="text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">Older Flutterwave claim is still pending. Confirm & grant only if you want to onboard this package now.</p>
+                    <p className="text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-2xl p-3">
+                      {tx.productId === 'plus_monthly'
+                        ? 'Plus upgrade is pending. Confirm & grant only after you receive the Flutterwave alert. This turns on Plus for 30 days. It does not buy matches.'
+                        : 'Flutterwave checkout is still pending. Confirm & grant only after you receive the Flutterwave alert for this payment.'}
+                    </p>
                   ) : (
                     <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">No uploaded receipt. Do not approve this claim until the customer submits a payment receipt.</p>
                   )}
@@ -238,7 +242,7 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                       const ok = window.confirm(`Confirm payment?\n\nCustomer: ${profile.displayName}\nPackage: ${tx.productName}\nAmount: ${formatNgn(tx.amountNgn)}\nReference: ${tx.reference}`);
                       if (!ok) return;
                       void adminGrantFromTransaction(tx).then(() => { onNotice(`Confirmed ${tx.productName}`); setReviewTx(null); }).catch((e) => onNotice(e instanceof Error ? e.message : 'Confirm failed'));
-                    }}>Confirm & grant</button>
+                    }}>Confirm & grant {tx.productId === 'plus_monthly' ? 'Plus' : 'package'}</button>
                   )}
                 </>
               );
