@@ -169,7 +169,15 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                 <button
                   type="button"
                   disabled={tx.source !== 'flutterwave' && !tx.receiptUrl}
-                  onClick={() => setReviewTx(tx)}
+                  onClick={() => {
+                    if (tx.source !== 'flutterwave' && !tx.receiptUrl) return onNotice('Receipt required before approval');
+                    if (!profile) return onNotice('Customer profile unavailable');
+                    const ok = window.confirm(`Confirm this Flutterwave payment?\n\n${profile.displayName}\n${tx.productName}\n${formatNgn(tx.amountNgn)}\n${tx.reference}`);
+                    if (!ok) return;
+                    void adminGrantFromTransaction(tx)
+                      .then(() => onNotice(`${tx.productName} granted. It will leave pending.`))
+                      .catch((e) => onNotice(e instanceof Error ? e.message : 'Confirm failed'));
+                  }}
                   className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold disabled:bg-stone-300"
                 >
                   Confirm & grant
