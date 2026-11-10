@@ -27,6 +27,8 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
   const [showArchived, setShowArchived] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [grantingId, setGrantingId] = useState<string | null>(null);
   const [reviewTx, setReviewTx] = useState<BillingTransaction | null>(null);
   const [profileTx, setProfileTx] = useState<BillingTransaction | null>(null);
 
@@ -123,6 +125,9 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
         Flutterwave alerts are your proof. Use Confirm & grant after you receive the alert. Do not confirm a checkout that has no alert or receipt.
       </p>
 
+      {grantError && (
+        <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{grantError}</p>
+      )}
       {listError && (
         <p className="text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-2xl p-3">{listError}</p>
       )}
@@ -168,19 +173,24 @@ export const MonetizationPanel: React.FC<{ onNotice: (msg: string) => void }> = 
                 </button>
                 <button
                   type="button"
-                  disabled={tx.source !== 'flutterwave' && !tx.receiptUrl}
+                  disabled={grantingId === tx.id || (tx.source !== 'flutterwave' && !tx.receiptUrl)}
                   onClick={() => {
                     if (tx.source !== 'flutterwave' && !tx.receiptUrl) return onNotice('Receipt required before approval');
                     if (!profile) return onNotice('Customer profile unavailable');
-                    const ok = window.confirm(`Confirm this Flutterwave payment?\n\n${profile.displayName}\n${tx.productName}\n${formatNgn(tx.amountNgn)}\n${tx.reference}`);
-                    if (!ok) return;
+                    setGrantError(null);
+                    setGrantingId(tx.id);
                     void adminGrantFromTransaction(tx)
                       .then(() => onNotice(`${tx.productName} granted. It will leave pending.`))
-                      .catch((e) => onNotice(e instanceof Error ? e.message : 'Confirm failed'));
+                      .catch((e) => {
+                        const message = e instanceof Error ? e.message : 'Confirm failed';
+                        setGrantError(`${profile.displayName}: ${message}`);
+                        onNotice(message);
+                      })
+                      .finally(() => setGrantingId(null));
                   }}
                   className="flex-1 py-2 rounded-xl bg-emerald-700 text-white text-[11px] font-semibold disabled:bg-stone-300"
                 >
-                  Confirm & grant
+                  {grantingId === tx.id ? 'Granting…' : 'Confirm & grant'}
                 </button>
               </div>
               <div className="flex gap-2">
