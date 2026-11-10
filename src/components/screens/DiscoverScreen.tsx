@@ -407,11 +407,6 @@ export function DiscoverScreen() {
   const handleExploreMatch = (profileId: string) => {
     const target = profiles.find((p) => p.id === profileId);
     if (!target) return;
-    if (!isAdmin && !canSeeInternational && !profileIsLocal(target)) {
-      setShowInternationalPaywall(true);
-      setToastMessage('Local matches are free. Pay for international access to connect with profiles outside Nigeria.');
-      return;
-    }
     setRequestLoading(profileId);
     sounds.playSend();
     sendInterest(target.userId)
@@ -473,9 +468,9 @@ export function DiscoverScreen() {
 
       {!isAdmin && !canSeeInternational && (
         <div className="rounded-2xl border border-amber-300 bg-stone-950 p-3 text-xs text-amber-100">
-          Local matches are free. International profiles stay locked until you upgrade.
+          App matching is free. Manual Instagram introductions are paid: ₦30,000 Nigeria, ₦60,000 international.
           <button type="button" className="mt-2 block rounded-full bg-rose-900 px-3 py-2 text-[11px] font-semibold" onClick={() => setShowInternationalPaywall(true)}>
-            Upgrade for international access
+            Request manual IG matching
           </button>
         </div>
       )}
